@@ -59,13 +59,15 @@ namespace HulaScript {
 
 		struct value {
 			enum vtype : uint8_t {
+				NIL,
 				NUMBER,
 				BOOLEAN,
 				TABLE,
 				CLOSURE
 			} type;
 
-			uint8_t flags;
+			uint8_t table_flags;
+			uint16_t flags;
 			uint32_t function_id;
 
 			union {
@@ -74,10 +76,12 @@ namespace HulaScript {
 				size_t id;
 			} data;
 
-			value(double number) : type(vtype::NUMBER), flags(0), function_id(0), data({.number = number}) { }
-			value(bool boolean) : type(vtype::BOOLEAN), flags(0), function_id(0), data({.boolean = boolean}) { }
+			value() : value(vtype::NIL, 0, 0, 0, 0) { }
 
-			value(vtype t, uint8_t flags, uint32_t function_id, uint64_t data) : type(t), flags(flags), function_id(function_id), data({ .id = data }) { }
+			value(double number) : type(vtype::NUMBER), table_flags(0), flags(0), function_id(0), data({.number = number}) { }
+			value(bool boolean) : type(vtype::BOOLEAN), table_flags(0), flags(0), function_id(0), data({.boolean = boolean}) { }
+
+			value(vtype t, uint8_t table_flags, uint16_t flags, uint32_t function_id, uint64_t data) : type(t), table_flags(table_flags), flags(flags), function_id(function_id), data({.id = data}) { }
 		};
 
 		struct gc_block {
@@ -105,16 +109,17 @@ namespace HulaScript {
 
 		phmap::flat_hash_map<size_t, table> tables;
 		std::vector<size_t> availible_table_ids;
-		
+		size_t next_table_id = 0;
+
 		std::vector<value> heap; //where elements of tables are stored
 		std::vector<value> locals; //where local variables are stores
 		std::vector<value> globals; //where global variables are stored; max capacity of 256
 
-		size_t local_offset;
+		size_t local_offset = 0;
 		std::vector<operand> extended_offsets;
 
 		std::vector<size_t> return_stack;
-		size_t ip;
+		size_t ip = 0;
 		std::vector<instruction> instructions;
 
 		phmap::flat_hash_map<uint32_t, function_entry> functions;
@@ -122,11 +127,12 @@ namespace HulaScript {
 
 		std::vector<value> values_to_trace;
 		std::vector<uint32_t> functions_to_trace;
+		uint32_t next_function_id = 0;
 
 		void execute();
 
-		gc_block allocate_block(size_t capacity);
-		table allocate_table(size_t capacity);
+		gc_block allocate_block(size_t capacity, bool allow_collect);
+		size_t allocate_table(size_t capacity, bool allow_collect);
 		void garbage_collect(bool compact_instructions) noexcept;
 	};
 }

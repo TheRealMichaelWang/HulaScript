@@ -3,6 +3,26 @@
 
 using namespace HulaScript;
 
+instance::gc_block instance::allocate_block(size_t capacity, bool allow_collect) {
+	if (heap.size() + capacity >= heap.capacity() && allow_collect) {
+		garbage_collect(false);
+	}
+
+	gc_block block = { .start = heap.size(), .capacity = capacity };
+	heap.insert(heap.end(), capacity, value());
+	return block;
+}
+
+size_t instance::allocate_table(size_t capacity, bool allow_collect) {
+	table t = {
+		.block = allocate_block(capacity, allow_collect),
+		.count = 0
+	};
+	tables.insert({ next_table_id, t });
+	next_table_id++;
+	return next_table_id;
+}
+
 void instance::garbage_collect(bool compact_instructions) {
 	values_to_trace.insert(values_to_trace.end(), globals.begin(), globals.end());
 	values_to_trace.insert(values_to_trace.end(), locals.begin(), locals.end());
@@ -46,6 +66,7 @@ void instance::garbage_collect(bool compact_instructions) {
 	//remove unused table entries
 	for (auto it = tables.begin(); it != tables.end(); ) {
 		if (!marked_tables.contains(it->first)) {
+			availible_table_ids.push_back(it->first);
 			it = tables.erase(it);
 		}
 		else {
@@ -70,13 +91,18 @@ void instance::garbage_collect(bool compact_instructions) {
 			continue;
 		}
 
+		auto start_it = heap.begin() + table.block.start;
+		std::move(start_it, start_it + table.count, heap.begin() + table_offset);
+
 		table.block.start = table_offset;
 		table_offset += table.count;
 	}
+	heap.erase(heap.begin() + table_offset, heap.end());
 
 	//removed unused functions
 	for (auto it = functions.begin(); it != functions.end();) {
 		if (!marked_functions.contains(it->first)) {
+			availible_function_ids.push_back(it->first);
 			it = functions.erase(it);
 		}
 		else {
@@ -86,7 +112,7 @@ void instance::garbage_collect(bool compact_instructions) {
 
 	//compact instructions after removing unused functions
 	if (compact_instructions) {
-		size_t ip = 0;
+		size_t ip = 0; //sort functions by start address
 		std::vector<uint32_t> sorted_functions(marked_functions.begin(), marked_functions.end());
 		std::sort(sorted_functions.begin(), sorted_functions.end(), [this](uint32_t a, uint32_t b) -> bool {
 			return functions[a].start_address < functions[b].start_address;
