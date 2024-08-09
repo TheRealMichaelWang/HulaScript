@@ -10,6 +10,5 @@ int main()
 {
 	std::optional<int> a = 0;
 
-	cout << "Hello CMake." << endl;
 	return 0;
 }
