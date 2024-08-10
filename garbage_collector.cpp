@@ -4,6 +4,13 @@
 using namespace HulaScript;
 
 instance::gc_block instance::allocate_block(size_t capacity, bool allow_collect) {
+	auto it = free_blocks.lower_bound(capacity);
+	if (it != free_blocks.end()) {
+		gc_block block = it->second;
+		it = free_blocks.erase(it);
+		return block;
+	}
+
 	if (heap.size() + capacity >= heap.capacity() && allow_collect) {
 		garbage_collect(false);
 	}
@@ -21,6 +28,21 @@ size_t instance::allocate_table(size_t capacity, bool allow_collect) {
 	tables.insert({ next_table_id, t });
 	next_table_id++;
 	return next_table_id;
+}
+
+void instance::reallocate_table(size_t table_id, size_t new_capacity, bool allow_collect) {
+	table& t = tables[table_id];
+
+	if (new_capacity > t.block.capacity) {
+		gc_block block = allocate_block(new_capacity, allow_collect);
+		free_blocks.insert({ t.block.capacity, t.block });
+		t.block = block;
+	}
+	else if (new_capacity < t.block.capacity) {
+		gc_block block = { t.block.start + new_capacity, t.block.capacity - new_capacity };
+		t.block.capacity = new_capacity;
+		free_blocks.insert({ block.capacity, block });
+	}
 }
 
 void instance::garbage_collect(bool compact_instructions) {
@@ -98,6 +120,7 @@ void instance::garbage_collect(bool compact_instructions) {
 		table_offset += table.count;
 	}
 	heap.erase(heap.begin() + table_offset, heap.end());
+	free_blocks.clear();
 
 	//removed unused functions
 	for (auto it = functions.begin(); it != functions.end();) {
@@ -133,5 +156,6 @@ void instance::garbage_collect(bool compact_instructions) {
 			ip += function.length;
 		}
 		instructions.erase(instructions.begin() + ip, instructions.end());
+		ip = instructions.size();
 	}
 }

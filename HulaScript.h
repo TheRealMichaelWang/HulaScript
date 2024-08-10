@@ -34,9 +34,7 @@ namespace HulaScript {
 
 			LOAD_TABLE,
 			STORE_TABLE,
-			ADD_TABLE,
 			ALLOCATE_TABLE,
-			FINALIZE_TABLE,
 
 			ADD,
 			SUBTRACT,
@@ -49,6 +47,9 @@ namespace HulaScript {
 			JUMP_BACK,
 			CONDITIONAL_JUMP_AHEAD,
 			CONDITIONAL_JUMP_BACK,
+
+			CALL,
+			RETURN
 		};
 
 		struct instruction
@@ -99,6 +100,8 @@ namespace HulaScript {
 			size_t start_address;
 			size_t length;
 
+			operand parameter_count;
+
 			//other function id's that are referenced in any instruction between start_address and start_address + length
 			std::vector<uint32_t> referenced_functions;
 		};
@@ -107,9 +110,12 @@ namespace HulaScript {
 		std::vector<size_t> availible_constant_ids;
 		phmap::flat_hash_set<size_t> constant_hashses;
 
+		phmap::btree_multimap<size_t, gc_block> free_blocks;
 		phmap::flat_hash_map<size_t, table> tables;
 		std::vector<size_t> availible_table_ids;
 		size_t next_table_id = 0;
+
+		std::vector<value> evaluation_stack;
 
 		std::vector<value> heap; //where elements of tables are stored
 		std::vector<value> locals; //where local variables are stores
@@ -131,8 +137,13 @@ namespace HulaScript {
 
 		void execute();
 
+		//allocates a zone in heap, represented by gc_block
 		gc_block allocate_block(size_t capacity, bool allow_collect);
 		size_t allocate_table(size_t capacity, bool allow_collect);
+
+		//expands/retracts the size of a table
+		void reallocate_table(size_t table_id, size_t new_capacity, bool allow_collect);
+
 		void garbage_collect(bool compact_instructions) noexcept;
 	};
 }
