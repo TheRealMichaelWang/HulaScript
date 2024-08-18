@@ -10,9 +10,10 @@
 #include <string>
 #include <memory>
 #include <optional>
-#include "source_loc.h"
 #include "btree.h"
 #include "phmap.h"
+#include "source_loc.h"
+#include "error.h"
 
 namespace HulaScript {
 	class instance {
@@ -165,6 +166,25 @@ namespace HulaScript {
 			}
 			it--;
 			return it->second;
+		}
+
+		runtime_error make_error(std::string msg) {
+			std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;
+			call_stack.reserve(return_stack.size() + 1);
+
+			std::vector<size_t> ip_stack(return_stack);
+			ip_stack.push_back(ip);
+			for (auto it = ip_stack.begin(); it != ip_stack.end(); ) {
+				size_t ip = *it;
+				size_t count = 0;
+				do {
+					count++;
+					it++;
+				} while (it != ip_stack.end() && *it == ip);
+				call_stack.push_back(std::make_pair(src_from_ip(ip), count));
+			}
+
+			return runtime_error(msg, call_stack);
 		}
 	};
 }

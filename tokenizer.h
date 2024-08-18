@@ -1,5 +1,7 @@
 #include <variant>
 #include <string>
+#include <optional>
+#include "source_loc.h"
 
 namespace HulaScript {
 	enum token_type {
@@ -90,7 +92,12 @@ namespace HulaScript {
 	};
 
 	class tokenizer {
+	public:
+
+
 	private:
+		std::optional<std::string> file_name;
 		std::string source;
+		size_t pos, row, col;
 	};
 }

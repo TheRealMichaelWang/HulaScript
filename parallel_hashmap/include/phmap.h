@@ -4540,12 +4540,12 @@ private:
     static const T* ToPtr(const T* ptr) { return ptr; }
 
     template <class U, class D>
-    static const T* ToPtr(const std::unique_ptr<U, D>& ptr) {
+    static const void* ToPtr(const std::unique_ptr<U, D>& ptr) {
         return ptr.get();
     }
 
     template <class U>
-    static const T* ToPtr(const std::shared_ptr<U>& ptr) {
+    static const void* ToPtr(const std::shared_ptr<U>& ptr) {
         return ptr.get();
     }
 };
