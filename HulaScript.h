@@ -153,6 +153,8 @@ namespace HulaScript {
 
 		void garbage_collect(bool compact_instructions) noexcept;
 
+		void expect_type(value::vtype expected_type);
+
 		value make_string(std::string str) {
 			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size()]));
 			std::strcpy(res.first->get(), str.c_str());
