@@ -141,6 +141,10 @@ void instance::garbage_collect(bool compact_instructions) {
 	//removed unused functions
 	for (auto it = functions.begin(); it != functions.end();) {
 		if (!marked_functions.contains(it->first)) {
+			//erase src locations within the ip range of the function entry
+			for (auto it2 = ip_src_map.lower_bound(it->second.start_address); it2 != ip_src_map.lower_bound(it->second.start_address + it->second.length); it2 = ip_src_map.erase(it2)) { }
+
+			//erase function entry and make id availible
 			availible_function_ids.push_back(it->first);
 			it = functions.erase(it);
 		}
@@ -168,6 +172,15 @@ void instance::garbage_collect(bool compact_instructions) {
 			auto start_it = instructions.begin() + function.start_address;
 			std::move(start_it, start_it + function.length, instructions.begin() + ip);
 			
+			std::vector<std::pair<size_t, source_loc>> to_reinsert;
+			size_t offset = function.start_address - ip;
+			for (auto it = ip_src_map.lower_bound(function.start_address); it != ip_src_map.lower_bound(function.start_address + function.length); it = ip_src_map.erase(it)) {
+				to_reinsert.push_back(std::make_pair(it->first - offset, it->second));
+			}
+			for (auto src_loc : to_reinsert) {
+				ip_src_map.insert(src_loc);
+			}
+
 			function.start_address = ip;
 			ip += function.length;
 		}

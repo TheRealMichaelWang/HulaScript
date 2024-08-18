@@ -9,6 +9,8 @@
 #include <array>
 #include <string>
 #include <memory>
+#include <optional>
+#include "source_loc.h"
 #include "btree.h"
 #include "phmap.h"
 
@@ -130,6 +132,7 @@ namespace HulaScript {
 		std::vector<size_t> return_stack;
 		size_t ip = 0;
 		std::vector<instruction> instructions;
+		phmap::btree_map<size_t, source_loc> ip_src_map;
 
 		phmap::flat_hash_map<uint32_t, function_entry> functions;
 		std::vector<uint32_t> availible_function_ids;
@@ -153,6 +156,15 @@ namespace HulaScript {
 			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size()]));
 			std::strcpy(res.first->get(), str.c_str());
 			return value(res.first->get());
+		}
+
+		std::optional<source_loc> src_from_ip(size_t ip) {
+			auto it = ip_src_map.upper_bound(ip);
+			if (it == ip_src_map.begin()) {
+				return std::nullopt;
+			}
+			it--;
+			return it->second;
 		}
 	};
 }

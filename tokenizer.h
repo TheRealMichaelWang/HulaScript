@@ -90,6 +90,7 @@ namespace HulaScript {
 	};
 
 	class tokenizer {
-
+	private:
+		std::string source;
 	};
 }

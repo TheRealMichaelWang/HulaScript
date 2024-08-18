@@ -14,7 +14,7 @@ project ("HulaScript")
 add_subdirectory(parallel_hashmap)
 
 # Add source to this project's executable.
-add_executable (HulaScript "HulaScript.cpp" "HulaScript.h" "garbage_collector.cpp" "interpreter.cpp" "tokenizer.h" "tokenizer.cpp")
+add_executable (HulaScript "HulaScript.cpp" "HulaScript.h" "garbage_collector.cpp" "interpreter.cpp" "tokenizer.h" "tokenizer.cpp" "source_loc.h")
 set_property(TARGET HulaScript PROPERTY CXX_STANDARD 20)
 set_property(TARGET HulaScript PROPERTY CXX_STANDARD_REQUIRED ON)
 
