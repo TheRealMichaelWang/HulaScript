@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstdlib>
 #include "HulaScript.h"
 
 using namespace HulaScript;
@@ -48,9 +49,11 @@ void instance::reallocate_table(size_t table_id, size_t new_capacity, bool allow
 void instance::garbage_collect(bool compact_instructions) {
 	values_to_trace.insert(values_to_trace.end(), globals.begin(), globals.end());
 	values_to_trace.insert(values_to_trace.end(), locals.begin(), locals.end());
+	values_to_trace.insert(values_to_trace.end(), constants.begin(), constants.end());
 
 	phmap::flat_hash_set<size_t> marked_tables;
 	phmap::flat_hash_set<uint32_t> marked_functions;
+	phmap::flat_hash_set<char*> marked_strs;
 
 	while (!values_to_trace.empty()) //trace values 
 	{
@@ -68,6 +71,9 @@ void instance::garbage_collect(bool compact_instructions) {
 			for (size_t i = 0; i < table.count; i++) {
 				values_to_trace.push_back(heap[i + table.block.start]);
 			}
+			break;
+		case value::vtype::STRING:
+			marked_strs.insert(to_trace.data.str);
 			break;
 		}
 		}
@@ -90,6 +96,16 @@ void instance::garbage_collect(bool compact_instructions) {
 		if (!marked_tables.contains(it->first)) {
 			availible_table_ids.push_back(it->first);
 			it = tables.erase(it);
+		}
+		else {
+			it++;
+		}
+	}
+
+	//removed unused strings
+	for (auto it = active_strs.begin(); it != active_strs.end();) {
+		if (!marked_strs.contains(it->get())) {
+			it = active_strs.erase(it);
 		}
 		else {
 			it++;

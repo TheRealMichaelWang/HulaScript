@@ -8,6 +8,7 @@
 #include <variant>
 #include <array>
 #include <string>
+#include <memory>
 #include "btree.h"
 #include "phmap.h"
 
@@ -63,6 +64,7 @@ namespace HulaScript {
 				NIL,
 				NUMBER,
 				BOOLEAN,
+				STRING,
 				TABLE,
 				CLOSURE
 			} type;
@@ -75,12 +77,14 @@ namespace HulaScript {
 				double number;
 				bool boolean;
 				size_t id;
+				char* str;
 			} data;
 
 			value() : value(vtype::NIL, 0, 0, 0, 0) { }
 
 			value(double number) : type(vtype::NUMBER), table_flags(0), flags(0), function_id(0), data({.number = number}) { }
 			value(bool boolean) : type(vtype::BOOLEAN), table_flags(0), flags(0), function_id(0), data({.boolean = boolean}) { }
+			value(char* str) : type(vtype::STRING), table_flags(0), flags(0), function_id(0), data({ .str = str }) { }
 
 			value(vtype t, uint8_t table_flags, uint16_t flags, uint32_t function_id, uint64_t data) : type(t), table_flags(table_flags), flags(flags), function_id(function_id), data({.id = data}) { }
 		};
@@ -106,9 +110,16 @@ namespace HulaScript {
 			std::vector<uint32_t> referenced_functions;
 		};
 
+		value make_string(std::string str) {
+			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size()]));
+			std::strcpy(res.first->get(), str.c_str());
+			return value(res.first->get());
+		}
+
 		std::vector<value> constants;
 		std::vector<size_t> availible_constant_ids;
 		phmap::flat_hash_set<size_t> constant_hashses;
+		phmap::flat_hash_set<std::unique_ptr<char[]>> active_strs;
 
 		phmap::btree_multimap<size_t, gc_block> free_blocks;
 		phmap::flat_hash_map<size_t, table> tables;
