@@ -9,6 +9,6 @@ using namespace std;
 int main()
 {
 	std::optional<int> a = 0;
-
+	
 	return 0;
 }

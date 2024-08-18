@@ -12,8 +12,6 @@
 #include "btree.h"
 #include "phmap.h"
 
-// TODO: Reference additional headers your program requires here.
-
 namespace HulaScript {
 	class instance {
 	public:
@@ -110,12 +108,6 @@ namespace HulaScript {
 			std::vector<uint32_t> referenced_functions;
 		};
 
-		value make_string(std::string str) {
-			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size()]));
-			std::strcpy(res.first->get(), str.c_str());
-			return value(res.first->get());
-		}
-
 		std::vector<value> constants;
 		std::vector<size_t> availible_constant_ids;
 		phmap::flat_hash_set<size_t> constant_hashses;
@@ -156,5 +148,11 @@ namespace HulaScript {
 		void reallocate_table(size_t table_id, size_t new_capacity, bool allow_collect);
 
 		void garbage_collect(bool compact_instructions) noexcept;
+
+		value make_string(std::string str) {
+			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size()]));
+			std::strcpy(res.first->get(), str.c_str());
+			return value(res.first->get());
+		}
 	};
 }
