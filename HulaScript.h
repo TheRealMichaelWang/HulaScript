@@ -153,7 +153,7 @@ namespace HulaScript {
 
 		void garbage_collect(bool compact_instructions) noexcept;
 
-		void expect_type(value::vtype expected_type);
+		void expect_type(value::vtype expected_type) const;
 
 		value make_string(std::string str) {
 			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size()]));
@@ -161,7 +161,7 @@ namespace HulaScript {
 			return value(res.first->get());
 		}
 
-		std::optional<source_loc> src_from_ip(size_t ip) {
+		std::optional<source_loc> src_from_ip(size_t ip) const noexcept {
 			auto it = ip_src_map.upper_bound(ip);
 			if (it == ip_src_map.begin()) {
 				return std::nullopt;
@@ -170,7 +170,7 @@ namespace HulaScript {
 			return it->second;
 		}
 
-		runtime_error make_error(std::string msg) {
+		runtime_error make_error(std::string msg) const noexcept {
 			std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;
 			call_stack.reserve(return_stack.size() + 1);
 

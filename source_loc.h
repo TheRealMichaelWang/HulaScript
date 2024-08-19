@@ -10,7 +10,7 @@ namespace HulaScript {
 
 		source_loc(size_t row, size_t col, std::optional<std::string> function_name , std::optional<std::string> file_name) : row(row), col(col), function_name(function_name), file_name(file_name) { }
 
-		std::string to_print_string();
+		std::string to_print_string() const noexcept;
 
 	private:
 		size_t row, col;

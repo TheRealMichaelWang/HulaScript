@@ -5,14 +5,14 @@
 
 using namespace HulaScript;
 
-std::string compilation_error::to_print_string() {
+std::string compilation_error::to_print_string() const noexcept {
 	std::stringstream ss;
 	ss << "In " << location.to_print_string() << std::endl;
 	ss << msg;
 	return ss.str();
 }
 
-std::string runtime_error::to_print_string() {
+std::string runtime_error::to_print_string() const noexcept {
 	std::stringstream ss;
 	ss << "Traceback (most recent call last): " << std::endl;
 	for (auto trace_back : call_stack) {
@@ -34,7 +34,7 @@ std::string runtime_error::to_print_string() {
 	return ss.str();
 }
 
-std::string source_loc::to_print_string() {
+std::string source_loc::to_print_string() const noexcept {
 	std::stringstream ss;
 	if (file_name.has_value()) {
 		ss << "File \"" << file_name.value() << "\", ";
@@ -48,7 +48,7 @@ std::string source_loc::to_print_string() {
 	return ss.str();
 }
 
-void instance::expect_type(value::vtype expected_type) {
+void instance::expect_type(value::vtype expected_type) const {
 	static const char* type_names[] = {
 		"NIL",
 		"NUMBER",

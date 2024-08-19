@@ -8,9 +8,10 @@
 
 namespace HulaScript {
 	class compilation_error : std::runtime_error {
+	public:
 		compilation_error(std::string msg, source_loc location) : std::runtime_error(msg), msg(msg), location(location) { }
 
-		std::string to_print_string();
+		std::string to_print_string() const noexcept;
 	private:
 		std::string msg;
 		source_loc location;
@@ -20,7 +21,7 @@ namespace HulaScript {
 	public:
 		runtime_error(std::string msg, std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack) :  std::runtime_error(msg), msg(msg), call_stack(call_stack) { }
 
-		std::string to_print_string();
+		std::string to_print_string() const noexcept;
 	private:
 		std::string msg;
 		std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;

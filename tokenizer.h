@@ -1,6 +1,11 @@
+#pragma once
+
 #include <variant>
 #include <string>
 #include <optional>
+#include <vector>
+#include <functional>
+#include "error.h"
 #include "source_loc.h"
 
 namespace HulaScript {
@@ -93,11 +98,36 @@ namespace HulaScript {
 
 	class tokenizer {
 	public:
+		tokenizer(std::string source, std::optional<std::string> file_name) : source(source), file_name(file_name), pos(0), current_row(1), current_col(0), last_tok_row(0), last_tok_col(0), last_char(0), last_token(token_type::END_OF_SOURCE) { 
+			scan_char();
+			scan_token();
+		}
 
+		token scan_token();
 
+		compilation_error make_error(std::string msg) const noexcept {
+			std::optional<std::string> current_function = std::nullopt;
+			if (!functions.empty()) {
+				current_function = functions.back();
+			}
+			return compilation_error(msg, source_loc(last_tok_row, last_tok_col, current_function, file_name));
+		}
+
+		void enter_function(std::string function_name, std::function<void()> action) {
+			functions.push_back(function_name);
+			action();
+			functions.pop_back();
+		}
 	private:
 		std::optional<std::string> file_name;
+		std::vector<std::string> functions;
 		std::string source;
-		size_t pos, row, col;
+		size_t pos, last_tok_row, last_tok_col, current_row, current_col;
+
+		char last_char;
+		token last_token;
+
+		char scan_char();
+		char scan_literal_char();
 	};
 }
