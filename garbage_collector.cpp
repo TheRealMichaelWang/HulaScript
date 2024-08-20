@@ -24,7 +24,8 @@ instance::gc_block instance::allocate_block(size_t capacity, bool allow_collect)
 size_t instance::allocate_table(size_t capacity, bool allow_collect) {
 	table t = {
 		.block = allocate_block(capacity, allow_collect),
-		.count = 0
+		.count = 0,
+		.key_hashes = phmap::btree_map<size_t, size_t>()
 	};
 	tables.insert({ next_table_id, t });
 	next_table_id++;

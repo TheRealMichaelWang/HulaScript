@@ -40,6 +40,50 @@ void instance::execute() {
 		case LOAD_GLOBAL:
 			evaluation_stack.push_back(globals[ins.operand]);
 			goto next_ins;
+
+		case LOAD_TABLE: {
+			value key = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			expect_type(value::vtype::TABLE);
+			table& table = tables[evaluation_stack.back().data.id];
+			evaluation_stack.pop_back();
+			
+			auto it = table.key_hashes.find(key.hash());
+			if (it == table.key_hashes.end()) {
+				evaluation_stack.push_back(value()); //push nil
+			}
+			else {
+				evaluation_stack.push_back(heap[table.block.start + it->second]);
+			}
+			goto next_ins;
+		}
+		case STORE_TABLE: {
+			value set_value = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			value key = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			expect_type(value::vtype::TABLE);
+			table& table = tables[evaluation_stack.back().data.id];
+			evaluation_stack.pop_back();
+
+			auto it = table.key_hashes.find(key.hash());
+			if (it == table.key_hashes.end()) {
+				evaluation_stack.push_back(value()); //push nil
+			}
+			else {
+				evaluation_stack.push_back(heap[table.block.start + it->second] = set_value);
+			}
+			goto next_ins;
+		}
+		case ALLOCATE_TABLE: {
+			expect_type(value::vtype::NUMBER);
+			value length = evaluation_stack.back();
+			evaluation_stack.pop_back();
+
+			size_t table_id = allocate_table(static_cast<size_t>(length.data.number), true);
+			evaluation_stack.push_back(value(value::vtype::TABLE, 0, 0, 0, table_id));
+			goto next_ins;
+		}
 		}
 
 	next_ins:

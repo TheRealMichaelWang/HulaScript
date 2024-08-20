@@ -88,6 +88,8 @@ namespace HulaScript {
 			value(char* str) : type(vtype::STRING), table_flags(0), flags(0), function_id(0), data({ .str = str }) { }
 
 			value(vtype t, uint8_t table_flags, uint16_t flags, uint32_t function_id, uint64_t data) : type(t), table_flags(table_flags), flags(flags), function_id(function_id), data({.id = data}) { }
+
+			size_t hash();
 		};
 
 		struct gc_block {
