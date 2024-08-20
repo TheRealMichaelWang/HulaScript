@@ -107,6 +107,7 @@ namespace HulaScript {
 			size_t start_address;
 			size_t length;
 
+			std::string name;
 			operand parameter_count;
 
 			//other function id's that are referenced in any instruction between start_address and start_address + length

@@ -1,4 +1,5 @@
 #include <cmath>
+#include <sstream>
 #include "HulaScript.h"
 
 using namespace HulaScript;
@@ -176,6 +177,42 @@ void instance::execute() {
 		case JUMP_BACK:
 			ip -= ins.operand;
 			continue;
+
+		case CALL: {
+			extended_offsets.push_back(local_offset);
+
+			//push arguments into local variable stack
+			locals.insert(locals.end(), evaluation_stack.end() - ins.operand, evaluation_stack.end());
+			evaluation_stack.erase(evaluation_stack.end() - ins.operand, evaluation_stack.end());
+
+			local_offset = locals.size();
+
+			return_stack.push_back(ip); //push return address
+
+			expect_type(value::vtype::CLOSURE);
+			function_entry& function = functions[evaluation_stack.back().function_id];
+			locals.push_back(value(value::vtype::TABLE, 0, 0, 0, evaluation_stack.back().data.id));
+			evaluation_stack.pop_back();
+
+			if (function.parameter_count != ins.operand) {
+				std::stringstream ss;
+				ss << "Argument Error: Function " << function.name << " expected " << function.parameter_count << " argument(s), but got " << ins.operand << " instead.";
+				throw make_error(ss.str());
+			}
+
+			ip = function.start_address;
+			continue;
+		}
+		case RETURN: {
+			local_offset = extended_offsets.back();
+			extended_offsets.pop_back();
+			locals.erase(locals.begin() + local_offset, locals.end());
+			
+			ip = return_stack.back();
+			return_stack.pop_back();
+
+			break;
+		}
 		}
 
 		ip++;
