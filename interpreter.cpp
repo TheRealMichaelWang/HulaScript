@@ -1,3 +1,4 @@
+#include <cmath>
 #include "HulaScript.h"
 
 using namespace HulaScript;
@@ -41,6 +42,7 @@ void instance::execute() {
 			evaluation_stack.push_back(globals[ins.operand]);
 			goto next_ins;
 
+		//table operations
 		case LOAD_TABLE: {
 			value key = evaluation_stack.back();
 			evaluation_stack.pop_back();
@@ -84,6 +86,69 @@ void instance::execute() {
 			evaluation_stack.push_back(value(value::vtype::TABLE, 0, 0, 0, table_id));
 			goto next_ins;
 		}
+
+		//arithmetic operations
+		case ADD: {
+			expect_type(value::vtype::NUMBER);
+			value b = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			expect_type(value::vtype::NUMBER);
+			value a = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			evaluation_stack.push_back(value(a.data.number + b.data.number));
+			goto next_ins;
+		}
+		case SUBTRACT: {
+			expect_type(value::vtype::NUMBER);
+			value b = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			expect_type(value::vtype::NUMBER);
+			value a = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			evaluation_stack.push_back(value(a.data.number - b.data.number));
+			goto next_ins;
+		}
+		case MULTIPLY: {
+			expect_type(value::vtype::NUMBER);
+			value b = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			expect_type(value::vtype::NUMBER);
+			value a = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			evaluation_stack.push_back(value(a.data.number * b.data.number));
+			goto next_ins;
+		}
+		case DIVIDE: {
+			expect_type(value::vtype::NUMBER);
+			value b = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			expect_type(value::vtype::NUMBER);
+			value a = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			evaluation_stack.push_back(value(a.data.number / b.data.number));
+			goto next_ins;
+		}
+		case MODULO: {
+			expect_type(value::vtype::NUMBER);
+			value b = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			expect_type(value::vtype::NUMBER);
+			value a = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			evaluation_stack.push_back(value(std::fmod(a.data.number, b.data.number)));
+			goto next_ins;
+		}
+		case EXPONENTIATE: {
+			expect_type(value::vtype::NUMBER);
+			value b = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			expect_type(value::vtype::NUMBER);
+			value a = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			evaluation_stack.push_back(value(std::pow(a.data.number, b.data.number)));
+			goto next_ins;
+		}
+
 		}
 
 	next_ins:
