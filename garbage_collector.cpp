@@ -48,6 +48,9 @@ void instance::reallocate_table(size_t table_id, size_t new_capacity, bool allow
 }
 
 void instance::garbage_collect(bool compact_instructions) noexcept {
+	std::vector<value> values_to_trace;
+	std::vector<uint32_t> functions_to_trace;
+
 	values_to_trace.insert(values_to_trace.end(), globals.begin(), globals.end());
 	values_to_trace.insert(values_to_trace.end(), locals.begin(), locals.end());
 	values_to_trace.insert(values_to_trace.end(), constants.begin(), constants.end());

@@ -92,7 +92,7 @@ void instance::execute() {
 			evaluation_stack.pop_back();
 
 			size_t table_id = allocate_table(static_cast<size_t>(length.data.number), true);
-			evaluation_stack.push_back(value(value::vtype::TABLE, 0, 0, 0, table_id));
+			evaluation_stack.push_back(value(value::vtype::TABLE, 0, value::flags::NONE, 0, table_id));
 			break;
 		}
 
@@ -199,7 +199,9 @@ void instance::execute() {
 
 			expect_type(value::vtype::CLOSURE);
 			function_entry& function = functions[evaluation_stack.back().function_id];
-			locals.push_back(value(value::vtype::TABLE, 0, 0, 0, evaluation_stack.back().data.id));
+			if (evaluation_stack.back().flags & value::flags::HAS_CAPTURE_TABLE) {
+				locals.push_back(value(value::vtype::TABLE, 0, value::flags::NONE, 0, evaluation_stack.back().data.id));
+			}
 			evaluation_stack.pop_back();
 
 			if (function.parameter_count != ins.operand) {
@@ -211,7 +213,7 @@ void instance::execute() {
 			ip = function.start_address;
 			continue;
 		}
-		case RETURN: {
+		case RETURN:
 			local_offset = extended_offsets.back();
 			extended_offsets.pop_back();
 			locals.erase(locals.begin() + local_offset, locals.end());
@@ -219,6 +221,29 @@ void instance::execute() {
 			ip = return_stack.back();
 			return_stack.pop_back();
 
+			break;
+
+		case CAPTURE_FUNCPTR:
+			[[fallthrough]];
+		case CAPTURE_CLOSURE: {
+			uint32_t id = ins.operand;
+			instruction& payload = instructions[ip + 1];
+
+			id = (id << 8) + static_cast<uint8_t>(payload.operation);
+			id = (id << 8) + payload.operand;
+
+			if (ins.operand == CAPTURE_CLOSURE) {
+				expect_type(value::vtype::TABLE);
+				size_t capture_table_id = evaluation_stack.back().data.id;
+				evaluation_stack.pop_back();
+
+				evaluation_stack.push_back(value(value::vtype::CLOSURE, 0, value::flags::HAS_CAPTURE_TABLE, id, capture_table_id));
+			}
+			else {
+				evaluation_stack.push_back(value(value::vtype::CLOSURE, 0, value::flags::NONE, id, 0));
+			}
+
+			ip++;
 			break;
 		}
 		}

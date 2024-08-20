@@ -51,7 +51,10 @@ namespace HulaScript {
 			CONDITIONAL_JUMP_BACK,
 
 			CALL,
-			RETURN
+			RETURN,
+
+			CAPTURE_FUNCPTR, //captures a closure without a capture table
+			CAPTURE_CLOSURE
 		};
 
 		struct instruction
@@ -70,6 +73,11 @@ namespace HulaScript {
 				CLOSURE
 			} type;
 
+			enum flags {
+				NONE = 0,
+				HAS_CAPTURE_TABLE = 1
+			};
+
 			uint8_t table_flags;
 			uint16_t flags;
 			uint32_t function_id;
@@ -81,11 +89,11 @@ namespace HulaScript {
 				char* str;
 			} data;
 
-			value() : value(vtype::NIL, 0, 0, 0, 0) { }
+			value() : value(vtype::NIL, 0, flags::NONE, 0, 0) { }
 
-			value(double number) : type(vtype::NUMBER), table_flags(0), flags(0), function_id(0), data({.number = number}) { }
-			value(bool boolean) : type(vtype::BOOLEAN), table_flags(0), flags(0), function_id(0), data({.boolean = boolean}) { }
-			value(char* str) : type(vtype::STRING), table_flags(0), flags(0), function_id(0), data({ .str = str }) { }
+			value(double number) : type(vtype::NUMBER), table_flags(0), flags(flags::NONE), function_id(0), data({.number = number}) { }
+			value(bool boolean) : type(vtype::BOOLEAN), table_flags(0), flags(flags::NONE), function_id(0), data({.boolean = boolean}) { }
+			value(char* str) : type(vtype::STRING), table_flags(0), flags(flags::NONE), function_id(0), data({ .str = str }) { }
 
 			value(vtype t, uint8_t table_flags, uint16_t flags, uint32_t function_id, uint64_t data) : type(t), table_flags(table_flags), flags(flags), function_id(function_id), data({.id = data}) { }
 
@@ -141,8 +149,6 @@ namespace HulaScript {
 		phmap::flat_hash_map<uint32_t, function_entry> functions;
 		std::vector<uint32_t> availible_function_ids;
 
-		std::vector<value> values_to_trace;
-		std::vector<uint32_t> functions_to_trace;
 		uint32_t next_function_id = 0;
 
 		void execute();
