@@ -66,12 +66,20 @@ void instance::execute() {
 			value key = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			expect_type(value::vtype::TABLE);
-			table& table = tables[evaluation_stack.back().data.id];
+			size_t id = evaluation_stack.back().data.id;
+			table& table = tables[id];
 			evaluation_stack.pop_back();
 
-			auto it = table.key_hashes.find(key.hash());
+			size_t hash = key.hash();
+			auto it = table.key_hashes.find(hash);
 			if (it == table.key_hashes.end()) {
-				evaluation_stack.push_back(value()); //push nil
+				if (table.count == table.block.capacity) {
+					reallocate_table(id, table.block.capacity * 2, true);
+				}
+
+				table.key_hashes.insert({ hash, table.count });
+				evaluation_stack.push_back(heap[table.block.start + table.count] = set_value);
+				table.count++;
 			}
 			else {
 				evaluation_stack.push_back(heap[table.block.start + it->second] = set_value);
