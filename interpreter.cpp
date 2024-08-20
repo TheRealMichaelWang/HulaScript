@@ -14,33 +14,33 @@ void instance::execute() {
 			assert(local_offset + ins.operand == locals.size());
 			locals.push_back(evaluation_stack.back());
 			evaluation_stack.pop_back();
-			goto next_ins;
+			break;
 		case PROBE_LOCALS:
 			locals.reserve(local_offset + ins.operand);
-			goto next_ins;
+			break;
 		case UNWIND_LOCALS:
 			locals.erase(locals.end() - ins.operand, locals.end());
-			goto next_ins;
+			break;
 		case STORE_LOCAL:
 			locals[local_offset + ins.operand] = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			goto next_ins;
+			break;
 		case LOAD_LOCAL:
 			evaluation_stack.push_back(locals[local_offset + ins.operand]);
-			goto next_ins;
+			break;
 
 		case DECL_GLOBAL:
 			assert(globals.size() == ins.operand);
 			globals.push_back(evaluation_stack.back());
 			evaluation_stack.pop_back();
-			goto next_ins;
+			break;
 		case STORE_GLOBAL:
 			globals[ins.operand] = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			goto next_ins;
+			break;
 		case LOAD_GLOBAL:
 			evaluation_stack.push_back(globals[ins.operand]);
-			goto next_ins;
+			break;
 
 		//table operations
 		case LOAD_TABLE: {
@@ -57,7 +57,7 @@ void instance::execute() {
 			else {
 				evaluation_stack.push_back(heap[table.block.start + it->second]);
 			}
-			goto next_ins;
+			break;
 		}
 		case STORE_TABLE: {
 			value set_value = evaluation_stack.back();
@@ -75,7 +75,7 @@ void instance::execute() {
 			else {
 				evaluation_stack.push_back(heap[table.block.start + it->second] = set_value);
 			}
-			goto next_ins;
+			break;
 		}
 		case ALLOCATE_TABLE: {
 			expect_type(value::vtype::NUMBER);
@@ -84,7 +84,7 @@ void instance::execute() {
 
 			size_t table_id = allocate_table(static_cast<size_t>(length.data.number), true);
 			evaluation_stack.push_back(value(value::vtype::TABLE, 0, 0, 0, table_id));
-			goto next_ins;
+			break;
 		}
 
 		//arithmetic operations
@@ -96,7 +96,7 @@ void instance::execute() {
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			evaluation_stack.push_back(value(a.data.number + b.data.number));
-			goto next_ins;
+			break;
 		}
 		case SUBTRACT: {
 			expect_type(value::vtype::NUMBER);
@@ -106,7 +106,7 @@ void instance::execute() {
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			evaluation_stack.push_back(value(a.data.number - b.data.number));
-			goto next_ins;
+			break;
 		}
 		case MULTIPLY: {
 			expect_type(value::vtype::NUMBER);
@@ -116,7 +116,7 @@ void instance::execute() {
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			evaluation_stack.push_back(value(a.data.number * b.data.number));
-			goto next_ins;
+			break;
 		}
 		case DIVIDE: {
 			expect_type(value::vtype::NUMBER);
@@ -126,7 +126,7 @@ void instance::execute() {
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			evaluation_stack.push_back(value(a.data.number / b.data.number));
-			goto next_ins;
+			break;
 		}
 		case MODULO: {
 			expect_type(value::vtype::NUMBER);
@@ -136,7 +136,7 @@ void instance::execute() {
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			evaluation_stack.push_back(value(std::fmod(a.data.number, b.data.number)));
-			goto next_ins;
+			break;
 		}
 		case EXPONENTIATE: {
 			expect_type(value::vtype::NUMBER);
@@ -146,12 +146,38 @@ void instance::execute() {
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			evaluation_stack.push_back(value(std::pow(a.data.number, b.data.number)));
-			goto next_ins;
+			break;
 		}
 
+		//jump and conditional operators
+		case CONDITIONAL_JUMP_AHEAD: {
+			expect_type(value::vtype::BOOLEAN);
+			bool cond = evaluation_stack.back().data.boolean;
+			evaluation_stack.pop_back();
+
+			if (cond) {
+				break;
+			}
+		}
+		[[fallthrough]];
+		case JUMP_AHEAD:
+			ip += ins.operand;
+			continue;
+		case CONDITIONAL_JUMP_BACK: {
+			expect_type(value::vtype::BOOLEAN);
+			bool cond = evaluation_stack.back().data.boolean;
+			evaluation_stack.pop_back();
+
+			if (cond) {
+				break;
+			}
+		}
+		[[fallthrough]];
+		case JUMP_BACK:
+			ip -= ins.operand;
+			continue;
 		}
 
-	next_ins:
 		ip++;
 	}
 }
