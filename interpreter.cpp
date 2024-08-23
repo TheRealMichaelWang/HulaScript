@@ -1,4 +1,5 @@
 #include <cmath>
+#include <cassert>
 #include <sstream>
 #include "HulaScript.h"
 
@@ -11,6 +12,35 @@ void instance::execute() {
 
 		switch (ins.operand)
 		{
+		case DUPLICATE_TOP:
+			evaluation_stack.push_back(evaluation_stack.back());
+			break;
+
+		case LOAD_CONSTANT_FAST:
+			evaluation_stack.push_back(constants[ins.operand]);
+			break;
+		case LOAD_CONSTANT: {
+			uint32_t index = ins.operand;
+			instruction& payload = instructions[ip + 1];
+
+			index = (index << 8) + static_cast<uint8_t>(payload.operation);
+			index = (index << 8) + payload.operand;
+
+			evaluation_stack.push_back(constants[index]);
+
+			ip++;
+			break;
+		}
+		case PUSH_NIL:
+			evaluation_stack.push_back(value());
+			break;
+		case PUSH_TRUE:
+			evaluation_stack.push_back(value(true));
+			break;
+		case PUSH_FALSE:
+			evaluation_stack.push_back(value(false));
+			break;
+
 		case DECL_LOCAL:
 			assert(local_offset + ins.operand == locals.size());
 			locals.push_back(evaluation_stack.back());
@@ -92,6 +122,11 @@ void instance::execute() {
 			evaluation_stack.pop_back();
 
 			size_t table_id = allocate_table(static_cast<size_t>(length.data.number), true);
+			evaluation_stack.push_back(value(value::vtype::TABLE, 0, value::flags::NONE, 0, table_id));
+			break;
+		}
+		case ALLOCATE_TABLE_LITERAL: {
+			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
 			evaluation_stack.push_back(value(value::vtype::TABLE, 0, value::flags::NONE, 0, table_id));
 			break;
 		}

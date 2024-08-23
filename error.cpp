@@ -1,6 +1,7 @@
 #include <sstream>
 #include "error.h"
 #include "source_loc.h"
+#include "tokenizer.h"
 #include "HulaScript.h"
 
 using namespace HulaScript;
@@ -61,6 +62,77 @@ void instance::expect_type(value::vtype expected_type) const {
 	if (evaluation_stack.back().type != expected_type) {
 		std::stringstream ss;
 		ss << "Type Error: Expected value of type " << type_names[expected_type] << " but got " << type_names[evaluation_stack.back().type] << " instead.";
+		throw make_error(ss.str());
+	}
+}
+
+void tokenizer::expect_token(token_type expected_type) const {
+	if (!match_token(expected_type)) {
+		static const char* tok_names[] = {
+			"IDENTIFIER",
+			"NUMBER",
+			"STRING_LITERAL",
+
+			"TRUE",
+			"FALSE",
+			"NIL",
+
+			"FUNCTION",
+			"TABLE",
+			"DICT",
+			"CLASS",
+
+			"IF",
+			"ELIF",
+			"ELSE",
+			"WHILE",
+			"FOR",
+			"IN",
+			"DO",
+			"RETURN",
+			"BREAK",
+			"CONTINUE",
+			"GLOBAL",
+
+			"THEN",
+			"END_BLOCK",
+
+			"OPEN_PAREN",
+			"CLOSE_PAREN",
+			"OPEN_BRACE",
+			"CLOSE_BRACE",
+			"OPEN_BRACKET",
+			"CLOSE_BRACKET",
+			"PERIOD",
+			"COMMA",
+			"QUESTION",
+			"COLON",
+
+			"PLUS",
+			"MINUS",
+			"ASTERISK",
+			"SLASH",
+			"PERCENT",
+			"CARET",
+
+			"LESS",
+			"MORE",
+			"LESS_EQUAL",
+			"MORE_EQUAL",
+			"EQUALS",
+			"NOT_EQUAL",
+
+			"AND",
+			"OR",
+			"NIL COALEASING OPERATOR",
+
+			"NOT",
+			"SET",
+			"END_OF_SOURCE"
+		};
+
+		std::stringstream ss;
+		ss << "Syntax Error: Expected token " << tok_names[expected_type] << " but got " << tok_names[last_token.type()] << " instead.";
 		throw make_error(ss.str());
 	}
 }

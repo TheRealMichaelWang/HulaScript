@@ -58,6 +58,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	phmap::flat_hash_set<size_t> marked_tables;
 	phmap::flat_hash_set<uint32_t> marked_functions;
 	phmap::flat_hash_set<char*> marked_strs;
+	phmap::flat_hash_set<uint32_t> marked_constants;
 
 	while (!values_to_trace.empty()) //trace values 
 	{
@@ -89,9 +90,8 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 
 		auto res = marked_functions.emplace(function_id);
 		if (res.second) {
-			for (uint32_t refed_func_id : functions[function_id].referenced_functions) {
-				functions_to_trace.push_back(refed_func_id);
-			}
+			functions_to_trace.insert(functions_to_trace.end(), functions[function_id].referenced_functions.begin(), functions[function_id].referenced_functions.end());
+			marked_constants.insert(functions[function_id].referenced_constants.begin(), functions[function_id].referenced_constants.end());
 		}
 	}
 
@@ -154,6 +154,14 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 		}
 		else {
 			it++;
+		}
+	}
+	//remove unused constants
+	for (uint_fast32_t i = 0; i < constants.size(); i++) {
+		if (!marked_constants.contains(i)) {
+			size_t hash = constants[i].hash();
+			constant_hashses.erase(hash);
+			availible_constant_ids.push_back(i);
 		}
 	}
 

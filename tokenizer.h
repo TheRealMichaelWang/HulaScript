@@ -103,15 +103,29 @@ namespace HulaScript {
 			scan_token();
 		}
 
-		token scan_token();
+		const bool match_token(token_type expected_type, bool in_while_loop=false) const noexcept {
+			if (in_while_loop && last_token.type() == token_type::END_OF_SOURCE) {
+				expect_token(expected_type);
+				return true;
+			}
+			return last_token.type() == expected_type;
+		}
 
-		compilation_error make_error(std::string msg) const noexcept {
+		void expect_token(token_type expected_type) const;
+
+		const token get_last_token() const noexcept {
+			return last_token;
+		}
+
+		const source_loc last_tok_begin() const noexcept {
 			std::optional<std::string> current_function = std::nullopt;
 			if (!functions.empty()) {
 				current_function = functions.back();
 			}
-			return compilation_error(msg, source_loc(last_tok_row, last_tok_col, current_function, file_name));
+			return source_loc(last_tok_row, last_tok_col, current_function, file_name);
 		}
+
+		token scan_token();
 
 		void enter_function(std::string function_name, std::function<void()> action) {
 			functions.push_back(function_name);
@@ -129,5 +143,9 @@ namespace HulaScript {
 
 		char scan_char();
 		char scan_literal_char();
+
+		compilation_error make_error(std::string msg) const noexcept {
+			return compilation_error(msg, last_tok_begin());
+		}
 	};
 }
