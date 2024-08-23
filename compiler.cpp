@@ -359,3 +359,43 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		}
 	}
 }
+
+void instance::compile_expression(compilation_context& context, int min_prec = 0) {
+	static int op_precs[] = {
+		5, //plus,
+		5, //minus
+		6, //multiply
+		6, //divide
+		6, //modulo
+		7, //exponentiate
+
+		3, //less
+		3, //more
+		3, //less eq
+		3, //more eq
+		3, //eq
+		3, //not eq
+
+		1, //and
+		1, //or
+		3, //nil coaleasing operator
+	};
+
+	compile_value(context, false, true);
+
+	while (context.tokenizer.get_last_token().is_operator() && op_precs[context.tokenizer.get_last_token().type()] > min_prec)
+	{
+		token_type op_type = context.tokenizer.get_last_token().type();
+		context.tokenizer.scan_token();
+	
+		if (op_type == token_type::NIL_COALESING) {
+			size_t cond_addr = context.emit({});
+			compile_expression(context, op_precs[op_type]);
+			context.emit_jump(opcode::IFNT_NIL_JUMP_AHEAD, cond_addr);
+		}
+		else {
+			compile_expression(context, op_precs[op_type]);
+			context.emit({ .operation = static_cast<opcode>((op_type - token_type::PLUS) + opcode::ADD) });
+		}
+	}
+}

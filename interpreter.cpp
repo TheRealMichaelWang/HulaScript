@@ -12,14 +12,14 @@ void instance::execute() {
 
 		switch (ins.operand)
 		{
-		case DUPLICATE_TOP:
+		case opcode::DUPLICATE_TOP:
 			evaluation_stack.push_back(evaluation_stack.back());
 			break;
 
-		case LOAD_CONSTANT_FAST:
+		case opcode::LOAD_CONSTANT_FAST:
 			evaluation_stack.push_back(constants[ins.operand]);
 			break;
-		case LOAD_CONSTANT: {
+		case opcode::LOAD_CONSTANT: {
 			uint32_t index = ins.operand;
 			instruction& payload = instructions[ip + 1];
 
@@ -31,50 +31,50 @@ void instance::execute() {
 			ip++;
 			break;
 		}
-		case PUSH_NIL:
+		case opcode::PUSH_NIL:
 			evaluation_stack.push_back(value());
 			break;
-		case PUSH_TRUE:
+		case opcode::PUSH_TRUE:
 			evaluation_stack.push_back(value(true));
 			break;
-		case PUSH_FALSE:
+		case opcode::PUSH_FALSE:
 			evaluation_stack.push_back(value(false));
 			break;
 
-		case DECL_LOCAL:
+		case opcode::DECL_LOCAL:
 			assert(local_offset + ins.operand == locals.size());
 			locals.push_back(evaluation_stack.back());
 			evaluation_stack.pop_back();
 			break;
-		case PROBE_LOCALS:
+		case opcode::PROBE_LOCALS:
 			locals.reserve(local_offset + ins.operand);
 			break;
-		case UNWIND_LOCALS:
+		case opcode::UNWIND_LOCALS:
 			locals.erase(locals.end() - ins.operand, locals.end());
 			break;
-		case STORE_LOCAL:
+		case opcode::STORE_LOCAL:
 			locals[local_offset + ins.operand] = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			break;
-		case LOAD_LOCAL:
+		case opcode::LOAD_LOCAL:
 			evaluation_stack.push_back(locals[local_offset + ins.operand]);
 			break;
 
-		case DECL_GLOBAL:
+		case opcode::DECL_GLOBAL:
 			assert(globals.size() == ins.operand);
 			globals.push_back(evaluation_stack.back());
 			evaluation_stack.pop_back();
 			break;
-		case STORE_GLOBAL:
+		case opcode::STORE_GLOBAL:
 			globals[ins.operand] = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			break;
-		case LOAD_GLOBAL:
+		case opcode::LOAD_GLOBAL:
 			evaluation_stack.push_back(globals[ins.operand]);
 			break;
 
 		//table operations
-		case LOAD_TABLE: {
+		case opcode::LOAD_TABLE: {
 			value key = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			expect_type(value::vtype::TABLE);
@@ -90,7 +90,7 @@ void instance::execute() {
 			}
 			break;
 		}
-		case STORE_TABLE: {
+		case opcode::STORE_TABLE: {
 			value set_value = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			value key = evaluation_stack.back();
@@ -116,7 +116,7 @@ void instance::execute() {
 			}
 			break;
 		}
-		case ALLOCATE_TABLE: {
+		case opcode::ALLOCATE_TABLE: {
 			expect_type(value::vtype::NUMBER);
 			value length = evaluation_stack.back();
 			evaluation_stack.pop_back();
@@ -125,14 +125,14 @@ void instance::execute() {
 			evaluation_stack.push_back(value(value::vtype::TABLE, 0, value::flags::NONE, 0, table_id));
 			break;
 		}
-		case ALLOCATE_TABLE_LITERAL: {
+		case opcode::ALLOCATE_TABLE_LITERAL: {
 			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
 			evaluation_stack.push_back(value(value::vtype::TABLE, 0, value::flags::NONE, 0, table_id));
 			break;
 		}
 
 		//arithmetic operations
-		case ADD: {
+		case opcode::ADD: {
 			expect_type(value::vtype::NUMBER);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
@@ -142,7 +142,7 @@ void instance::execute() {
 			evaluation_stack.push_back(value(a.data.number + b.data.number));
 			break;
 		}
-		case SUBTRACT: {
+		case opcode::SUBTRACT: {
 			expect_type(value::vtype::NUMBER);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
@@ -152,7 +152,7 @@ void instance::execute() {
 			evaluation_stack.push_back(value(a.data.number - b.data.number));
 			break;
 		}
-		case MULTIPLY: {
+		case opcode::MULTIPLY: {
 			expect_type(value::vtype::NUMBER);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
@@ -162,7 +162,7 @@ void instance::execute() {
 			evaluation_stack.push_back(value(a.data.number * b.data.number));
 			break;
 		}
-		case DIVIDE: {
+		case opcode::DIVIDE: {
 			expect_type(value::vtype::NUMBER);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
@@ -172,7 +172,7 @@ void instance::execute() {
 			evaluation_stack.push_back(value(a.data.number / b.data.number));
 			break;
 		}
-		case MODULO: {
+		case opcode::MODULO: {
 			expect_type(value::vtype::NUMBER);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
@@ -182,7 +182,7 @@ void instance::execute() {
 			evaluation_stack.push_back(value(std::fmod(a.data.number, b.data.number)));
 			break;
 		}
-		case EXPONENTIATE: {
+		case opcode::EXPONENTIATE: {
 			expect_type(value::vtype::NUMBER);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
@@ -192,9 +192,75 @@ void instance::execute() {
 			evaluation_stack.push_back(value(std::pow(a.data.number, b.data.number)));
 			break;
 		}
+		case opcode::MORE: {
+			expect_type(value::vtype::NUMBER);
+			value b = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			expect_type(value::vtype::NUMBER);
+			value a = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			evaluation_stack.push_back(value(a.data.number > b.data.number));
+			break;
+		}
+		case opcode::LESS: {
+			expect_type(value::vtype::NUMBER);
+			value b = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			expect_type(value::vtype::NUMBER);
+			value a = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			evaluation_stack.push_back(value(a.data.number < b.data.number));
+			break;
+		}
+		case opcode::LESS_EQUAL: {
+			expect_type(value::vtype::NUMBER);
+			value b = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			expect_type(value::vtype::NUMBER);
+			value a = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			evaluation_stack.push_back(value(a.data.number <= b.data.number));
+			break;
+		}
+		case opcode::MORE_EQUAL: {
+			expect_type(value::vtype::NUMBER);
+			value b = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			expect_type(value::vtype::NUMBER);
+			value a = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			evaluation_stack.push_back(value(a.data.number >= b.data.number));
+			break;
+		}
+		case opcode::EQUALS: {
+			value b = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			value a = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			evaluation_stack.push_back(value(a.hash() == b.hash()));
+			break;
+		}
+		case opcode::NOT_EQUAL: {
+			value b = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			value a = evaluation_stack.back();
+			evaluation_stack.pop_back();
+			evaluation_stack.push_back(value(a.hash() != b.hash()));
+			break;
+		}
+		case opcode::IFNT_NIL_JUMP_AHEAD: {
+			if (evaluation_stack.back().type == value::vtype::NIL) {
+				evaluation_stack.pop_back();
+				break;
+			}
+			else {
+				ip += ins.operand;
+				continue;
+			}
+		}
 
 		//jump and conditional operators
-		case CONDITIONAL_JUMP_AHEAD: {
+		case opcode::CONDITIONAL_JUMP_AHEAD: {
 			expect_type(value::vtype::BOOLEAN);
 			bool cond = evaluation_stack.back().data.boolean;
 			evaluation_stack.pop_back();
@@ -204,10 +270,10 @@ void instance::execute() {
 			}
 		}
 		[[fallthrough]];
-		case JUMP_AHEAD:
+		case opcode::JUMP_AHEAD:
 			ip += ins.operand;
 			continue;
-		case CONDITIONAL_JUMP_BACK: {
+		case opcode::CONDITIONAL_JUMP_BACK: {
 			expect_type(value::vtype::BOOLEAN);
 			bool cond = evaluation_stack.back().data.boolean;
 			evaluation_stack.pop_back();
@@ -217,11 +283,11 @@ void instance::execute() {
 			}
 		}
 		[[fallthrough]];
-		case JUMP_BACK:
+		case opcode::JUMP_BACK:
 			ip -= ins.operand;
 			continue;
 
-		case CALL: {
+		case opcode::CALL: {
 			extended_offsets.push_back(local_offset);
 
 			//push arguments into local variable stack
@@ -248,7 +314,7 @@ void instance::execute() {
 			ip = function.start_address;
 			continue;
 		}
-		case RETURN:
+		case opcode::RETURN:
 			local_offset = extended_offsets.back();
 			extended_offsets.pop_back();
 			locals.erase(locals.begin() + local_offset, locals.end());
@@ -258,9 +324,9 @@ void instance::execute() {
 
 			break;
 
-		case CAPTURE_FUNCPTR:
+		case opcode::CAPTURE_FUNCPTR:
 			[[fallthrough]];
-		case CAPTURE_CLOSURE: {
+		case opcode::CAPTURE_CLOSURE: {
 			uint32_t id = ins.operand;
 			instruction& payload = instructions[ip + 1];
 

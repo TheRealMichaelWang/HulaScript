@@ -100,6 +100,17 @@ namespace HulaScript {
 			MODULO,
 			EXPONENTIATE,
 
+			LESS,
+			MORE,
+			LESS_EQUAL,
+			MORE_EQUAL,
+			EQUALS,
+			NOT_EQUAL,
+
+			AND,
+			OR,
+			IFNT_NIL_JUMP_AHEAD,
+
 			JUMP_AHEAD,
 			JUMP_BACK,
 			CONDITIONAL_JUMP_AHEAD,
@@ -337,6 +348,6 @@ namespace HulaScript {
 		}
 
 		void compile_value(compilation_context& context, bool expect_statement, bool expects_value);
-		void compile_expression(compilation_context& context);
+		void compile_expression(compilation_context& context, int min_prec=0);
 	};
 }

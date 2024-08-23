@@ -91,6 +91,10 @@ namespace HulaScript {
 		const double number() const {
 			return std::get<double>(payload);
 		}
+
+		const bool is_operator() const noexcept {
+			return _type >= token_type::PLUS && _type <= token_type::NIL_COALESING;
+		}
 	private:
 		token_type _type;
 		std::variant<std::monostate, double, std::string> payload;
