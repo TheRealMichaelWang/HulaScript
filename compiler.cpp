@@ -80,7 +80,31 @@ void instance::emit_load_variable(std::string name, compilation_context& context
 	}
 }
 
-void instance::compile_value(compilation_context& context, bool expects_statement) {
+void instance::compilation_context::emit_jump(opcode base_jump_ins, size_t jump_ins_addr, size_t jump_dest_addr) {
+	if (jump_dest_addr > jump_ins_addr) {
+		size_t jump_diff = jump_dest_addr - jump_ins_addr;
+
+		if (jump_diff > UINT8_MAX) {
+			throw make_error("Cannot jump to instruction more than 256 ahead of current instruction.");
+		}
+
+		lexical_scopes.back().instructions[jump_dest_addr] = { .operation = base_jump_ins, .operand = static_cast<operand>(jump_diff) };
+	}
+	else if (jump_dest_addr < jump_ins_addr) {
+		size_t jump_diff = jump_ins_addr - jump_dest_addr;
+
+		if (jump_diff > UINT8_MAX) {
+			throw make_error("Cannot jump to instruction more than 256 behind of current instruction.");
+		}
+
+		lexical_scopes.back().instructions[jump_dest_addr] = { .operation = static_cast<opcode>(base_jump_ins + 1), .operand = static_cast<operand>(jump_diff) };
+	}
+	else {
+		throw make_error("Cannot jump to the same address.");
+	}
+}
+
+void instance::compile_value(compilation_context& context, bool expects_statement, bool expects_value) {
 	auto token = context.tokenizer.get_last_token();
 	context.set_src_loc(context.tokenizer.last_tok_begin());
 
@@ -113,7 +137,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		context.tokenizer.scan_token();
 
 		if (context.tokenizer.match_token(token_type::COMMA)) {
-			if (!expects_statement) {
+			if (expects_value) {
 				throw make_error("Syntax Error: Unexpected comma. Cannot declare multiple variables outside a statement.");
 			}
 
@@ -141,6 +165,9 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			for (auto it = to_declare.rbegin(); it != to_declare.rend(); it++) {
 				context.alloc_and_store(*it);
 			}
+
+			context.unset_src_loc();
+			return;
 		}
 
 		if (context.tokenizer.match_token(token_type::SET)) {
@@ -151,7 +178,8 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		else {
 			emit_load_variable(id, context);
 		}
-		break;
+		context.unset_src_loc();
+		return;
 	}
 	case token_type::OPEN_BRACKET: {
 		context.tokenizer.scan_token();
@@ -223,9 +251,111 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 
 	case token_type::IF: {
 		context.tokenizer.scan_token();
+		compile_expression(context);
+		size_t cond_jump_addr = context.emit({ });
+		
+		context.tokenizer.expect_token(token_type::THEN);
+		context.tokenizer.scan_token();
+		compile_expression(context);
+		size_t if_true_jump_till_end = context.emit({ });
 
+		context.emit_jump(opcode::CONDITIONAL_JUMP_AHEAD, cond_jump_addr);
+
+		context.tokenizer.expect_token(token_type::ELSE);
+		context.tokenizer.scan_token();
+		compile_expression(context);
+
+		context.emit_jump(opcode::JUMP_AHEAD, if_true_jump_till_end);
+
+		context.unset_src_loc();
+		return;
+	}
+
+	case token_type::OPEN_PAREN: {
+		context.tokenizer.scan_token();
+		compile_expression(context);
+		context.tokenizer.expect_token(token_type::CLOSE_PAREN);
+		context.tokenizer.scan_token();
+		break;
 	}
 	}
 
-	context.unset_src_loc();
+	bool is_statement = false;
+	for (;;) {
+		token = context.tokenizer.get_last_token();
+		switch (token.type())
+		{
+		case token_type::PERIOD: {
+			context.tokenizer.scan_token();
+			context.tokenizer.expect_token(token_type::IDENTIFIER);
+
+			std::string property_name = context.tokenizer.get_last_token().str();
+			emit_load_property(Hash::dj2b(property_name.c_str()), context);
+			context.tokenizer.scan_token();
+
+			if (context.tokenizer.match_token(token_type::SET)) {
+				context.tokenizer.scan_token();
+				compile_expression(context);
+				context.emit({ .operation = opcode::STORE_TABLE });
+
+				context.unset_src_loc();
+				return;
+			}
+			else {
+				context.emit({ .operation = opcode::LOAD_TABLE });
+				is_statement = false;
+				break;
+			}
+		}
+		case token_type::OPEN_BRACKET: {
+			context.tokenizer.scan_token();
+			compile_expression(context);
+			context.tokenizer.expect_token(token_type::CLOSE_BRACKET);
+
+			if (context.tokenizer.match_token(token_type::SET)) {
+				context.tokenizer.scan_token();
+				compile_expression(context);
+				context.emit({ .operation = opcode::STORE_TABLE });
+
+				context.unset_src_loc();
+				return;
+			}
+			else {
+				context.emit({ .operation = opcode::LOAD_TABLE });
+
+				is_statement = false;
+				break;
+			}
+		}
+		case token_type::OPEN_PAREN: {
+			context.tokenizer.scan_token();
+
+			size_t arguments = 0;
+			while (!context.tokenizer.match_token(token_type::CLOSE_PAREN))
+			{
+				if (arguments > 0) {
+					context.tokenizer.expect_token(token_type::COMMA);
+					context.tokenizer.scan_token();
+				}
+				compile_expression(context);
+				arguments++;
+			}
+
+			if (arguments > UINT8_MAX) {
+				throw context.make_error("Function Error: Argument count cannot exceed 255 arguments.");
+			}
+
+			context.emit({ .operation = opcode::CALL, .operand = static_cast<opcode>(arguments) });
+			is_statement = true;
+			break;
+		}
+		default: {
+			if (expects_statement && !is_statement) {
+				throw context.make_error("Syntax Error: Expected statement, got value instead.");
+			}
+			context.unset_src_loc();
+			return;
+		}
+		}
+	}
 }

@@ -319,6 +319,12 @@ namespace HulaScript {
 					emit({ .operation = static_cast<opcode>((const_id >> 8) & 0xFF), .operand = static_cast<operand>(const_id & 0xFF) });
 				}
 			}
+
+			void emit_jump(opcode base_jump_ins, size_t jump_ins_addr, size_t jump_dest_addr);
+
+			void emit_jump(opcode base_jump_ins, size_t jump_ins_addr) {
+				emit_jump(base_jump_ins, jump_ins_addr, lexical_scopes.back().instructions.size());
+			}
 		};
 
 		std::vector<size_t> top_level_local_vars;
@@ -330,7 +336,7 @@ namespace HulaScript {
 			context.emit_load_constant(add_constant(value(value::vtype::INTERNAL_STRHASH, 0, 0, 0, hash)));
 		}
 
-		void compile_value(compilation_context& context, bool expect_statement);
+		void compile_value(compilation_context& context, bool expect_statement, bool expects_value);
 		void compile_expression(compilation_context& context);
 	};
 }
