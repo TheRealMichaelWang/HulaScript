@@ -115,7 +115,22 @@ namespace HulaScript {
 			return last_token.type() == expected_type;
 		}
 
+		const bool match_tokens(std::vector<token_type> expected_types, bool in_while_loop = false) const noexcept {
+			if (in_while_loop && last_token.type() == token_type::END_OF_SOURCE) {
+				expect_tokens(expected_types);
+				return true;
+			}
+
+			for (auto expected_tok : expected_types) {
+				if (expected_tok == last_token.type()) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 		void expect_token(token_type expected_type) const;
+		void expect_tokens(std::vector<token_type> expected_type) const;
 
 		const token get_last_token() const noexcept {
 			return last_token;

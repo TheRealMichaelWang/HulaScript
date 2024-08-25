@@ -252,35 +252,61 @@ namespace HulaScript {
 		}
 
 		//COMPILER
-
-		struct lexical_scope {
-			size_t next_local_id;
-
-			std::vector<instruction>& instructions;
-			std::vector<std::pair<size_t, source_loc>> ip_src_map;
-
-			void add_src_loc(source_loc loc) {
-				ip_src_map.push_back(std::make_pair(instructions.size(), loc));
-			}
-		};
-
-		struct variable {
-			size_t name_hash;
-
-			bool is_global;
-			operand offset;
-			size_t func_id;
-		};
-
-		struct function_declaration {
-			std::string name;
-			size_t id;
-			operand param_count;
-
-			phmap::flat_hash_set<size_t> captured_variables;
-		};
-
 		struct compilation_context {
+			struct lexical_scope {
+				size_t next_local_id;
+
+				std::vector<size_t> declared_locals;
+				std::vector<instruction>& instructions;
+				std::vector<std::pair<size_t, source_loc>>& ip_src_map;
+				std::vector<size_t> continue_requests;
+				std::vector<size_t> break_requests;
+
+				bool is_loop_block;
+
+				void add_src_loc(source_loc loc) {
+					ip_src_map.push_back(std::make_pair(instructions.size(), loc));
+				}
+
+				void merge_scope(lexical_scope& scope) {
+					size_t offset = instructions.size();
+					instructions.insert(instructions.end(), scope.instructions.begin(), scope.instructions.end());
+					
+					ip_src_map.reserve(ip_src_map.size() + scope.ip_src_map.size());
+					for (auto ip_src : scope.ip_src_map) {
+						ip_src_map.push_back(std::make_pair(offset + ip_src.first, ip_src.second));
+					}
+
+					if (!(!is_loop_block && scope.is_loop_block)) { //demorgans law...holy shit 2050
+						continue_requests.reserve(continue_requests.size() + scope.continue_requests.size());
+						for (size_t ip : scope.continue_requests) {
+							continue_requests.push_back(offset + ip);
+						}
+
+						break_requests.reserve(break_requests.size() + scope.break_requests.size());
+						for (size_t ip : scope.break_requests) {
+							break_requests.push_back(offset + ip);
+						}
+					}
+				}
+			};
+
+			struct variable {
+				size_t name_hash;
+
+				bool is_global;
+				operand offset;
+				size_t func_id;
+			};
+
+			struct function_declaration {
+				std::string name;
+				size_t id;
+				operand param_count;
+
+				phmap::flat_hash_set<size_t> captured_variables;
+			};
+
 			std::vector<function_declaration> function_decls;
 			std::vector<lexical_scope> lexical_scopes;
 
@@ -301,8 +327,11 @@ namespace HulaScript {
 				return i;
 			}
 
-			void set_operand(size_t addr, operand new_operand) {
-				lexical_scopes.back().instructions[addr].operand = new_operand;
+			void set_operand(size_t addr, size_t new_operand) {
+				if (new_operand > UINT8_MAX) {
+					throw make_error("Cannot set operand to value larger than 255.");
+				}
+				lexical_scopes.back().instructions[addr].operand = static_cast<operand>(new_operand);
 			}
 
 			void set_src_loc(source_loc loc) {
@@ -331,10 +360,12 @@ namespace HulaScript {
 				}
 			}
 
-			void emit_jump(opcode base_jump_ins, size_t jump_ins_addr, size_t jump_dest_addr);
+			void modify_ins_operand(size_t ins_adr, operand new_op) {
+				lexical_scopes.back().instructions[ins_adr].operand = new_op;
+			}
 
-			void emit_jump(opcode base_jump_ins, size_t jump_ins_addr) {
-				emit_jump(base_jump_ins, jump_ins_addr, lexical_scopes.back().instructions.size());
+			const size_t current_ip() const noexcept {
+				return lexical_scopes.back().instructions.size();
 			}
 		};
 
@@ -349,5 +380,12 @@ namespace HulaScript {
 
 		void compile_value(compilation_context& context, bool expect_statement, bool expects_value);
 		void compile_expression(compilation_context& context, int min_prec=0);
+
+		void compile_statement(compilation_context& context, bool expects_statement = true);
+		compilation_context::lexical_scope compile_block(compilation_context& context, std::vector<token_type> end_toks, bool is_loop=false);
+		compilation_context::lexical_scope compile_block(compilation_context& context) {
+			std::vector<token_type> end_toks = { token_type::END_BLOCK };
+			return compile_block(context, end_toks);
+		}
 	};
 }

@@ -66,9 +66,7 @@ void instance::expect_type(value::vtype expected_type) const {
 	}
 }
 
-void tokenizer::expect_token(token_type expected_type) const {
-	if (!match_token(expected_type)) {
-		static const char* tok_names[] = {
+static const char* tok_names[] = {
 			"IDENTIFIER",
 			"NUMBER",
 			"STRING_LITERAL",
@@ -129,10 +127,45 @@ void tokenizer::expect_token(token_type expected_type) const {
 			"NOT",
 			"SET",
 			"END_OF_SOURCE"
-		};
+};
 
+void tokenizer::expect_token(token_type expected_type) const {
+	if (!last_token.type() == expected_type) {
 		std::stringstream ss;
 		ss << "Syntax Error: Expected token " << tok_names[expected_type] << " but got " << tok_names[last_token.type()] << " instead.";
 		throw make_error(ss.str());
 	}
+}
+
+void tokenizer::expect_tokens(std::vector<token_type> expected_types) const {
+	if (expected_types.size() == 1) {
+		expect_token(expected_types[0]);
+		return;
+	}
+
+	for (auto expected : expected_types) {
+		if (expected == last_token.type()) {
+			return;
+		}
+	}
+
+	std::stringstream ss;
+	ss << "Syntax Error: Expected tokens ";
+
+	for (auto expected : expected_types) {
+		if (expected == expected_types.back()) {
+			ss << " or " << tok_names[expected];
+		}
+		else {
+			ss << tok_names[expected];
+
+			if (expected_types.size() > 2) {
+				ss << ", ";
+			}
+		}
+	}
+
+	ss << " but got " << tok_names[last_token.type()] << " instead.";
+
+	throw make_error(ss.str());
 }

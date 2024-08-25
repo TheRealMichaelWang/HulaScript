@@ -4,7 +4,7 @@
 
 using namespace HulaScript;
 
-std::pair<instance::variable, bool> instance::compilation_context::alloc_local(std::string name, bool must_declare) {
+std::pair<instance::compilation_context::variable, bool> instance::compilation_context::alloc_local(std::string name, bool must_declare) {
 	if (lexical_scopes.back().next_local_id == UINT8_MAX) {
 		throw make_error("Compiler Error: Cannot allocate more than 256 locals.");
 	}
@@ -29,6 +29,7 @@ std::pair<instance::variable, bool> instance::compilation_context::alloc_local(s
 	};
 
 	lexical_scopes.back().next_local_id++;
+	lexical_scopes.back().declared_locals.push_back(hash);
 	active_variables.insert({ hash, v });
 	return std::make_pair(v, true);
 }
@@ -77,30 +78,6 @@ void instance::emit_load_variable(std::string name, compilation_context& context
 		else {
 			context.emit({ .operation = opcode::LOAD_LOCAL, .operand = it->second.offset });
 		}
-	}
-}
-
-void instance::compilation_context::emit_jump(opcode base_jump_ins, size_t jump_ins_addr, size_t jump_dest_addr) {
-	if (jump_dest_addr > jump_ins_addr) {
-		size_t jump_diff = jump_dest_addr - jump_ins_addr;
-
-		if (jump_diff > UINT8_MAX) {
-			throw make_error("Cannot jump to instruction more than 256 ahead of current instruction.");
-		}
-
-		lexical_scopes.back().instructions[jump_dest_addr] = { .operation = base_jump_ins, .operand = static_cast<operand>(jump_diff) };
-	}
-	else if (jump_dest_addr < jump_ins_addr) {
-		size_t jump_diff = jump_ins_addr - jump_dest_addr;
-
-		if (jump_diff > UINT8_MAX) {
-			throw make_error("Cannot jump to instruction more than 256 behind of current instruction.");
-		}
-
-		lexical_scopes.back().instructions[jump_dest_addr] = { .operation = static_cast<opcode>(base_jump_ins + 1), .operand = static_cast<operand>(jump_diff) };
-	}
-	else {
-		throw make_error("Cannot jump to the same address.");
 	}
 }
 
@@ -252,20 +229,19 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 	case token_type::IF: {
 		context.tokenizer.scan_token();
 		compile_expression(context);
-		size_t cond_jump_addr = context.emit({ });
+		size_t cond_jump_addr = context.emit({ .operation = opcode::CONDITIONAL_JUMP_AHEAD });
 		
 		context.tokenizer.expect_token(token_type::THEN);
 		context.tokenizer.scan_token();
 		compile_expression(context);
-		size_t if_true_jump_till_end = context.emit({ });
-
-		context.emit_jump(opcode::CONDITIONAL_JUMP_AHEAD, cond_jump_addr);
+		size_t if_true_jump_till_end = context.emit({ .operation = opcode::JUMP_AHEAD });
+		context.set_operand(cond_jump_addr, context.current_ip() - cond_jump_addr);
 
 		context.tokenizer.expect_token(token_type::ELSE);
 		context.tokenizer.scan_token();
 		compile_expression(context);
 
-		context.emit_jump(opcode::JUMP_AHEAD, if_true_jump_till_end);
+		context.set_operand(if_true_jump_till_end, context.current_ip() - if_true_jump_till_end);
 
 		context.unset_src_loc();
 		return;
@@ -360,7 +336,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 	}
 }
 
-void instance::compile_expression(compilation_context& context, int min_prec = 0) {
+void instance::compile_expression(compilation_context& context, int min_prec) {
 	static int op_precs[] = {
 		5, //plus,
 		5, //minus
@@ -389,13 +365,156 @@ void instance::compile_expression(compilation_context& context, int min_prec = 0
 		context.tokenizer.scan_token();
 	
 		if (op_type == token_type::NIL_COALESING) {
-			size_t cond_addr = context.emit({});
+			size_t cond_addr = context.emit({ .operation = opcode::IFNT_NIL_JUMP_AHEAD });
 			compile_expression(context, op_precs[op_type]);
-			context.emit_jump(opcode::IFNT_NIL_JUMP_AHEAD, cond_addr);
+			context.set_operand(cond_addr, context.current_ip() - cond_addr);
 		}
 		else {
 			compile_expression(context, op_precs[op_type]);
 			context.emit({ .operation = static_cast<opcode>((op_type - token_type::PLUS) + opcode::ADD) });
 		}
 	}
+}
+
+void instance::compile_statement(compilation_context& context, bool expects_statement) {
+	auto token = context.tokenizer.get_last_token();
+	context.set_src_loc(context.tokenizer.last_tok_begin());
+
+	switch (token.type())
+	{
+	case token_type::WHILE: {
+		context.tokenizer.scan_token();
+		
+		size_t continue_dest_ip = context.current_ip();
+		compile_expression(context);
+		context.tokenizer.expect_token(token_type::DO);
+		context.tokenizer.scan_token();
+
+		size_t cond_ip = context.emit({ .operation = opcode::CONDITIONAL_JUMP_AHEAD });
+		auto lexical_scope = compile_block(context, { token_type::END_BLOCK }, true);
+		context.tokenizer.scan_token();
+
+		for (size_t continue_req_ip : lexical_scope.continue_requests) {
+			context.set_operand(continue_req_ip, continue_dest_ip - continue_req_ip);
+		}
+		for (size_t break_req_ip : lexical_scope.break_requests) {
+			context.set_operand(break_req_ip, context.current_ip() - break_req_ip);
+		}
+		context.set_operand(cond_ip, context.current_ip() - cond_ip);
+
+		break;
+	}
+	case token_type::DO: {
+		context.tokenizer.scan_token();
+
+		size_t repeat_dest_ip = context.current_ip();
+		auto lexical_scope = compile_block(context, {token_type::WHILE}, true);
+		context.tokenizer.scan_token();
+
+		for (size_t continue_req_ip : lexical_scope.continue_requests) {
+			context.set_operand(continue_req_ip, context.current_ip() - continue_req_ip);
+		}
+		compile_expression(context); 
+		context.emit({ .operation = opcode::CONDITIONAL_JUMP_BACK, .operand = static_cast<operand>(context.current_ip() - repeat_dest_ip) });
+		for (size_t break_req_ip : lexical_scope.break_requests) {
+			context.set_operand(break_req_ip, context.current_ip() - break_req_ip);
+		}
+
+		break;
+	}
+	case token_type::IF: {
+		context.tokenizer.scan_token();
+
+		size_t last_cond_check_id = 0;
+		std::vector<size_t> jump_end_ips;
+
+		do {
+			if (!jump_end_ips.empty()) {
+				context.tokenizer.scan_token();
+				context.set_operand(last_cond_check_id, context.current_ip() - last_cond_check_id);
+			}
+
+			compile_expression(context);
+			context.tokenizer.expect_token(token_type::THEN);
+			context.tokenizer.scan_token();
+			last_cond_check_id = context.emit({ .operation = opcode::CONDITIONAL_JUMP_AHEAD });
+
+			compile_block(context, { token_type::ELIF, token_type::ELSE, token_type::END_BLOCK });
+
+			if (!context.tokenizer.match_token(token_type::END_BLOCK)) {
+				jump_end_ips.push_back(context.emit({ .operation = opcode::JUMP_AHEAD }));
+			}
+		} while (context.tokenizer.match_token(token_type::ELIF));
+
+		context.set_operand(last_cond_check_id, context.current_ip() - last_cond_check_id);
+		if (context.tokenizer.match_token(token_type::ELSE)) {
+			context.tokenizer.scan_token();
+			compile_block(context);
+		}
+		context.tokenizer.scan_token();
+		
+		for (size_t ip : jump_end_ips) {
+			context.set_operand(ip, context.current_ip() - ip);
+		}
+
+		break;
+	}
+	case token_type::RETURN: {
+		context.tokenizer.scan_token();
+
+		compile_expression(context);
+		context.emit({ .operation = opcode::RETURN });
+		break;
+	}
+	case token_type::LOOP_BREAK:
+		context.tokenizer.scan_token();
+		if (!context.lexical_scopes.back().is_loop_block) {
+			throw make_error("Loop Error: Unexpected break statement outside of loop.");
+		}
+		context.lexical_scopes.back().break_requests.push_back(context.current_ip());
+		break;
+	case token_type::LOOP_CONTINUE:
+		context.tokenizer.scan_token();
+		if (!context.lexical_scopes.back().is_loop_block) {
+			throw make_error("Loop Error: Unexpected continue statement outside of loop.");
+		}
+		context.lexical_scopes.back().continue_requests.push_back(context.current_ip());
+		break;
+	default: {
+		compile_value(context, expects_statement, false);
+		break;
+	}
+	}
+}
+
+instance::compilation_context::lexical_scope instance::compile_block(compilation_context& context, std::vector<token_type> end_toks, bool is_loop) {
+	auto prev_scope = context.lexical_scopes.back();
+	std::vector<instruction> block_ins;
+	std::vector<std::pair<size_t, source_loc>> ip_src_map;
+
+	context.lexical_scopes.push_back({ .next_local_id = prev_scope.next_local_id, .instructions = block_ins, .ip_src_map = ip_src_map, .is_loop_block = is_loop });
+	while (!context.tokenizer.match_tokens(end_toks, true))
+	{
+		compile_statement(context);
+	}
+	//context.tokenizer.scan_token();
+
+	//emit unwind locals isntruction
+	if (context.lexical_scopes.back().declared_locals.size() > 0) {
+		context.emit({ .operation = opcode::UNWIND_LOCALS, .operand = static_cast<operand>(context.lexical_scopes.back().declared_locals.size()) });
+	}
+	//remove declared locals from active variables
+	for (auto hash : context.lexical_scopes.back().declared_locals) {
+		context.active_variables.erase(hash);
+	}
+
+	compilation_context::lexical_scope scope = context.lexical_scopes.back();
+	context.lexical_scopes.pop_back();
+
+	if (context.lexical_scopes.back().declared_locals.size() > 0) {
+		context.emit({ .operation = opcode::PROBE_LOCALS, .operand = static_cast<operand>(context.lexical_scopes.back().declared_locals.size()) });
+	}
+
+	prev_scope.merge_scope(scope);
+	return scope;
 }
