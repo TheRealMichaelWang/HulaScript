@@ -51,9 +51,10 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	std::vector<value> values_to_trace;
 	std::vector<uint32_t> functions_to_trace;
 
+	values_to_trace.insert(values_to_trace.end(), evaluation_stack.begin(), evaluation_stack.end());
 	values_to_trace.insert(values_to_trace.end(), globals.begin(), globals.end());
 	values_to_trace.insert(values_to_trace.end(), locals.begin(), locals.end());
-	values_to_trace.insert(values_to_trace.end(), constants.begin(), constants.end());
+	//values_to_trace.insert(values_to_trace.end(), constants.begin(), constants.end());
 
 	phmap::flat_hash_set<size_t> marked_tables;
 	phmap::flat_hash_set<uint32_t> marked_functions;
@@ -82,16 +83,22 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 			marked_strs.insert(to_trace.data.str);
 			break;
 		}
-	}
-	while (!functions_to_trace.empty()) //trace functions
-	{
-		uint32_t function_id = functions_to_trace.back();
-		functions_to_trace.pop_back();
 
-		auto res = marked_functions.emplace(function_id);
-		if (res.second) {
-			functions_to_trace.insert(functions_to_trace.end(), functions[function_id].referenced_functions.begin(), functions[function_id].referenced_functions.end());
-			marked_constants.insert(functions[function_id].referenced_constants.begin(), functions[function_id].referenced_constants.end());
+		while (!functions_to_trace.empty()) //trace functions
+		{
+			uint32_t function_id = functions_to_trace.back();
+			functions_to_trace.pop_back();
+
+			auto res = marked_functions.emplace(function_id);
+			if (res.second) {
+				function_entry& function = functions[function_id];
+
+				functions_to_trace.insert(functions_to_trace.end(), function.referenced_functions.begin(), function.referenced_functions.end());
+				marked_constants.insert(function.referenced_constants.begin(), function.referenced_constants.end());
+				for (uint32_t id : function.referenced_constants) {
+					values_to_trace.push_back(constants[id]);
+				}
+			}
 		}
 	}
 

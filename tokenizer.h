@@ -22,6 +22,7 @@ namespace HulaScript {
 		TABLE,
 		CLASS,
 		SELF,
+		NO_CAPTURE,
 
 		IF,
 		ELIF,

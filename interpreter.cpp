@@ -41,6 +41,9 @@ void instance::execute() {
 			evaluation_stack.push_back(value(false));
 			break;
 
+		case opcode::DECL_TOPLVL_LOCAL:
+			declared_top_level_locals++;
+			[[fallthrough]];
 		case opcode::DECL_LOCAL:
 			assert(local_offset + ins.operand == locals.size());
 			locals.push_back(evaluation_stack.back());
@@ -122,12 +125,12 @@ void instance::execute() {
 			evaluation_stack.pop_back();
 
 			size_t table_id = allocate_table(static_cast<size_t>(length.data.number), true);
-			evaluation_stack.push_back(value(value::vtype::TABLE, 0, value::flags::NONE, 0, table_id));
+			evaluation_stack.push_back(value(value::vtype::TABLE, value::flags::NONE, 0, table_id));
 			break;
 		}
 		case opcode::ALLOCATE_TABLE_LITERAL: {
 			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
-			evaluation_stack.push_back(value(value::vtype::TABLE, 0, value::flags::NONE, 0, table_id));
+			evaluation_stack.push_back(value(value::vtype::TABLE, value::flags::NONE, 0, table_id));
 			break;
 		}
 
@@ -301,7 +304,7 @@ void instance::execute() {
 			expect_type(value::vtype::CLOSURE);
 			function_entry& function = functions[evaluation_stack.back().function_id];
 			if (evaluation_stack.back().flags & value::flags::HAS_CAPTURE_TABLE) {
-				locals.push_back(value(value::vtype::TABLE, 0, value::flags::NONE, 0, evaluation_stack.back().data.id));
+				locals.push_back(value(value::vtype::TABLE, value::flags::NONE, 0, evaluation_stack.back().data.id));
 			}
 			evaluation_stack.pop_back();
 
@@ -338,10 +341,10 @@ void instance::execute() {
 				size_t capture_table_id = evaluation_stack.back().data.id;
 				evaluation_stack.pop_back();
 
-				evaluation_stack.push_back(value(value::vtype::CLOSURE, 0, value::flags::HAS_CAPTURE_TABLE, id, capture_table_id));
+				evaluation_stack.push_back(value(value::vtype::CLOSURE, value::flags::HAS_CAPTURE_TABLE, id, capture_table_id));
 			}
 			else {
-				evaluation_stack.push_back(value(value::vtype::CLOSURE, 0, value::flags::NONE, id, 0));
+				evaluation_stack.push_back(value(value::vtype::CLOSURE, value::flags::NONE, id, 0));
 			}
 
 			ip++;

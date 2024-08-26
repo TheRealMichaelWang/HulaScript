@@ -115,7 +115,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 
 		if (context.tokenizer.match_token(token_type::COMMA)) {
 			if (expects_value) {
-				throw make_error("Syntax Error: Unexpected comma. Cannot declare multiple variables outside a statement.");
+				throw context.make_error("Syntax Error: Unexpected comma. Cannot declare multiple variables outside a statement.");
 			}
 
 			std::vector<std::string> to_declare;
@@ -241,6 +241,9 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		context.tokenizer.scan_token();
 		compile_expression(context);
 
+		context.tokenizer.expect_token(token_type::END_BLOCK);
+		context.tokenizer.scan_token();
+
 		context.set_operand(if_true_jump_till_end, context.current_ip() - if_true_jump_till_end);
 
 		context.unset_src_loc();
@@ -252,6 +255,14 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		compile_expression(context);
 		context.tokenizer.expect_token(token_type::CLOSE_PAREN);
 		context.tokenizer.scan_token();
+		break;
+	}
+
+	case token_type::FUNCTION: {
+		context.tokenizer.scan_token();
+		std::stringstream ss;
+		ss << "Lambda declared at " << context.current_src_pos.back().to_print_string();
+		compile_function(context, ss.str());
 		break;
 	}
 	}
@@ -307,7 +318,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			context.tokenizer.scan_token();
 
 			size_t arguments = 0;
-			while (!context.tokenizer.match_token(token_type::CLOSE_PAREN))
+			while (!context.tokenizer.match_token(token_type::CLOSE_PAREN, true))
 			{
 				if (arguments > 0) {
 					context.tokenizer.expect_token(token_type::COMMA);
@@ -359,14 +370,14 @@ void instance::compile_expression(compilation_context& context, int min_prec) {
 
 	compile_value(context, false, true);
 
-	while (context.tokenizer.get_last_token().is_operator() && op_precs[context.tokenizer.get_last_token().type()] > min_prec)
+	while (context.tokenizer.get_last_token().is_operator() && op_precs[context.tokenizer.get_last_token().type() - token_type::PLUS] > min_prec)
 	{
 		token_type op_type = context.tokenizer.get_last_token().type();
 		context.tokenizer.scan_token();
 	
 		if (op_type == token_type::NIL_COALESING) {
 			size_t cond_addr = context.emit({ .operation = opcode::IFNT_NIL_JUMP_AHEAD });
-			compile_expression(context, op_precs[op_type]);
+			compile_expression(context, op_precs[(op_type - token_type::PLUS)]);
 			context.set_operand(cond_addr, context.current_ip() - cond_addr);
 		}
 		else {
@@ -410,6 +421,9 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 		size_t repeat_dest_ip = context.current_ip();
 		auto lexical_scope = compile_block(context, {token_type::WHILE}, true);
 		context.tokenizer.scan_token();
+		if (lexical_scope.all_code_paths_return) {
+			context.lexical_scopes.back().all_code_paths_return = lexical_scope.all_code_paths_return;
+		}
 
 		for (size_t continue_req_ip : lexical_scope.continue_requests) {
 			context.set_operand(continue_req_ip, context.current_ip() - continue_req_ip);
@@ -427,6 +441,7 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 
 		size_t last_cond_check_id = 0;
 		std::vector<size_t> jump_end_ips;
+		bool all_paths_return = true;
 
 		do {
 			if (!jump_end_ips.empty()) {
@@ -439,17 +454,19 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 			context.tokenizer.scan_token();
 			last_cond_check_id = context.emit({ .operation = opcode::CONDITIONAL_JUMP_AHEAD });
 
-			compile_block(context, { token_type::ELIF, token_type::ELSE, token_type::END_BLOCK });
+			auto block_res = compile_block(context, { token_type::ELIF, token_type::ELSE, token_type::END_BLOCK });
+			all_paths_return = (all_paths_return && block_res.all_code_paths_return);
 
 			if (!context.tokenizer.match_token(token_type::END_BLOCK)) {
 				jump_end_ips.push_back(context.emit({ .operation = opcode::JUMP_AHEAD }));
 			}
-		} while (context.tokenizer.match_token(token_type::ELIF));
+		} while (context.tokenizer.match_token(token_type::ELIF, true));
 
 		context.set_operand(last_cond_check_id, context.current_ip() - last_cond_check_id);
 		if (context.tokenizer.match_token(token_type::ELSE)) {
 			context.tokenizer.scan_token();
-			compile_block(context);
+			auto block_res = compile_block(context);
+			all_paths_return = (all_paths_return && block_res.all_code_paths_return);
 		}
 		context.tokenizer.scan_token();
 		
@@ -464,19 +481,21 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 
 		compile_expression(context);
 		context.emit({ .operation = opcode::RETURN });
+
+		context.lexical_scopes.back().all_code_paths_return = true;
 		break;
 	}
 	case token_type::LOOP_BREAK:
 		context.tokenizer.scan_token();
 		if (!context.lexical_scopes.back().is_loop_block) {
-			throw make_error("Loop Error: Unexpected break statement outside of loop.");
+			throw context.make_error("Loop Error: Unexpected break statement outside of loop.");
 		}
 		context.lexical_scopes.back().break_requests.push_back(context.current_ip());
 		break;
 	case token_type::LOOP_CONTINUE:
 		context.tokenizer.scan_token();
 		if (!context.lexical_scopes.back().is_loop_block) {
-			throw make_error("Loop Error: Unexpected continue statement outside of loop.");
+			throw context.make_error("Loop Error: Unexpected continue statement outside of loop.");
 		}
 		context.lexical_scopes.back().continue_requests.push_back(context.current_ip());
 		break;
@@ -492,12 +511,11 @@ instance::compilation_context::lexical_scope instance::compile_block(compilation
 	std::vector<instruction> block_ins;
 	std::vector<std::pair<size_t, source_loc>> ip_src_map;
 
-	context.lexical_scopes.push_back({ .next_local_id = prev_scope.next_local_id, .instructions = block_ins, .ip_src_map = ip_src_map, .is_loop_block = is_loop });
+	context.lexical_scopes.push_back({ .next_local_id = prev_scope.next_local_id, .instructions = block_ins, .ip_src_map = ip_src_map, .all_code_paths_return = false, .is_loop_block = is_loop });
 	while (!context.tokenizer.match_tokens(end_toks, true))
 	{
 		compile_statement(context);
 	}
-	//context.tokenizer.scan_token();
 
 	//emit unwind locals isntruction
 	if (context.lexical_scopes.back().declared_locals.size() > 0) {
@@ -517,4 +535,231 @@ instance::compilation_context::lexical_scope instance::compile_block(compilation
 
 	prev_scope.merge_scope(scope);
 	return scope;
+}
+
+void instance::compile_function(compilation_context& context, std::string name) {
+	context.tokenizer.expect_token(token_type::OPEN_PAREN);
+	context.tokenizer.scan_token();
+
+	std::vector<std::string> param_names;
+	while (!context.tokenizer.match_token(token_type::CLOSE_PAREN, true)) {
+		if (param_names.size() > 0) {
+			context.tokenizer.expect_token(token_type::COMMA);
+			context.tokenizer.scan_token();
+		}
+
+		context.tokenizer.expect_token(token_type::IDENTIFIER);
+		param_names.push_back(context.tokenizer.get_last_token().str());
+		context.tokenizer.scan_token();
+	}
+	context.tokenizer.scan_token();
+	if (param_names.size() > UINT8_MAX) {
+		throw context.make_error("Function Error: Parameter count cannot exceed 255.");
+	}
+
+	bool no_capture = context.tokenizer.match_token(token_type::NO_CAPTURE);
+	if (no_capture) { context.tokenizer.scan_token(); }
+
+	std::vector<instruction> block_ins;
+	std::vector<std::pair<size_t, source_loc>> ip_src_map;
+	context.lexical_scopes.push_back({ .next_local_id = 0, .instructions = block_ins, .ip_src_map = ip_src_map, .is_loop_block = false });
+	context.function_decls.push_back({ .name = name, .id = context.function_decls.size(), .param_count = static_cast<operand>(param_names.size()) });
+
+	for (std::string param_name : param_names) {
+		context.alloc_local(param_name, true);
+	}
+	if (no_capture) {
+		std::stringstream ss;
+		ss << "capture_table_" << context.function_decls.back().id;
+		context.alloc_local(ss.str());
+	}
+
+	while (!context.tokenizer.match_token(token_type::END_BLOCK, true))
+	{
+		compile_statement(context);
+	}
+	context.tokenizer.scan_token();
+
+	if (!context.lexical_scopes.back().all_code_paths_return) {
+		context.emit({ .operation = opcode::RETURN });
+	}
+
+	{
+		bool captures_variables = !context.function_decls.back().captured_variables.empty();
+		if (no_capture && captures_variables) {
+			std::stringstream ss;
+			ss << "Function Error: Function " << name << " promised no variables are captrued, yet it captrues " << context.function_decls.back().captured_variables.size() << " variable(s).";
+			throw context.make_error(ss.str());
+		}
+		else if (!captures_variables && !no_capture) {
+			std::stringstream ss;
+			ss << "Function Warning: Function " << name << " doesn't capture any variables. Consider adding the no_capture annotation for enhanced performance.";
+			context.make_warning(ss.str());
+		}
+	}
+
+	//remove declared locals from active variables
+	for (auto hash : context.lexical_scopes.back().declared_locals) {
+		context.active_variables.erase(hash);
+	}
+
+	//add instructions to instance
+	compilation_context::lexical_scope scope = context.lexical_scopes.back();
+	context.lexical_scopes.pop_back();
+
+	size_t offset = instructions.size();
+	if (scope.declared_locals.size() > 0) {
+		instructions.push_back({ .operation = opcode::PROBE_LOCALS, .operand = static_cast<operand>(scope.declared_locals.size()) });
+	}
+
+	instructions.insert(instructions.end(), block_ins.begin(), block_ins.end());
+	for (auto src_loc : scope.ip_src_map) {
+		this->ip_src_map.insert(std::make_pair(src_loc.first + offset, src_loc.second));
+	}
+
+	function_entry function = {
+		.start_address = offset,
+		.length = instructions.size() - offset,
+		.name = name,
+		.parameter_count = static_cast<operand>(param_names.size()),
+		.has_capture_table = !no_capture
+	};
+	compilation_context::function_declaration& func_decl = context.function_decls.back();
+	function.referenced_constants = std::vector<uint32_t>(func_decl.refed_constants.begin(), func_decl.refed_constants.end());
+	function.referenced_functions = std::vector<uint32_t>(func_decl.refed_functions.begin(), func_decl.refed_functions.end());
+	context.function_decls.pop_back();
+
+	uint32_t id;
+	if (availible_function_ids.empty()) {
+		id = next_function_id++;
+	}
+	else {
+		id = availible_function_ids.back();
+		availible_table_ids.pop_back();
+	}
+	functions.insert({ id, function });
+
+	if (!context.function_decls.empty()) {
+		context.function_decls.back().refed_functions.insert(id);
+	}
+
+	opcode operation = no_capture ? opcode::CAPTURE_FUNCPTR : opcode::CAPTURE_CLOSURE;
+
+	context.emit({ .operation = opcode::CAPTURE_CLOSURE, .operand = static_cast<operand>(id >> 16) });
+	id = id & UINT16_MAX;
+	context.emit({ .operation = static_cast<opcode>(id >> 8), .operand = static_cast<operand>(id & UINT8_MAX) });
+}
+
+void instance::compile(compilation_context& context, bool repl_mode) {
+	std::vector<instruction> repl_section;
+	std::vector<std::pair<size_t, source_loc>> ip_src_map;
+
+	context.lexical_scopes.push_back({ .next_local_id = top_level_local_vars.size(), .declared_locals = top_level_local_vars , .instructions = repl_section, .ip_src_map = ip_src_map, .all_code_paths_return = false, .is_loop_block = false});
+	
+	operand offset = 0;
+	for (auto name_hash : top_level_local_vars) {
+		context.active_variables.insert({ name_hash, {
+			.name_hash = name_hash,
+			.is_global = false,
+			.offset = offset,
+			.func_id = 0
+		} });
+		offset++;
+	}
+	offset = 0;
+	for (auto name_hash : global_vars) {
+		context.active_variables.insert({ name_hash, {
+			.name_hash = name_hash,
+			.is_global = true,
+			.offset = offset,
+			.func_id = 0
+		} });
+		offset++;
+	}
+
+	std::vector<size_t> declared_globals;
+	while (!context.tokenizer.match_token(token_type::END_OF_SOURCE, true))
+	{
+		auto last_token = context.tokenizer.get_last_token();
+		switch (last_token.type())
+		{
+		case token_type::GLOBAL: {
+			context.tokenizer.scan_token();
+			context.tokenizer.expect_token(token_type::IDENTIFIER);
+			std::string identifier = context.tokenizer.get_last_token().str();
+			size_t hash = Hash::dj2b(identifier.c_str());
+			if (context.active_variables.contains(hash)) {
+				std::stringstream ss;
+				ss << "Naming Error: Variable " << identifier << " already exists.";
+				throw context.make_error(ss.str());
+			}
+
+			context.tokenizer.scan_token();
+			context.tokenizer.expect_token(token_type::SET);
+			context.tokenizer.scan_token();
+			compile_expression(context);
+
+			size_t raw_offset = offset + declared_globals.size();
+			if (raw_offset > UINT8_MAX) {
+				throw context.make_error("Variable Error: Cannot declare more than 256 globals.");
+			}
+
+			operand var_offset = static_cast<operand>(raw_offset);
+			context.active_variables.insert({ hash, {
+				.name_hash = hash,
+				.is_global = true,
+				.offset = var_offset,
+				.func_id = 0
+			} });
+			declared_globals.push_back(hash);
+
+			context.emit({ .operation = opcode::DECL_GLOBAL, .operand = var_offset });
+
+			break;
+		}
+		case token_type::FUNCTION: {
+			context.tokenizer.scan_token();
+
+			context.tokenizer.expect_token(token_type::IDENTIFIER);
+			std::string identifier = context.tokenizer.get_last_token().str();
+			size_t hash = Hash::dj2b(identifier.c_str());
+			context.tokenizer.scan_token();
+
+			size_t raw_offset = offset + declared_globals.size();
+			if (raw_offset > UINT8_MAX) {
+				throw context.make_error("Variable Error: Cannot declare more than 256 globals.");
+			}
+			operand var_offset = static_cast<operand>(raw_offset);
+			context.active_variables.insert({ hash, {
+				.name_hash = hash,
+				.is_global = true,
+				.offset = var_offset,
+				.func_id = 0
+			} });
+			declared_globals.push_back(hash);
+
+			compile_function(context, identifier);
+			context.emit({ .operation = opcode::DECL_GLOBAL, .operand = var_offset });
+
+			break;
+		}
+		default:
+			compile_statement(context, !repl_mode);
+			break;
+		}
+
+		if (repl_mode) {
+			context.tokenizer.expect_token(token_type::END_OF_SOURCE);
+		}
+	}
+
+	top_level_local_vars.insert(top_level_local_vars.end(), context.lexical_scopes.back().declared_locals.begin(), context.lexical_scopes.back().declared_locals.end());
+	global_vars.insert(global_vars.end(), declared_globals.begin(), declared_globals.end());
+	size_t ins_offset = instructions.size();
+	instructions.insert(instructions.end(), repl_section.begin(), repl_section.end());
+	for (auto src_loc : ip_src_map) {
+		this->ip_src_map.insert(std::make_pair(src_loc.first + ins_offset, src_loc.second));
+	}
+
+	context.lexical_scopes.pop_back();
 }

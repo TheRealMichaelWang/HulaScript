@@ -15,6 +15,7 @@
 #include "source_loc.h"
 #include "tokenizer.h"
 #include "error.h"
+#include "hash.h"
 
 namespace HulaScript {
 	class instance {
@@ -37,7 +38,6 @@ namespace HulaScript {
 				HAS_CAPTURE_TABLE = 1
 			};
 
-			uint8_t table_flags;
 			uint16_t flags;
 			uint32_t function_id;
 
@@ -48,20 +48,46 @@ namespace HulaScript {
 				char* str;
 			} data;
 
-			value() : value(vtype::NIL, 0, flags::NONE, 0, 0) { }
+			value() : value(vtype::NIL, flags::NONE, 0, 0) { }
 
-			value(double number) : type(vtype::NUMBER), table_flags(0), flags(flags::NONE), function_id(0), data({ .number = number }) { }
-			value(bool boolean) : type(vtype::BOOLEAN), table_flags(0), flags(flags::NONE), function_id(0), data({ .boolean = boolean }) { }
-			value(char* str) : type(vtype::STRING), table_flags(0), flags(flags::NONE), function_id(0), data({ .str = str }) { }
+			value(double number) : type(vtype::NUMBER), flags(flags::NONE), function_id(0), data({ .number = number }) { }
+			value(bool boolean) : type(vtype::BOOLEAN), flags(flags::NONE), function_id(0), data({ .boolean = boolean }) { }
+			value(char* str) : type(vtype::STRING), flags(flags::NONE), function_id(0), data({ .str = str }) { }
 
-			value(vtype t, uint8_t table_flags, uint16_t flags, uint32_t function_id, uint64_t data) : type(t), table_flags(table_flags), flags(flags), function_id(function_id), data({ .id = data }) { }
+			value(vtype t, uint16_t flags, uint32_t function_id, uint64_t data) : type(t), flags(flags), function_id(function_id), data({ .id = data }) { }
 
-			size_t hash();
+			const constexpr size_t hash() const noexcept {
+				size_t payload = 0;
+				switch (type)
+				{
+				case HulaScript::instance::value::NIL:
+					payload = 0;
+					break;
+
+				case HulaScript::instance::value::INTERNAL_STRHASH:
+					[[fallthrough]];
+				case HulaScript::instance::value::BOOLEAN:
+					[[fallthrough]];
+				case HulaScript::instance::value::TABLE:
+					[[fallthrough]];
+				case HulaScript::instance::value::STRING:
+					[[fallthrough]];
+				case HulaScript::instance::value::NUMBER:
+					payload = data.id;
+					break;
+				case HulaScript::instance::value::CLOSURE:
+					size_t payload2 = flags << 32;
+					payload2 += function_id;
+					payload = HulaScript::Hash::combine(payload2, data.id);
+					break;
+				}
+				return HulaScript::Hash::combine(static_cast<size_t>(type), payload);
+			}
 
 			friend instance;
 		};
 
-		std::optional<value> run(std::string source);
+		std::variant<std::optional<value>, std::vector<compilation_error>> run(std::string source, std::optional<std::string> file_name, bool repl_mode = true, bool ignore_warnings=false);
 	private:
 
 		//VIRTUAL MACHINE
@@ -70,6 +96,7 @@ namespace HulaScript {
 
 		enum opcode : uint8_t {
 			DECL_LOCAL,
+			DECL_TOPLVL_LOCAL,
 			PROBE_LOCALS,
 			UNWIND_LOCALS,
 
@@ -146,6 +173,7 @@ namespace HulaScript {
 
 			std::string name;
 			operand parameter_count;
+			bool has_capture_table;
 
 			//other function id's that are referenced in any instruction between start_address and start_address + length
 			std::vector<uint32_t> referenced_functions;
@@ -180,6 +208,7 @@ namespace HulaScript {
 		std::vector<uint32_t> availible_function_ids;
 
 		uint32_t next_function_id = 0;
+		uint32_t declared_top_level_locals = 0;
 
 		void execute();
 
@@ -191,6 +220,7 @@ namespace HulaScript {
 		void reallocate_table(size_t table_id, size_t new_capacity, bool allow_collect);
 
 		void garbage_collect(bool compact_instructions) noexcept;
+		void finalize();
 
 		void expect_type(value::vtype expected_type) const;
 
@@ -261,6 +291,7 @@ namespace HulaScript {
 				std::vector<std::pair<size_t, source_loc>>& ip_src_map;
 				std::vector<size_t> continue_requests;
 				std::vector<size_t> break_requests;
+				bool all_code_paths_return;
 
 				bool is_loop_block;
 
@@ -305,6 +336,8 @@ namespace HulaScript {
 				operand param_count;
 
 				phmap::flat_hash_set<size_t> captured_variables;
+				phmap::flat_hash_set<uint32_t> refed_constants;
+				phmap::flat_hash_set<uint32_t> refed_functions;
 			};
 
 			std::vector<function_declaration> function_decls;
@@ -314,9 +347,7 @@ namespace HulaScript {
 
 			tokenizer& tokenizer;
 			std::vector<source_loc> current_src_pos;
-
-			std::vector<instruction> function_section;
-			std::vector<instruction> repl_section;
+			std::vector<compilation_error> warnings;
 
 			std::pair<variable, bool> alloc_local(std::string name, bool must_declare=false);
 			void alloc_and_store(std::string name, bool must_declare = false);
@@ -350,6 +381,10 @@ namespace HulaScript {
 				return compilation_error(msg, current_src_pos.back());
 			}
 
+			void make_warning(std::string msg) {
+				warnings.push_back(make_error(msg));
+			}
+
 			void emit_load_constant(uint32_t const_id) {
 				if (const_id <= UINT8_MAX) {
 					emit({ .operation = opcode::LOAD_CONSTANT_FAST, .operand = static_cast<operand>(const_id) });
@@ -357,6 +392,10 @@ namespace HulaScript {
 				else {
 					emit({ .operation = opcode::LOAD_CONSTANT, .operand = static_cast<operand>(const_id >> 16) });
 					emit({ .operation = static_cast<opcode>((const_id >> 8) & 0xFF), .operand = static_cast<operand>(const_id & 0xFF) });
+				}
+
+				if (!function_decls.empty()) {
+					function_decls.back().refed_constants.insert(const_id);
 				}
 			}
 
@@ -375,17 +414,22 @@ namespace HulaScript {
 		void emit_load_variable(std::string name, compilation_context& context);
 
 		void emit_load_property(size_t hash, compilation_context& context) {
-			context.emit_load_constant(add_constant(value(value::vtype::INTERNAL_STRHASH, 0, 0, 0, hash)));
+			context.emit_load_constant(add_constant(value(value::vtype::INTERNAL_STRHASH, value::flags::NONE, 0, hash)));
 		}
 
 		void compile_value(compilation_context& context, bool expect_statement, bool expects_value);
 		void compile_expression(compilation_context& context, int min_prec=0);
 
 		void compile_statement(compilation_context& context, bool expects_statement = true);
+		
 		compilation_context::lexical_scope compile_block(compilation_context& context, std::vector<token_type> end_toks, bool is_loop=false);
 		compilation_context::lexical_scope compile_block(compilation_context& context) {
 			std::vector<token_type> end_toks = { token_type::END_BLOCK };
 			return compile_block(context, end_toks);
 		}
+
+		void compile_function(compilation_context& context, std::string name);
+
+		void compile(compilation_context& context, bool repl_mode=false);
 	};
 }
