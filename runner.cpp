@@ -24,6 +24,14 @@ std::variant<instance::value, std::vector<compilation_error>, std::monostate> in
 		return context.warnings;
 	}
 
+	auto res = run_loaded();
+	if (res.has_value()) {
+		return res.value();
+	}
+	return std::monostate{};
+}
+
+std::optional<instance::value> instance::run_loaded() {
 	try {
 		execute();
 
@@ -33,12 +41,12 @@ std::variant<instance::value, std::vector<compilation_error>, std::monostate> in
 			return to_return;
 		}
 		finalize();
-		return std::monostate{};
+		return std::nullopt;
 	}
 	catch (...) {
 		global_vars.erase(global_vars.begin() + global_vars.size(), global_vars.end());
 		top_level_local_vars.erase(top_level_local_vars.begin() + declared_top_level_locals, top_level_local_vars.end());
-		
+
 		finalize();
 		throw;
 	}

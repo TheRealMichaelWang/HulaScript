@@ -64,6 +64,7 @@ namespace HulaScript {
 			}
 
 			source.append(new_input);
+			source.push_back('\n');
 			return expected_toks.size() == 0 ? std::make_optional(source) : std::nullopt;
 		}
 	};

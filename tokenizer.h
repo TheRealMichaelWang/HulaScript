@@ -4,7 +4,6 @@
 #include <string>
 #include <optional>
 #include <vector>
-#include <functional>
 #include "error.h"
 #include "source_loc.h"
 
@@ -147,9 +146,11 @@ namespace HulaScript {
 
 		token scan_token();
 
-		void enter_function(std::string function_name, std::function<void()> action) {
+		void enter_function(std::string function_name) {
 			functions.push_back(function_name);
-			action();
+		}
+
+		void exit_function() {
 			functions.pop_back();
 		}
 	private:

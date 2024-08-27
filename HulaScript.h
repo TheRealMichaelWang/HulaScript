@@ -89,6 +89,7 @@ namespace HulaScript {
 		};
 
 		std::variant<value, std::vector<compilation_error>, std::monostate> run(std::string source, std::optional<std::string> file_name, bool repl_mode = true, bool ignore_warnings=false);
+		std::optional<value> run_loaded();
 
 		std::string get_value_print_string(value to_print);
 	private:
@@ -354,7 +355,7 @@ namespace HulaScript {
 			std::vector<compilation_error> warnings;
 
 			std::pair<variable, bool> alloc_local(std::string name, bool must_declare=false);
-			void alloc_and_store(std::string name, bool must_declare = false);
+			bool alloc_and_store(std::string name, bool must_declare = false);
 
 			size_t emit(instruction ins) {
 				size_t i = lexical_scopes.back().instructions.size();

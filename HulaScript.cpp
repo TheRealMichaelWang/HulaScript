@@ -36,6 +36,22 @@ int main()
 			if (holds_alternative<HulaScript::instance::value>(res)) {
 				cout << instance.get_value_print_string(std::get<HulaScript::instance::value>(res));
 			}
+			else if (holds_alternative<std::vector<HulaScript::compilation_error>>(res)) {
+				auto warnings = std::get<std::vector<HulaScript::compilation_error>>(res);
+
+				cout << warnings.size() << " warning(s): " << std::endl;
+				for (auto warning : warnings) {
+					cout << warning.to_print_string() << std::endl;
+				}
+
+				cout << "Press ENTER to aknowledge and continue execution..." << std::endl;
+				while(cin.get() != '\n') { }
+
+				auto run_res = instance.run_loaded();
+				if (run_res.has_value()) {
+					cout << instance.get_value_print_string(run_res.value());
+				}
+			}
 		}
 		catch (HulaScript::compilation_error& error) {
 			cout << error.to_print_string();
@@ -43,9 +59,9 @@ int main()
 		catch (HulaScript::runtime_error& error) {
 			cout << error.to_print_string();
 		}
-		/*catch (...) {
+		catch (...) {
 
-		}*/
+		}
 		cout << std::endl;
 	}
 

@@ -130,7 +130,7 @@ static const char* tok_names[] = {
 };
 
 void tokenizer::expect_token(token_type expected_type) const {
-	if (!last_token.type() == expected_type) {
+	if (last_token.type() != expected_type) {
 		std::stringstream ss;
 		ss << "Syntax Error: Expected token " << tok_names[expected_type] << " but got " << tok_names[last_token.type()] << " instead.";
 		throw make_error(ss.str());

@@ -83,7 +83,7 @@ char tokenizer::scan_literal_char() {
 }
 
 token tokenizer::scan_token() {
-	while (std::isblank(last_char)) {
+	while (std::isspace(last_char)) {
 		scan_char();
 	}
 

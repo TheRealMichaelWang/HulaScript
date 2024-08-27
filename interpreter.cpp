@@ -295,14 +295,12 @@ void instance::execute() {
 
 		case opcode::CALL: {
 			extended_offsets.push_back(local_offset);
+			local_offset = locals.size();
+			return_stack.push_back(ip); //push return address
 
 			//push arguments into local variable stack
 			locals.insert(locals.end(), evaluation_stack.end() - ins.operand, evaluation_stack.end());
 			evaluation_stack.erase(evaluation_stack.end() - ins.operand, evaluation_stack.end());
-
-			local_offset = locals.size();
-
-			return_stack.push_back(ip); //push return address
 
 			expect_type(value::vtype::CLOSURE);
 			function_entry& function = functions[evaluation_stack.back().function_id];

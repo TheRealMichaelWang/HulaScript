@@ -34,13 +34,15 @@ std::pair<instance::compilation_context::variable, bool> instance::compilation_c
 	return std::make_pair(v, true);
 }
 
-void instance::compilation_context::alloc_and_store(std::string name, bool must_declare) {
+bool instance::compilation_context::alloc_and_store(std::string name, bool must_declare) {
 	auto res = alloc_local(name, must_declare);
 	if (res.second) {
 		emit({ .operation = opcode::DECL_LOCAL, .operand = res.first.offset });
+		return true;
 	}
 	else if (res.first.is_global) {
 		emit({ .operation = opcode::STORE_GLOBAL, .operand = res.first.offset });
+		return false;
 	}
 	else {
 		if (res.first.func_id != function_decls.size()) {
@@ -50,6 +52,7 @@ void instance::compilation_context::alloc_and_store(std::string name, bool must_
 		}
 
 		emit({ .operation = opcode::STORE_LOCAL, .operand = res.first.offset });
+		return false;
 	}
 }
 
@@ -140,7 +143,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			}
 
 			for (auto it = to_declare.rbegin(); it != to_declare.rend(); it++) {
-				context.alloc_and_store(*it);
+				context.alloc_local(*it, true);
 			}
 
 			context.unset_src_loc();
@@ -150,13 +153,19 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		if (context.tokenizer.match_token(token_type::SET)) {
 			context.tokenizer.scan_token();
 			compile_expression(context);
-			context.alloc_and_store(id);
+			bool declared = context.alloc_and_store(id);
+
+			if (declared && expects_value) {
+				throw context.make_error("Syntax Error: Cannot declare variable outside a statement.");
+			}
+
+			context.unset_src_loc();
+			return;
 		}
 		else {
 			emit_load_variable(id, context);
+			break;
 		}
-		context.unset_src_loc();
-		return;
 	}
 	case token_type::OPEN_BRACKET: {
 		context.tokenizer.scan_token();
@@ -259,7 +268,6 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 	}
 
 	case token_type::FUNCTION: {
-		context.tokenizer.scan_token();
 		std::stringstream ss;
 		ss << "Lambda declared at " << context.current_src_pos.back().to_print_string();
 		compile_function(context, ss.str());
@@ -327,6 +335,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 				compile_expression(context);
 				arguments++;
 			}
+			context.tokenizer.scan_token();
 
 			if (arguments > UINT8_MAX) {
 				throw context.make_error("Function Error: Argument count cannot exceed 255 arguments.");
@@ -550,6 +559,9 @@ instance::compilation_context::lexical_scope instance::compile_block(compilation
 }
 
 void instance::compile_function(compilation_context& context, std::string name) {
+	context.tokenizer.enter_function(name);
+	context.tokenizer.scan_token();
+
 	context.tokenizer.expect_token(token_type::OPEN_PAREN);
 	context.tokenizer.scan_token();
 
@@ -590,6 +602,7 @@ void instance::compile_function(compilation_context& context, std::string name) 
 	{
 		compile_statement(context);
 	}
+	context.tokenizer.exit_function();
 	context.tokenizer.scan_token();
 
 	if (!context.lexical_scopes.back().all_code_paths_return) {
@@ -735,7 +748,6 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 			context.tokenizer.expect_token(token_type::IDENTIFIER);
 			std::string identifier = context.tokenizer.get_last_token().str();
 			size_t hash = Hash::dj2b(identifier.c_str());
-			context.tokenizer.scan_token();
 
 			size_t raw_offset = offset + declared_globals.size();
 			if (raw_offset > UINT8_MAX) {
@@ -753,6 +765,10 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 			compile_function(context, identifier);
 			context.emit({ .operation = opcode::DECL_GLOBAL, .operand = var_offset });
 
+			if (repl_mode) {
+				context.emit({ .operation = opcode::LOAD_GLOBAL, .operand = var_offset });
+			}
+
 			break;
 		}
 		default:
@@ -767,10 +783,11 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 
 	top_level_local_vars.insert(top_level_local_vars.end(), context.lexical_scopes.back().declared_locals.begin(), context.lexical_scopes.back().declared_locals.end());
 	global_vars.insert(global_vars.end(), declared_globals.begin(), declared_globals.end());
-	size_t ins_offset = instructions.size();
+
+	ip = instructions.size();
 	instructions.insert(instructions.end(), repl_section.begin(), repl_section.end());
 	for (auto src_loc : ip_src_map) {
-		this->ip_src_map.insert(std::make_pair(src_loc.first + ins_offset, src_loc.second));
+		this->ip_src_map.insert(std::make_pair(src_loc.first + ip, src_loc.second));
 	}
 
 	context.lexical_scopes.pop_back();
