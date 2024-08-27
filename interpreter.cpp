@@ -60,7 +60,6 @@ void instance::execute() {
 			break;
 		case opcode::STORE_LOCAL:
 			locals[local_offset + ins.operand] = evaluation_stack.back();
-			evaluation_stack.pop_back();
 			break;
 		case opcode::LOAD_LOCAL:
 			evaluation_stack.push_back(locals[local_offset + ins.operand]);
@@ -73,7 +72,6 @@ void instance::execute() {
 			break;
 		case opcode::STORE_GLOBAL:
 			globals[ins.operand] = evaluation_stack.back();
-			evaluation_stack.pop_back();
 			break;
 		case opcode::LOAD_GLOBAL:
 			evaluation_stack.push_back(globals[ins.operand]);

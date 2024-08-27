@@ -234,7 +234,7 @@ namespace HulaScript {
 		void expect_type(value::vtype expected_type) const;
 
 		value make_string(std::string str) {
-			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size()]));
+			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size() + 1]));
 			std::strcpy(res.first->get(), str.c_str());
 			return value(res.first->get());
 		}
@@ -394,7 +394,7 @@ namespace HulaScript {
 				warnings.push_back(make_error(msg));
 			}
 
-			void emit_load_constant(uint32_t const_id) {
+			void emit_load_constant(uint32_t const_id, std::vector<uint32_t>& repl_used_constants) {
 				if (const_id <= UINT8_MAX) {
 					emit({ .operation = opcode::LOAD_CONSTANT_FAST, .operand = static_cast<operand>(const_id) });
 				}
@@ -405,6 +405,9 @@ namespace HulaScript {
 
 				if (!function_decls.empty()) {
 					function_decls.back().refed_constants.insert(const_id);
+				}
+				else {
+					repl_used_constants.push_back(const_id);
 				}
 			}
 
@@ -423,7 +426,7 @@ namespace HulaScript {
 		void emit_load_variable(std::string name, compilation_context& context);
 
 		void emit_load_property(size_t hash, compilation_context& context) {
-			context.emit_load_constant(add_constant(value(value::vtype::INTERNAL_STRHASH, value::flags::NONE, 0, hash)));
+			context.emit_load_constant(add_constant(value(value::vtype::INTERNAL_STRHASH, value::flags::NONE, 0, hash)), repl_used_constants);
 		}
 
 		void compile_value(compilation_context& context, bool expect_statement, bool expects_value);

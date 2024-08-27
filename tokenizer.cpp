@@ -157,6 +157,10 @@ token tokenizer::scan_token() {
 
 		std::stringstream ss;
 		while (last_char != '\"') {
+			if (last_char == '\0') {
+				throw make_error("Syntax Error: Unexpected End Of Source in string literal.");
+			}
+
 			ss << scan_literal_char();
 		}
 		scan_char();
