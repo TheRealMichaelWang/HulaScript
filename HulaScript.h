@@ -76,7 +76,8 @@ namespace HulaScript {
 					payload = data.id;
 					break;
 				case HulaScript::instance::value::CLOSURE:
-					size_t payload2 = flags << 32;
+					size_t payload2 = flags;
+					payload2 <<= 32;
 					payload2 += function_id;
 					payload = HulaScript::Hash::combine(payload2, data.id);
 					break;
@@ -87,7 +88,9 @@ namespace HulaScript {
 			friend instance;
 		};
 
-		std::variant<std::optional<value>, std::vector<compilation_error>> run(std::string source, std::optional<std::string> file_name, bool repl_mode = true, bool ignore_warnings=false);
+		std::variant<value, std::vector<compilation_error>, std::monostate> run(std::string source, std::optional<std::string> file_name, bool repl_mode = true, bool ignore_warnings=false);
+
+		std::string get_value_print_string(value to_print);
 	private:
 
 		//VIRTUAL MACHINE
@@ -101,6 +104,7 @@ namespace HulaScript {
 			UNWIND_LOCALS,
 
 			DUPLICATE_TOP,
+			DISCARD_TOP,
 
 			LOAD_CONSTANT_FAST,
 			LOAD_CONSTANT,
@@ -418,7 +422,7 @@ namespace HulaScript {
 		}
 
 		void compile_value(compilation_context& context, bool expect_statement, bool expects_value);
-		void compile_expression(compilation_context& context, int min_prec=0);
+		void compile_expression(compilation_context& context, int min_prec=0, bool skip_lhs_compile=false);
 
 		void compile_statement(compilation_context& context, bool expects_statement = true);
 		

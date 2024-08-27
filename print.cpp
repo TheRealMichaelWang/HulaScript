@@ -169,3 +169,75 @@ void tokenizer::expect_tokens(std::vector<token_type> expected_types) const {
 
 	throw make_error(ss.str());
 }
+
+std::string instance::get_value_print_string(value to_print_init) {
+	phmap::flat_hash_set<size_t> printed_tables;
+	
+	std::stringstream ss;
+
+	std::vector<value> to_print;
+	std::vector<size_t> close_counts;
+	to_print.push_back(to_print_init);
+
+	while (!to_print.empty()) {
+		value current = to_print.back();
+		to_print.pop_back();
+
+		switch (current.type)
+		{
+		case value::vtype::TABLE: {
+			table& table = tables[current.data.id];
+			close_counts.push_back(table.count);
+
+			ss << '[';
+			for (size_t i = 0; i < table.count; i++) {
+				to_print.push_back(heap[table.block.start + i]);
+			}
+
+			continue;
+		}
+		case value::vtype::NIL:
+			ss << "NIL";
+			break;
+		case value::vtype::BOOLEAN:
+			ss << (current.data.boolean ? "true" : "false");
+			break;
+		case value::vtype::STRING:
+			ss << (current.data.str);
+			break;
+		case value::vtype::NUMBER:
+			ss << current.data.number;
+			break;
+
+		case value::vtype::CLOSURE: {
+			function_entry& function = functions[current.function_id];
+			ss << "[closure: func_ptr = " << function.name;
+			if (current.flags & value::flags::HAS_CAPTURE_TABLE) {
+				ss << ", capture_table = ";
+
+				close_counts.push_back(1);
+				to_print.push_back(value(value::vtype::TABLE, 0, 0, current.data.id));
+			}
+			else {
+				ss << ']';
+			}
+
+			continue;
+		}
+		}
+
+	print_end_bracket:
+		if (!close_counts.empty()) {
+			close_counts.back()--;
+			if (close_counts.back() == 0) {
+				ss << ']';
+				goto print_end_bracket;
+			}
+			else {
+				ss << ", ";
+			}
+		}
+	}
+
+	return ss.str();
+}

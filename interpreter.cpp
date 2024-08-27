@@ -10,10 +10,13 @@ void instance::execute() {
 	{
 		instruction& ins = instructions[ip];
 
-		switch (ins.operand)
+		switch (ins.operation)
 		{
 		case opcode::DUPLICATE_TOP:
 			evaluation_stack.push_back(evaluation_stack.back());
+			break;
+		case opcode::DISCARD_TOP:
+			evaluation_stack.pop_back();
 			break;
 
 		case opcode::LOAD_CONSTANT_FAST:

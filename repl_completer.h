@@ -12,14 +12,22 @@ namespace HulaScript {
 		std::vector<token_type> expected_toks;
 
 	public:
+		const std::string& get_source() const noexcept {
+			return source;
+		}
+
 		std::optional<std::string> write_input(std::string new_input) {
+			if (expected_toks.size() == 0) {
+				source.clear();
+			}
+
 			tokenizer tokenizer(new_input, std::nullopt);
 			while (!tokenizer.match_token(token_type::END_OF_SOURCE))
 			{
 				auto tok = tokenizer.get_last_token();
 				tokenizer.scan_token();
 
-				if (expected_toks.back() == tok.type()) {
+				if (!expected_toks.empty() && expected_toks.back() == tok.type()) {
 					expected_toks.pop_back();
 					continue;
 				}
@@ -56,7 +64,6 @@ namespace HulaScript {
 			}
 
 			source.append(new_input);
-			
 			return expected_toks.size() == 0 ? std::make_optional(source) : std::nullopt;
 		}
 	};

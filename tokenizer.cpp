@@ -14,6 +14,10 @@ char tokenizer::scan_char() {
 		current_col++;
 	}
 
+	if (pos == source.size()) {
+		return last_char = '\0';
+	}
+
 	last_char = source[pos];
 	pos++;
 	return last_char;
@@ -154,7 +158,7 @@ token tokenizer::scan_token() {
 			ss << scan_literal_char();
 		}
 		scan_char();
-		return token(token_type::STRING_LITERAL, ss.str());
+		return last_token = token(token_type::STRING_LITERAL, ss.str());
 	}
 	else if (std::isdigit(last_char)) {
 		std::stringstream ss;
@@ -165,7 +169,7 @@ token tokenizer::scan_token() {
 
 		try {
 			double num = std::stod(ss.str());
-			return token(num);
+			return last_token = token(num);
 		}
 		catch(std::invalid_argument) {
 			std::stringstream ss2;

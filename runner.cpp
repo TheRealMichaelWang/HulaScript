@@ -12,7 +12,7 @@ void instance::finalize() {
 	local_offset = 0;
 }
 
-std::variant<std::optional<instance::value>, std::vector<compilation_error>> instance::run(std::string source, std::optional<std::string> file_name, bool repl_mode, bool ignore_warnings) {
+std::variant<instance::value, std::vector<compilation_error>, std::monostate> instance::run(std::string source, std::optional<std::string> file_name, bool repl_mode, bool ignore_warnings) {
 	tokenizer tokenizer(source, file_name);
 
 	compilation_context context = {
@@ -27,13 +27,13 @@ std::variant<std::optional<instance::value>, std::vector<compilation_error>> ins
 	try {
 		execute();
 
-		std::optional<value> to_return = std::nullopt;
 		if (!evaluation_stack.empty()) {
-			to_return = evaluation_stack.back();
+			value to_return = evaluation_stack.back();
+			finalize();
+			return to_return;
 		}
-
 		finalize();
-		return to_return;
+		return std::monostate{};
 	}
 	catch (...) {
 		global_vars.erase(global_vars.begin() + global_vars.size(), global_vars.end());

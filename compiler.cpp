@@ -347,7 +347,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 	}
 }
 
-void instance::compile_expression(compilation_context& context, int min_prec) {
+void instance::compile_expression(compilation_context& context, int min_prec, bool skip_lhs_compile) {
 	static int op_precs[] = {
 		5, //plus,
 		5, //minus
@@ -365,10 +365,12 @@ void instance::compile_expression(compilation_context& context, int min_prec) {
 
 		1, //and
 		1, //or
-		3, //nil coaleasing operator
+		3, //nil coalescing operator
 	};
 
-	compile_value(context, false, true);
+	if (!skip_lhs_compile) {
+		compile_value(context, false, true);
+	}
 
 	while (context.tokenizer.get_last_token().is_operator() && op_precs[context.tokenizer.get_last_token().type() - token_type::PLUS] > min_prec)
 	{
@@ -500,7 +502,17 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 		context.lexical_scopes.back().continue_requests.push_back(context.current_ip());
 		break;
 	default: {
-		compile_value(context, expects_statement, false);
+		if (expects_statement) {
+			compile_value(context, true, false);
+			context.emit({ .operation = opcode::DISCARD_TOP });
+		}
+		else {
+			compile_value(context, false, false);
+			if (context.tokenizer.get_last_token().is_operator()) {
+				compile_expression(context);
+			}
+		}
+
 		break;
 	}
 	}
@@ -517,7 +529,7 @@ instance::compilation_context::lexical_scope instance::compile_block(compilation
 		compile_statement(context);
 	}
 
-	//emit unwind locals isntruction
+	//emit unwind locals instruction
 	if (context.lexical_scopes.back().declared_locals.size() > 0) {
 		context.emit({ .operation = opcode::UNWIND_LOCALS, .operand = static_cast<operand>(context.lexical_scopes.back().declared_locals.size()) });
 	}
