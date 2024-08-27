@@ -75,7 +75,7 @@ namespace HulaScript {
 	class token {
 	public:
 		token(token_type type) : _type(type), payload() { }
-		token(token_type type, std::string str) : _type(type), payload(payload) { }
+		token(token_type type, std::string str) : _type(type), payload(str) { }
 
 		token(std::string identifier) : _type(token_type::IDENTIFIER), payload(identifier) { }
 		token(double number) : _type(token_type::NUMBER), payload(number) { }

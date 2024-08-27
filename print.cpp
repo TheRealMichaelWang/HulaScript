@@ -67,66 +67,67 @@ void instance::expect_type(value::vtype expected_type) const {
 }
 
 static const char* tok_names[] = {
-			"IDENTIFIER",
-			"NUMBER",
-			"STRING_LITERAL",
+		"IDENTIFIER",
+		"NUMBER",
+		"STRING_LITERAL",
 
-			"TRUE",
-			"FALSE",
-			"NIL",
+		"TRUE",
+		"FALSE",
+		"NIL",
 
-			"FUNCTION",
-			"TABLE",
-			"DICT",
-			"CLASS",
+		"FUNCTION",
+		"TABLE",
+		"DICT",
+		"NO_CAPTURE",
+		"CLASS",
 
-			"IF",
-			"ELIF",
-			"ELSE",
-			"WHILE",
-			"FOR",
-			"IN",
-			"DO",
-			"RETURN",
-			"BREAK",
-			"CONTINUE",
-			"GLOBAL",
+		"IF",
+		"ELIF",
+		"ELSE",
+		"WHILE",
+		"FOR",
+		"IN",
+		"DO",
+		"RETURN",
+		"BREAK",
+		"CONTINUE",
+		"GLOBAL",
 
-			"THEN",
-			"END_BLOCK",
+		"THEN",
+		"END_BLOCK",
 
-			"OPEN_PAREN",
-			"CLOSE_PAREN",
-			"OPEN_BRACE",
-			"CLOSE_BRACE",
-			"OPEN_BRACKET",
-			"CLOSE_BRACKET",
-			"PERIOD",
-			"COMMA",
-			"QUESTION",
-			"COLON",
+		"OPEN_PAREN",
+		"CLOSE_PAREN",
+		"OPEN_BRACE",
+		"CLOSE_BRACE",
+		"OPEN_BRACKET",
+		"CLOSE_BRACKET",
+		"PERIOD",
+		"COMMA",
+		"QUESTION",
+		"COLON",
 
-			"PLUS",
-			"MINUS",
-			"ASTERISK",
-			"SLASH",
-			"PERCENT",
-			"CARET",
+		"PLUS",
+		"MINUS",
+		"ASTERISK",
+		"SLASH",
+		"PERCENT",
+		"CARET",
 
-			"LESS",
-			"MORE",
-			"LESS_EQUAL",
-			"MORE_EQUAL",
-			"EQUALS",
-			"NOT_EQUAL",
+		"LESS",
+		"MORE",
+		"LESS_EQUAL",
+		"MORE_EQUAL",
+		"EQUALS",
+		"NOT_EQUAL",
 
-			"AND",
-			"OR",
-			"NIL COALEASING OPERATOR",
+		"AND",
+		"OR",
+		"NIL COALEASING OPERATOR",
 
-			"NOT",
-			"SET",
-			"END_OF_SOURCE"
+		"NOT",
+		"SET",
+		"END_OF_SOURCE"
 };
 
 void tokenizer::expect_token(token_type expected_type) const {
@@ -187,11 +188,17 @@ std::string instance::get_value_print_string(value to_print_init) {
 		{
 		case value::vtype::TABLE: {
 			table& table = tables[current.data.id];
-			close_counts.push_back(table.count);
 
 			ss << '[';
+
+			if (table.count == 0) {
+				close_counts.push_back(1);
+				goto print_end_bracket;
+			}
+
+			close_counts.push_back(table.count);
 			for (size_t i = 0; i < table.count; i++) {
-				to_print.push_back(heap[table.block.start + i]);
+				to_print.push_back(heap[table.block.start + (table.count - (i + 1))]);
 			}
 
 			continue;
@@ -231,6 +238,7 @@ std::string instance::get_value_print_string(value to_print_init) {
 			close_counts.back()--;
 			if (close_counts.back() == 0) {
 				ss << ']';
+				close_counts.pop_back();
 				goto print_end_bracket;
 			}
 			else {

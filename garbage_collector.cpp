@@ -54,34 +54,42 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	values_to_trace.insert(values_to_trace.end(), evaluation_stack.begin(), evaluation_stack.end());
 	values_to_trace.insert(values_to_trace.end(), globals.begin(), globals.end());
 	values_to_trace.insert(values_to_trace.end(), locals.begin(), locals.end());
-	//values_to_trace.insert(values_to_trace.end(), constants.begin(), constants.end());
+	values_to_trace.insert(values_to_trace.end(), temp_gc_exempt.begin(), temp_gc_exempt.end());
+	for (auto id : repl_used_constants)
+		values_to_trace.push_back(constants[id]);
+
+	temp_gc_exempt.clear();
 
 	phmap::flat_hash_set<size_t> marked_tables;
 	phmap::flat_hash_set<uint32_t> marked_functions;
 	phmap::flat_hash_set<char*> marked_strs;
 	phmap::flat_hash_set<uint32_t> marked_constants;
 
-	while (!values_to_trace.empty()) //trace values 
-	{
-		value to_trace = values_to_trace.back();
-		values_to_trace.pop_back();
+	functions_to_trace.insert(functions_to_trace.end(), repl_used_functions.begin(), repl_used_functions.end());
 
-		switch (to_trace.type)
-		{
-		case value::vtype::CLOSURE:
-			functions_to_trace.push_back(to_trace.function_id);
-			[[fallthrough]];
-		case value::vtype::TABLE: {
-			table& table = tables[to_trace.data.id];
-			marked_tables.insert(to_trace.data.id);
-			for (size_t i = 0; i < table.count; i++) {
-				values_to_trace.push_back(heap[i + table.block.start]);
+	while (!values_to_trace.empty() || !functions_to_trace.empty()) //trace values 
+	{
+		if (!values_to_trace.empty()) {
+			value to_trace = values_to_trace.back();
+			values_to_trace.pop_back();
+
+			switch (to_trace.type)
+			{
+			case value::vtype::CLOSURE:
+				functions_to_trace.push_back(to_trace.function_id);
+				[[fallthrough]];
+			case value::vtype::TABLE: {
+				table& table = tables[to_trace.data.id];
+				marked_tables.insert(to_trace.data.id);
+				for (size_t i = 0; i < table.count; i++) {
+					values_to_trace.push_back(heap[i + table.block.start]);
+				}
+				break;
 			}
-			break;
-		}
-		case value::vtype::STRING:
-			marked_strs.insert(to_trace.data.str);
-			break;
+			case value::vtype::STRING:
+				marked_strs.insert(to_trace.data.str);
+				break;
+			}
 		}
 
 		while (!functions_to_trace.empty()) //trace functions

@@ -212,6 +212,10 @@ namespace HulaScript {
 		phmap::flat_hash_map<uint32_t, function_entry> functions;
 		std::vector<uint32_t> availible_function_ids;
 
+		std::vector<uint32_t> repl_used_functions;
+		std::vector<uint32_t> repl_used_constants;
+		std::vector<value> temp_gc_exempt; //stores values exempt from garbage collection for 1 cycle
+
 		uint32_t next_function_id = 0;
 		uint32_t declared_top_level_locals = 0;
 

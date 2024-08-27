@@ -59,9 +59,9 @@ int main()
 		catch (HulaScript::runtime_error& error) {
 			cout << error.to_print_string();
 		}
-		catch (...) {
+		/*catch (...) {
 
-		}
+		}*/
 		cout << std::endl;
 	}
 

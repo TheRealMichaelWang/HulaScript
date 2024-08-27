@@ -146,6 +146,8 @@ token tokenizer::scan_token() {
 			return last_token = token(token_type::SELF);
 		case Hash::dj2b("table"):
 			return last_token = token(token_type::TABLE);
+		case Hash::dj2b("no_capture"):
+			return last_token = token(token_type::NO_CAPTURE);
 		default:
 			return last_token = token(ss.str());
 		}
@@ -154,7 +156,7 @@ token tokenizer::scan_token() {
 		scan_char();
 
 		std::stringstream ss;
-		while (last_char == '\"') {
+		while (last_char != '\"') {
 			ss << scan_literal_char();
 		}
 		scan_char();

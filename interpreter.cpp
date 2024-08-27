@@ -110,7 +110,7 @@ void instance::execute() {
 			auto it = table.key_hashes.find(hash);
 			if (it == table.key_hashes.end()) {
 				if (table.count == table.block.capacity) {
-					reallocate_table(id, table.block.capacity * 2, true);
+					reallocate_table(id, table.block.capacity == 0 ? 4 : table.block.capacity * 2, true);
 				}
 
 				table.key_hashes.insert({ hash, table.count });
@@ -319,9 +319,9 @@ void instance::execute() {
 			continue;
 		}
 		case opcode::RETURN:
+			locals.erase(locals.begin() + local_offset, locals.end());
 			local_offset = extended_offsets.back();
 			extended_offsets.pop_back();
-			locals.erase(locals.begin() + local_offset, locals.end());
 			
 			ip = return_stack.back();
 			return_stack.pop_back();
@@ -337,7 +337,7 @@ void instance::execute() {
 			id = (id << 8) + static_cast<uint8_t>(payload.operation);
 			id = (id << 8) + payload.operand;
 
-			if (ins.operand == CAPTURE_CLOSURE) {
+			if (ins.operation == CAPTURE_CLOSURE) {
 				expect_type(value::vtype::TABLE);
 				size_t capture_table_id = evaluation_stack.back().data.id;
 				evaluation_stack.pop_back();
