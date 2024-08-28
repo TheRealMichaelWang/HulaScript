@@ -130,6 +130,7 @@ namespace HulaScript {
 		}
 
 		void expect_token(token_type expected_type) const;
+		void unexpected_token() const;
 		void expect_tokens(std::vector<token_type> expected_type) const;
 
 		const token get_last_token() const noexcept {
@@ -165,8 +166,9 @@ namespace HulaScript {
 		char scan_char();
 		char scan_literal_char();
 
-		compilation_error make_error(std::string msg) const noexcept {
-			return compilation_error(msg, last_tok_begin());
+		void panic(std::string msg) const {
+			source_loc loc = last_tok_begin();
+			throw compilation_error(msg, loc);
 		}
 	};
 }

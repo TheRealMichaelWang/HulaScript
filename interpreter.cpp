@@ -264,7 +264,7 @@ void instance::execute() {
 		}
 
 		//jump and conditional operators
-		case opcode::CONDITIONAL_JUMP_AHEAD: {
+		case opcode::IF_FALSE_JUMP_AHEAD: {
 			expect_type(value::vtype::BOOLEAN);
 			bool cond = evaluation_stack.back().data.boolean;
 			evaluation_stack.pop_back();
@@ -277,7 +277,7 @@ void instance::execute() {
 		case opcode::JUMP_AHEAD:
 			ip += ins.operand;
 			continue;
-		case opcode::CONDITIONAL_JUMP_BACK: {
+		case opcode::IF_TRUE_JUMP_BACK: {
 			expect_type(value::vtype::BOOLEAN);
 			bool cond = evaluation_stack.back().data.boolean;
 			evaluation_stack.pop_back();
@@ -310,7 +310,7 @@ void instance::execute() {
 			if (function.parameter_count != ins.operand) {
 				std::stringstream ss;
 				ss << "Argument Error: Function " << function.name << " expected " << function.parameter_count << " argument(s), but got " << ins.operand << " instead.";
-				throw make_error(ss.str());
+				panic(ss.str());
 			}
 
 			ip = function.start_address;

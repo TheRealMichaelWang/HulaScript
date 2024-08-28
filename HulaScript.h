@@ -48,13 +48,16 @@ namespace HulaScript {
 				char* str;
 			} data;
 
+			value(char* str) : type(vtype::STRING), flags(flags::NONE), function_id(0), data({ .str = str }) { }
+
+			value(vtype t, uint16_t flags, uint32_t function_id, uint64_t data) : type(t), flags(flags), function_id(function_id), data({ .id = data }) { }
+
+			friend instance;
+		public:
 			value() : value(vtype::NIL, flags::NONE, 0, 0) { }
 
 			value(double number) : type(vtype::NUMBER), flags(flags::NONE), function_id(0), data({ .number = number }) { }
 			value(bool boolean) : type(vtype::BOOLEAN), flags(flags::NONE), function_id(0), data({ .boolean = boolean }) { }
-			value(char* str) : type(vtype::STRING), flags(flags::NONE), function_id(0), data({ .str = str }) { }
-
-			value(vtype t, uint16_t flags, uint32_t function_id, uint64_t data) : type(t), flags(flags), function_id(function_id), data({ .id = data }) { }
 
 			const constexpr size_t hash() const noexcept {
 				size_t payload = 0;
@@ -84,8 +87,6 @@ namespace HulaScript {
 				}
 				return HulaScript::Hash::combine(static_cast<size_t>(type), payload);
 			}
-
-			friend instance;
 		};
 
 		std::variant<value, std::vector<compilation_error>, std::monostate> run(std::string source, std::optional<std::string> file_name, bool repl_mode = true, bool ignore_warnings=false);
@@ -145,8 +146,8 @@ namespace HulaScript {
 
 			JUMP_AHEAD,
 			JUMP_BACK,
-			CONDITIONAL_JUMP_AHEAD,
-			CONDITIONAL_JUMP_BACK,
+			IF_FALSE_JUMP_AHEAD,
+			IF_TRUE_JUMP_BACK,
 
 			CALL,
 			RETURN,
@@ -248,7 +249,7 @@ namespace HulaScript {
 			return it->second;
 		}
 
-		runtime_error make_error(std::string msg) const noexcept {
+		void panic(std::string msg) const {
 			std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;
 			call_stack.reserve(return_stack.size() + 1);
 
@@ -264,7 +265,7 @@ namespace HulaScript {
 				call_stack.push_back(std::make_pair(src_from_ip(ip), count));
 			}
 
-			return runtime_error(msg, call_stack);
+			throw runtime_error(msg, call_stack);
 		}
 
 		uint32_t add_constant(value constant) {
@@ -276,7 +277,7 @@ namespace HulaScript {
 
 			if (availible_constant_ids.empty()) {
 				if (constants.size() == (1 << 24)) {
-					throw make_error("Cannot add constant; constant limit reached.");
+					panic("Cannot add constant; constant limit reached.");
 				}
 				
 				constants.push_back(constant);
@@ -369,7 +370,7 @@ namespace HulaScript {
 
 			void set_operand(size_t addr, size_t new_operand) {
 				if (new_operand > UINT8_MAX) {
-					throw make_error("Cannot set operand to value larger than 255.");
+					panic("Cannot set operand to value larger than 255.");
 				}
 				lexical_scopes.back().instructions[addr].operand = static_cast<operand>(new_operand);
 			}
@@ -386,12 +387,12 @@ namespace HulaScript {
 				}
 			}
 
-			compilation_error make_error(std::string msg) {
-				return compilation_error(msg, current_src_pos.back());
+			void panic(std::string msg) {
+				throw compilation_error(msg, current_src_pos.back());
 			}
 
 			void make_warning(std::string msg) {
-				warnings.push_back(make_error(msg));
+				warnings.push_back(compilation_error(msg, current_src_pos.back()));
 			}
 
 			void emit_load_constant(uint32_t const_id, std::vector<uint32_t>& repl_used_constants) {

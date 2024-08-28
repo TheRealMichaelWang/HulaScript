@@ -6,7 +6,7 @@ using namespace HulaScript;
 
 std::pair<instance::compilation_context::variable, bool> instance::compilation_context::alloc_local(std::string name, bool must_declare) {
 	if (lexical_scopes.back().next_local_id == UINT8_MAX) {
-		throw make_error("Compiler Error: Cannot allocate more than 256 locals.");
+		panic("Compiler Error: Cannot allocate more than 256 locals.");
 	}
 	size_t hash = Hash::dj2b(name.c_str());
 	auto it = active_variables.find(hash);
@@ -14,7 +14,7 @@ std::pair<instance::compilation_context::variable, bool> instance::compilation_c
 		if (must_declare) {
 			std::stringstream ss;
 			ss << "Naming Error: Variable " << name << " already declared.";
-			throw make_error(ss.str());
+			panic(ss.str());
 		}
 		else {
 			return std::make_pair(it->second, false);
@@ -48,7 +48,7 @@ bool instance::compilation_context::alloc_and_store(std::string name, bool must_
 		if (res.first.func_id != function_decls.size()) {
 			std::stringstream ss;
 			ss << "Variable Error: Cannot set captured variable " << name << '.';
-			throw make_error(ss.str());
+			panic(ss.str());
 		}
 
 		emit({ .operation = opcode::STORE_LOCAL, .operand = res.first.offset });
@@ -62,7 +62,7 @@ void instance::emit_load_variable(std::string name, compilation_context& context
 	if (it == context.active_variables.end()) {
 		std::stringstream ss;
 		ss << "Name Error: Cannot find variable " << name << '.';
-		throw context.make_error(ss.str());
+		context.panic(ss.str());
 	}
 
 	if (it->second.is_global) {
@@ -117,7 +117,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 
 		if (context.tokenizer.match_token(token_type::COMMA)) {
 			if (expects_value) {
-				throw context.make_error("Syntax Error: Unexpected comma. Cannot declare multiple variables outside a statement.");
+				context.panic("Syntax Error: Unexpected comma. Cannot declare multiple variables outside a statement.");
 			}
 
 			std::vector<std::string> to_declare;
@@ -155,7 +155,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			bool declared = context.alloc_and_store(id);
 
 			if (declared && expects_value) {
-				throw context.make_error("Syntax Error: Cannot declare variable outside a statement.");
+				context.panic("Syntax Error: Cannot declare variable outside a statement.");
 			}
 
 			context.unset_src_loc();
@@ -189,7 +189,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		if (count > UINT8_MAX) {
 			std::stringstream ss;
 			ss << "Literal Error: Cannot create table literal with more than 255 elements (got " << count << " elements)";
-			throw context.make_error(ss.str());
+			context.panic(ss.str());
 		}
 		context.set_operand(addr, static_cast<operand>(count));
 
@@ -235,7 +235,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		if (count > UINT8_MAX) {
 			std::stringstream ss;
 			ss << "Literal Error: Cannot create table literal with more than 255 elements (got " << count << " elements)";
-			throw context.make_error(ss.str());
+			context.panic(ss.str());
 		}
 		context.set_operand(addr, static_cast<operand>(count));
 
@@ -245,7 +245,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 	case token_type::IF: {
 		context.tokenizer.scan_token();
 		compile_expression(context);
-		size_t cond_jump_addr = context.emit({ .operation = opcode::CONDITIONAL_JUMP_AHEAD });
+		size_t cond_jump_addr = context.emit({ .operation = opcode::IF_FALSE_JUMP_AHEAD });
 		
 		context.tokenizer.expect_token(token_type::THEN);
 		context.tokenizer.scan_token();
@@ -278,6 +278,10 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		std::stringstream ss;
 		ss << "Lambda declared at " << context.current_src_pos.back().to_print_string();
 		compile_function(context, ss.str());
+		break;
+	}
+	default: {
+		context.tokenizer.unexpected_token();
 		break;
 	}
 	}
@@ -346,7 +350,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			context.tokenizer.scan_token();
 
 			if (arguments > UINT8_MAX) {
-				throw context.make_error("Function Error: Argument count cannot exceed 255 arguments.");
+				context.panic("Function Error: Argument count cannot exceed 255 arguments.");
 			}
 
 			context.emit({ .operation = opcode::CALL, .operand = static_cast<opcode>(arguments) });
@@ -355,7 +359,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		}
 		default: {
 			if (expects_statement && !is_statement) {
-				throw context.make_error("Syntax Error: Expected statement, got value instead.");
+				context.panic("Syntax Error: Expected statement, got value instead.");
 			}
 			context.unset_src_loc();
 			return;
@@ -420,9 +424,10 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 		context.tokenizer.expect_token(token_type::DO);
 		context.tokenizer.scan_token();
 
-		size_t cond_ip = context.emit({ .operation = opcode::CONDITIONAL_JUMP_AHEAD });
+		size_t cond_ip = context.emit({ .operation = opcode::IF_FALSE_JUMP_AHEAD });
 		auto lexical_scope = compile_block(context, { token_type::END_BLOCK }, true);
 		context.tokenizer.scan_token();
+		context.emit({ .operation = opcode::JUMP_BACK, .operand = static_cast<operand>(context.current_ip() - continue_dest_ip) });
 
 		for (size_t continue_req_ip : lexical_scope.continue_requests) {
 			context.set_operand(continue_req_ip, continue_dest_ip - continue_req_ip);
@@ -448,7 +453,7 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 			context.set_operand(continue_req_ip, context.current_ip() - continue_req_ip);
 		}
 		compile_expression(context); 
-		context.emit({ .operation = opcode::CONDITIONAL_JUMP_BACK, .operand = static_cast<operand>(context.current_ip() - repeat_dest_ip) });
+		context.emit({ .operation = opcode::IF_TRUE_JUMP_BACK, .operand = static_cast<operand>(context.current_ip() - repeat_dest_ip) });
 		for (size_t break_req_ip : lexical_scope.break_requests) {
 			context.set_operand(break_req_ip, context.current_ip() - break_req_ip);
 		}
@@ -471,7 +476,7 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 			compile_expression(context);
 			context.tokenizer.expect_token(token_type::THEN);
 			context.tokenizer.scan_token();
-			last_cond_check_id = context.emit({ .operation = opcode::CONDITIONAL_JUMP_AHEAD });
+			last_cond_check_id = context.emit({ .operation = opcode::IF_FALSE_JUMP_AHEAD });
 
 			auto block_res = compile_block(context, { token_type::ELIF, token_type::ELSE, token_type::END_BLOCK });
 			all_paths_return = (all_paths_return && block_res.all_code_paths_return);
@@ -507,14 +512,14 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 	case token_type::LOOP_BREAK:
 		context.tokenizer.scan_token();
 		if (!context.lexical_scopes.back().is_loop_block) {
-			throw context.make_error("Loop Error: Unexpected break statement outside of loop.");
+			context.panic("Loop Error: Unexpected break statement outside of loop.");
 		}
 		context.lexical_scopes.back().break_requests.push_back(context.current_ip());
 		break;
 	case token_type::LOOP_CONTINUE:
 		context.tokenizer.scan_token();
 		if (!context.lexical_scopes.back().is_loop_block) {
-			throw context.make_error("Loop Error: Unexpected continue statement outside of loop.");
+			context.panic("Loop Error: Unexpected continue statement outside of loop.");
 		}
 		context.lexical_scopes.back().continue_requests.push_back(context.current_ip());
 		break;
@@ -586,7 +591,7 @@ void instance::compile_function(compilation_context& context, std::string name) 
 	}
 	context.tokenizer.scan_token();
 	if (param_names.size() > UINT8_MAX) {
-		throw context.make_error("Function Error: Parameter count cannot exceed 255.");
+		context.panic("Function Error: Parameter count cannot exceed 255.");
 	}
 
 	bool no_capture = context.tokenizer.match_token(token_type::NO_CAPTURE);
@@ -622,7 +627,7 @@ void instance::compile_function(compilation_context& context, std::string name) 
 		if (no_capture && captures_variables) {
 			std::stringstream ss;
 			ss << "Function Error: Function " << name << " promised no variables are captrued, yet it captrues " << context.function_decls.back().captured_variables.size() << " variable(s).";
-			throw context.make_error(ss.str());
+			context.panic(ss.str());
 		}
 		else if (!captures_variables && !no_capture) {
 			std::stringstream ss;
@@ -747,7 +752,7 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 			if (context.active_variables.contains(hash)) {
 				std::stringstream ss;
 				ss << "Naming Error: Variable " << identifier << " already exists.";
-				throw context.make_error(ss.str());
+				context.panic(ss.str());
 			}
 
 			context.tokenizer.scan_token();
@@ -757,7 +762,7 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 
 			size_t raw_offset = offset + declared_globals.size();
 			if (raw_offset > UINT8_MAX) {
-				throw context.make_error("Variable Error: Cannot declare more than 256 globals.");
+			context.panic("Variable Error: Cannot declare more than 256 globals.");
 			}
 
 			operand var_offset = static_cast<operand>(raw_offset);
@@ -782,7 +787,7 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 
 			size_t raw_offset = offset + declared_globals.size();
 			if (raw_offset > UINT8_MAX) {
-				throw context.make_error("Variable Error: Cannot declare more than 256 globals.");
+				context.panic("Variable Error: Cannot declare more than 256 globals.");
 			}
 			operand var_offset = static_cast<operand>(raw_offset);
 			context.active_variables.insert({ hash, {

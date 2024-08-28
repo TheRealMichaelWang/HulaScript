@@ -62,7 +62,7 @@ void instance::expect_type(value::vtype expected_type) const {
 	if (evaluation_stack.back().type != expected_type) {
 		std::stringstream ss;
 		ss << "Type Error: Expected value of type " << type_names[expected_type] << " but got " << type_names[evaluation_stack.back().type] << " instead.";
-		throw make_error(ss.str());
+		panic(ss.str());
 	}
 }
 
@@ -134,8 +134,14 @@ void tokenizer::expect_token(token_type expected_type) const {
 	if (last_token.type() != expected_type) {
 		std::stringstream ss;
 		ss << "Syntax Error: Expected token " << tok_names[expected_type] << " but got " << tok_names[last_token.type()] << " instead.";
-		throw make_error(ss.str());
+		panic(ss.str());
 	}
+}
+
+void tokenizer::unexpected_token() const {
+	std::stringstream ss;
+	ss << "Syntax Error: Unexpected token " << tok_names[last_token.type()] << '.';
+	panic(ss.str());
 }
 
 void tokenizer::expect_tokens(std::vector<token_type> expected_types) const {
@@ -168,7 +174,7 @@ void tokenizer::expect_tokens(std::vector<token_type> expected_types) const {
 
 	ss << " but got " << tok_names[last_token.type()] << " instead.";
 
-	throw make_error(ss.str());
+	panic(ss.str());
 }
 
 std::string instance::get_value_print_string(value to_print_init) {

@@ -60,19 +60,19 @@ char tokenizer::scan_literal_char() {
 				if (x > CHAR_MAX || x < 0) {
 					std::stringstream ss2;
 					ss2 << "Char Literal: Hex literal " << x << " cannot be more than 256 or less than 0.";
-					throw make_error(ss2.str());
+					panic(ss2.str());
 				}
 				return static_cast<char>(x);
 			}
 			catch(std::invalid_argument) {
 				std::stringstream ss2;
 				ss2 << "Char Literal: Cannot parse invalid hex literal string \"" << ss.str() << "\".";
-				throw make_error(ss2.str());
+				panic(ss2.str());
 			}
 			catch (std::out_of_range) {
 				std::stringstream ss2;
 				ss2 << "Char Literal: Hex literal string \"" << ss.str() << "\" is to large.";
-				throw make_error(ss2.str());
+				panic(ss2.str());
 			}
 		}
 		}
@@ -158,7 +158,7 @@ token tokenizer::scan_token() {
 		std::stringstream ss;
 		while (last_char != '\"') {
 			if (last_char == '\0') {
-				throw make_error("Syntax Error: Unexpected End Of Source in string literal.");
+				panic("Syntax Error: Unexpected End Of Source in string literal.");
 			}
 
 			ss << scan_literal_char();
@@ -180,12 +180,12 @@ token tokenizer::scan_token() {
 		catch(std::invalid_argument) {
 			std::stringstream ss2;
 			ss2 << "Numerical Error: Cannot parse numerical string \"" << ss.str() << "\".";
-			throw make_error(ss2.str());
+			panic(ss2.str());
 		}
 		catch (std::out_of_range) {
 			std::stringstream ss2;
 			ss2 << "Numerical Error: Number \"" << ss.str() << "\" is far to big.";
-			throw make_error(ss2.str());
+			panic(ss2.str());
 		}
 	}
 	else {
@@ -247,13 +247,13 @@ token tokenizer::scan_token() {
 			return last_token = token(token_type::NOT);
 		case '&':
 			if (last_char != '&') {
-				throw make_error("Expected two ampersands(&&), but got something else.");
+				panic("Expected two ampersands(&&), but got something else.");
 			}
 			scan_char();
 			return last_token = token(token_type::AND);
 		case '|':
 			if (last_char != '|') {
-				throw make_error("Expected two bars(||), but got something else.");
+				panic("Expected two bars(||), but got something else.");
 			}
 			scan_char();
 			return last_token = token(token_type::OR);
@@ -270,7 +270,7 @@ token tokenizer::scan_token() {
 		default: {
 			std::stringstream ss;
 			ss << "Syntax Error: Unrecognized token \'" << switch_char << "\'.";
-			throw make_error(ss.str());
+			panic(ss.str());
 		}
 		}
 	}
