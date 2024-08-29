@@ -82,15 +82,28 @@ void instance::execute() {
 			value key = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			expect_type(value::vtype::TABLE);
+			uint16_t flags = evaluation_stack.back().flags;
 			table& table = tables.at(evaluation_stack.back().data.id);
 			evaluation_stack.pop_back();
 			
-			auto it = table.key_hashes.find(key.hash());
-			if (it == table.key_hashes.end()) {
-				evaluation_stack.push_back(value()); //push nil
-			}
-			else {
-				evaluation_stack.push_back(heap[table.block.start + it->second]);
+			size_t hash = key.hash();
+
+			for (;;) {
+				auto it = table.key_hashes.find(hash);
+				if (it != table.key_hashes.end()) {
+					evaluation_stack.push_back(heap[table.block.start + it->second]);
+					break;
+				}
+				else if(flags & value::flags::TABLE_INHERITS_PARENT) {
+					size_t& base_table_index = table.key_hashes.at(Hash::dj2b("base"));
+					value& base_table_val = heap[table.block.start + base_table_index];
+					flags = base_table_val.flags;
+					table = tables.at(base_table_val.data.id);
+				}
+				else {
+					evaluation_stack.push_back(value());
+					break;
+				}
 			}
 			break;
 		}
@@ -106,22 +119,33 @@ void instance::execute() {
 			evaluation_stack.pop_back();
 
 			size_t hash = key.hash();
-			auto it = table.key_hashes.find(hash);
-			if (it == table.key_hashes.end()) {
-				if (flags & value::flags::TABLE_IS_FINAL) {
-					panic("Cannot add to an immutable table.");
-				}
 
-				if (table.count == table.block.capacity) {
-					reallocate_table(id, table.block.capacity == 0 ? 4 : table.block.capacity * 2, true);
+			for (;;) {
+				auto it = table.key_hashes.find(hash);
+				if (it != table.key_hashes.end()) {
+					evaluation_stack.push_back(heap[table.block.start + it->second] = set_value);
+					break;
 				}
+				else if (flags & value::flags::TABLE_INHERITS_PARENT) {
+					size_t& base_table_index = table.key_hashes.at(Hash::dj2b("base"));
+					value& base_table_val = heap[table.block.start + base_table_index];
+					flags = base_table_val.flags;
+					table = tables.at(base_table_val.data.id);
+				}
+				else {
+					if (flags & value::flags::TABLE_IS_FINAL) {
+						panic("Cannot add to an immutable table.");
+					}
 
-				table.key_hashes.insert({ hash, table.count });
-				evaluation_stack.push_back(heap[table.block.start + table.count] = set_value);
-				table.count++;
-			}
-			else {
-				evaluation_stack.push_back(heap[table.block.start + it->second] = set_value);
+					if (table.count == table.block.capacity) {
+						reallocate_table(id, table.block.capacity == 0 ? 4 : table.block.capacity * 2, true);
+					}
+
+					table.key_hashes.insert({ hash, table.count });
+					evaluation_stack.push_back(heap[table.block.start + table.count] = set_value);
+					table.count++;
+					break;
+				}
 			}
 			break;
 		}
@@ -137,6 +161,16 @@ void instance::execute() {
 		case opcode::ALLOCATE_TABLE_LITERAL: {
 			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
 			evaluation_stack.push_back(value(value::vtype::TABLE, value::flags::NONE, 0, table_id));
+			break;
+		}
+		case opcode::ALLOCATE_CLASS: {
+			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
+			evaluation_stack.push_back(value(value::vtype::TABLE, value::flags::TABLE_IS_FINAL, 0, table_id));
+			break;
+		}
+		case opcode::ALLOCATE_INHERITED_CLASS: {
+			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
+			evaluation_stack.push_back(value(value::vtype::TABLE, value::flags::TABLE_IS_FINAL & value::flags::TABLE_INHERITS_PARENT, 0, table_id));
 			break;
 		}
 
