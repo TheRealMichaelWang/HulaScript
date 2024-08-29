@@ -1,0 +1,5 @@
+C:/Users/Micha/source/repos/HulaScript/cmake-build-debug-visual-studio/CMakeFiles/HulaScript.dir
+C:/Users/Micha/source/repos/HulaScript/cmake-build-debug-visual-studio/CMakeFiles/edit_cache.dir
+C:/Users/Micha/source/repos/HulaScript/cmake-build-debug-visual-studio/CMakeFiles/rebuild_cache.dir
+C:/Users/Micha/source/repos/HulaScript/cmake-build-debug-visual-studio/parallel_hashmap/CMakeFiles/edit_cache.dir
+C:/Users/Micha/source/repos/HulaScript/cmake-build-debug-visual-studio/parallel_hashmap/CMakeFiles/rebuild_cache.dir

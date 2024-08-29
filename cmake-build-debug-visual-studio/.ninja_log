@@ -1,0 +1,9 @@
+# ninja log v6
+37	4026	7466454668733375	CMakeFiles/HulaScript.dir/tokenizer.cpp.obj	551a4864e268a631
+143	6989	7466454669779975	CMakeFiles/HulaScript.dir/runner.cpp.obj	378ddc2daf59dced
+8	7584	7466454668438121	CMakeFiles/HulaScript.dir/HulaScript.cpp.obj	ffe65075053059ed
+133	8998	7466454669688057	CMakeFiles/HulaScript.dir/compiler.cpp.obj	a26ed8abc73666b6
+38	3826	7466464647603009	CMakeFiles/HulaScript.dir/print.cpp.obj	4dac9c6eda43005b
+26	4310	7466464917421547	CMakeFiles/HulaScript.dir/interpreter.cpp.obj	ef5aaf0768e248e
+8	4471	7466465825638435	CMakeFiles/HulaScript.dir/garbage_collector.cpp.obj	69d0ee9e8da658b
+4481	5337	7466465870370271	HulaScript.exe	bb8b70cd5524ade6

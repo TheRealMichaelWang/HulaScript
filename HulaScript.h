@@ -35,7 +35,8 @@ namespace HulaScript {
 
 			enum flags {
 				NONE = 0,
-				HAS_CAPTURE_TABLE = 1
+				HAS_CAPTURE_TABLE = 1,
+				TABLE_IS_FINAL = 2,
 			};
 
 			uint16_t flags;

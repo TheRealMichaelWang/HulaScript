@@ -101,12 +101,17 @@ void instance::execute() {
 			evaluation_stack.pop_back();
 			expect_type(value::vtype::TABLE);
 			size_t id = evaluation_stack.back().data.id;
+			uint16_t flags = evaluation_stack.back().flags;
 			table& table = tables.at(id);
 			evaluation_stack.pop_back();
 
 			size_t hash = key.hash();
 			auto it = table.key_hashes.find(hash);
 			if (it == table.key_hashes.end()) {
+				if (flags & value::flags::TABLE_IS_FINAL) {
+					panic("Cannot add to an immutable table.");
+				}
+
 				if (table.count == table.block.capacity) {
 					reallocate_table(id, table.block.capacity == 0 ? 4 : table.block.capacity * 2, true);
 				}
