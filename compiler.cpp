@@ -237,7 +237,6 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 
 		break;
 	}
-
 	case token_type::IF: {
 		context.tokenizer.scan_token();
 		compile_expression(context);
@@ -269,7 +268,6 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		context.tokenizer.scan_token();
 		break;
 	}
-
 	case token_type::FUNCTION: {
 		std::stringstream ss;
 		ss << "Lambda declared at " << context.current_src_pos.back().to_print_string();
@@ -697,6 +695,44 @@ void instance::compile_function(compilation_context& context, std::string name) 
 	context.emit({ .operation = opcode::CAPTURE_CLOSURE, .operand = static_cast<operand>(id >> 16) });
 	id = id & UINT16_MAX;
 	context.emit({ .operation = static_cast<opcode>(id >> 8), .operand = static_cast<operand>(id & UINT8_MAX) });
+}
+
+void instance::compile_class(compilation_context& context) {
+	context.tokenizer.expect_token(token_type::CLASS);
+	context.tokenizer.scan_token();
+
+	context.tokenizer.expect_token(token_type::IDENTIFIER);
+	std::string class_name = context.tokenizer.get_last_token().str();
+	context.tokenizer.scan_token();
+
+	size_t alloc_ins_addr = context.emit({ .operation = ALLOCATE_CLASS });
+	if (context.tokenizer.match_token(token_type::OPEN_PAREN)) {
+		context.tokenizer.scan_token();
+		compile_expression(context);
+		//context.tokenizer.mat
+	}
+
+	std::vector<std::string> properties;
+	while (!context.tokenizer.match_tokens({token_type::FUNCTION, token_type::END_BLOCK}, true))
+	{
+		context.tokenizer.expect_token(token_type::IDENTIFIER);
+		std::string prop_name = context.tokenizer.get_last_token().str();
+		size_t prop_name_hash = Hash::dj2b(prop_name.c_str());
+		context.tokenizer.scan_token();
+
+		if (context.tokenizer.match_token(token_type::SET)) {
+			context.tokenizer.scan_token();
+			
+			context.emit({ .operand = opcode::DUPLICATE_TOP });
+			emit_load_property(prop_name_hash, context);
+			compile_expression(context);
+			context.emit({ .operand = opcode::STORE_TABLE });
+		}
+
+		properties.push_back(prop_name);
+	}
+
+
 }
 
 void instance::compile(compilation_context& context, bool repl_mode) {

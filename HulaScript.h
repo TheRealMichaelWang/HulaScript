@@ -37,6 +37,7 @@ namespace HulaScript {
 				NONE = 0,
 				HAS_CAPTURE_TABLE = 1,
 				TABLE_IS_FINAL = 2,
+				TABLE_INHERITS_PARENT = 3
 			};
 
 			uint16_t flags;
@@ -126,6 +127,8 @@ namespace HulaScript {
 			STORE_TABLE,
 			ALLOCATE_TABLE,
 			ALLOCATE_TABLE_LITERAL,
+			ALLOCATE_CLASS,
+			ALLOCATE_INHERITED_CLASS,
 
 			ADD,
 			SUBTRACT,
@@ -449,6 +452,7 @@ namespace HulaScript {
 		}
 
 		void compile_function(compilation_context& context, std::string name);
+		void compile_class(compilation_context& context);
 
 		void compile(compilation_context& context, bool repl_mode=false);
 	};
