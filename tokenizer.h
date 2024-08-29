@@ -167,8 +167,7 @@ namespace HulaScript {
 		char scan_literal_char();
 
 		void panic(std::string msg) const {
-			source_loc loc = last_tok_begin();
-			throw compilation_error(msg, loc);
+			throw compilation_error(msg, last_tok_begin());
 		}
 	};
 }

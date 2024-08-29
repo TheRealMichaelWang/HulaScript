@@ -115,11 +115,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		std::string id = token.str();
 		context.tokenizer.scan_token();
 
-		if (context.tokenizer.match_token(token_type::COMMA)) {
-			if (expects_value) {
-				context.panic("Syntax Error: Unexpected comma. Cannot declare multiple variables outside a statement.");
-			}
-
+		if (context.tokenizer.match_token(token_type::COMMA) && !expects_value) {
 			std::vector<std::string> to_declare;
 			to_declare.push_back(id);
 			while (context.tokenizer.match_token(token_type::COMMA, true))
@@ -280,10 +276,8 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		compile_function(context, ss.str());
 		break;
 	}
-	default: {
+	default:
 		context.tokenizer.unexpected_token();
-		break;
-	}
 	}
 
 	bool is_statement = false;
@@ -531,7 +525,7 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 		else {
 			compile_value(context, false, false);
 			if (context.tokenizer.get_last_token().is_operator()) {
-				compile_expression(context);
+				compile_expression(context, 0, true);
 			}
 		}
 
@@ -655,13 +649,7 @@ void instance::compile_function(compilation_context& context, std::string name) 
 		this->ip_src_map.insert(std::make_pair(src_loc.first + offset, src_loc.second));
 	}
 
-	function_entry function = {
-		.start_address = offset,
-		.length = instructions.size() - offset,
-		.name = name,
-		.parameter_count = static_cast<operand>(param_names.size()),
-		.has_capture_table = !no_capture
-	};
+	function_entry function(name, offset, instructions.size() - offset, static_cast<operand>(param_names.size()), !no_capture);
 	compilation_context::function_declaration func_decl = context.function_decls.back();
 	function.referenced_constants = std::vector<uint32_t>(func_decl.refed_constants.begin(), func_decl.refed_constants.end());
 	function.referenced_functions = std::vector<uint32_t>(func_decl.refed_functions.begin(), func_decl.refed_functions.end());

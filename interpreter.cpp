@@ -82,7 +82,7 @@ void instance::execute() {
 			value key = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			expect_type(value::vtype::TABLE);
-			table& table = tables[evaluation_stack.back().data.id];
+			table& table = tables.at(evaluation_stack.back().data.id);
 			evaluation_stack.pop_back();
 			
 			auto it = table.key_hashes.find(key.hash());
@@ -101,7 +101,7 @@ void instance::execute() {
 			evaluation_stack.pop_back();
 			expect_type(value::vtype::TABLE);
 			size_t id = evaluation_stack.back().data.id;
-			table& table = tables[id];
+			table& table = tables.at(id);
 			evaluation_stack.pop_back();
 
 			size_t hash = key.hash();
@@ -292,7 +292,7 @@ void instance::execute() {
 			continue;
 
 		case opcode::CALL: {
-			extended_offsets.push_back(local_offset);
+			extended_offsets.push_back(static_cast<operand>(locals.size() - local_offset));
 			local_offset = locals.size();
 			return_stack.push_back(ip); //push return address
 
@@ -301,7 +301,7 @@ void instance::execute() {
 			evaluation_stack.erase(evaluation_stack.end() - ins.operand, evaluation_stack.end());
 
 			expect_type(value::vtype::CLOSURE);
-			function_entry& function = functions[evaluation_stack.back().function_id];
+			function_entry& function = functions.at(evaluation_stack.back().function_id);
 			if (evaluation_stack.back().flags & value::flags::HAS_CAPTURE_TABLE) {
 				locals.push_back(value(value::vtype::TABLE, value::flags::NONE, 0, evaluation_stack.back().data.id));
 			}
@@ -318,7 +318,7 @@ void instance::execute() {
 		}
 		case opcode::RETURN:
 			locals.erase(locals.begin() + local_offset, locals.end());
-			local_offset = extended_offsets.back();
+			local_offset -= extended_offsets.back();
 			extended_offsets.pop_back();
 			
 			ip = return_stack.back();

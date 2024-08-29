@@ -193,7 +193,7 @@ std::string instance::get_value_print_string(value to_print_init) {
 		switch (current.type)
 		{
 		case value::vtype::TABLE: {
-			table& table = tables[current.data.id];
+			table& table = tables.at(current.data.id);
 
 			ss << '[';
 
@@ -223,7 +223,7 @@ std::string instance::get_value_print_string(value to_print_init) {
 			break;
 
 		case value::vtype::CLOSURE: {
-			function_entry& function = functions[current.function_id];
+			function_entry& function = functions.at(current.function_id);
 			ss << "[closure: func_ptr = " << function.name;
 			if (current.flags & value::flags::HAS_CAPTURE_TABLE) {
 				ss << ", capture_table = ";

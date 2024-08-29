@@ -52,7 +52,7 @@ namespace HulaScript {
 
 			value(vtype t, uint16_t flags, uint32_t function_id, uint64_t data) : type(t), flags(flags), function_id(function_id), data({ .id = data }) { }
 
-			friend instance;
+			friend class instance;
 		public:
 			value() : value(vtype::NIL, flags::NONE, 0, 0) { }
 
@@ -165,12 +165,16 @@ namespace HulaScript {
 		struct gc_block {
 			size_t start;
 			size_t capacity;
+
+			gc_block(size_t start, size_t capacity) : start(start), capacity(capacity) { }
 		};
 
 		struct table {
 			gc_block block;
 			size_t count;
 			phmap::btree_map<size_t, size_t> key_hashes;
+
+			table(gc_block block, size_t count=0) : block(block), count(count) { }
 		};
 
 		struct function_entry {
@@ -181,13 +185,15 @@ namespace HulaScript {
 			operand parameter_count;
 			bool has_capture_table;
 
+			function_entry(std::string name, size_t start_address, size_t length, operand parameter_count, bool has_capture_table = true) : name(name), start_address(start_address), length(length), parameter_count(parameter_count), has_capture_table(has_capture_table) { }
+
 			//other function id's that are referenced in any instruction between start_address and start_address + length
 			std::vector<uint32_t> referenced_functions;
 			std::vector<uint32_t> referenced_constants;
 		};
 
 		std::vector<value> constants;
-		std::vector<size_t> availible_constant_ids;
+		std::vector<uint32_t> availible_constant_ids;
 		phmap::flat_hash_map<size_t, uint32_t> constant_hashses;
 		phmap::flat_hash_set<std::unique_ptr<char[]>> active_strs;
 
@@ -279,9 +285,9 @@ namespace HulaScript {
 				if (constants.size() == (1 << 24)) {
 					panic("Cannot add constant; constant limit reached.");
 				}
-				
+
 				constants.push_back(constant);
-				return constants.size() - 1;
+				return static_cast<uint32_t>(constants.size() - 1);
 			}
 			else {
 				uint32_t index = availible_constant_ids.back();
