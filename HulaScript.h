@@ -187,9 +187,8 @@ namespace HulaScript {
 
 			std::string name;
 			operand parameter_count;
-			bool has_capture_table;
 
-			function_entry(std::string name, size_t start_address, size_t length, operand parameter_count, bool has_capture_table = true) : name(name), start_address(start_address), length(length), parameter_count(parameter_count), has_capture_table(has_capture_table) { }
+			function_entry(std::string name, size_t start_address, size_t length, operand parameter_count) : name(name), start_address(start_address), length(length), parameter_count(parameter_count) { }
 
 			//other function id's that are referenced in any instruction between start_address and start_address + length
 			std::vector<uint32_t> referenced_functions;
@@ -354,6 +353,8 @@ namespace HulaScript {
 				std::string name;
 				size_t id;
 				operand param_count;
+				bool no_capture;
+				bool is_class_method;
 
 				phmap::flat_hash_set<size_t> captured_variables;
 				phmap::flat_hash_set<uint32_t> refed_constants;
@@ -440,6 +441,8 @@ namespace HulaScript {
 			context.emit_load_constant(add_constant(value(value::vtype::INTERNAL_STRHASH, value::flags::NONE, 0, hash)), repl_used_constants);
 		}
 
+		uint32_t emit_finalize_function(compilation_context& context, std::vector<instruction>& ins, std::vector<std::pair<size_t, source_loc>>& ip_src_map);
+
 		void compile_value(compilation_context& context, bool expect_statement, bool expects_value);
 		void compile_expression(compilation_context& context, int min_prec=0, bool skip_lhs_compile=false);
 
@@ -451,7 +454,7 @@ namespace HulaScript {
 			return compile_block(context, end_toks);
 		}
 
-		void compile_function(compilation_context& context, std::string name);
+		uint32_t compile_function(compilation_context& context, std::string name, bool is_class_method=false);
 		void compile_class(compilation_context& context);
 
 		void compile(compilation_context& context, bool repl_mode=false);

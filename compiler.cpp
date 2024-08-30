@@ -70,6 +70,13 @@ void instance::emit_load_variable(std::string name, compilation_context& context
 	}
 	else {
 		if (it->second.func_id != context.function_decls.size()) {
+			if (context.function_decls.back().is_class_method) {
+				panic("Usage Error: Cannot capture variable within a class method.");
+			}
+			else if (context.function_decls.back().no_capture) {
+				panic("Usage Error: Cannot capture variable within a function annotated with no_capture.");
+			}
+
 			for (size_t i = it->second.func_id; i < context.function_decls.size(); i++) {
 				context.function_decls[i].captured_variables.emplace(hash);
 			}
@@ -176,7 +183,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			context.emit({ .operation = opcode::DUPLICATE_TOP });
 			context.emit_load_constant(add_constant(value(static_cast<double>(count))), repl_used_constants);
 			compile_expression(context);
-			context.emit({ .operation = opcode::STORE_TABLE });
+			context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
 			context.emit({ .operation = opcode::DISCARD_TOP });
 			count++;
 		}
@@ -222,7 +229,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			context.tokenizer.match_token(token_type::CLOSE_BRACE);
 			context.tokenizer.scan_token();
 
-			context.emit({ .operation = opcode::STORE_TABLE });
+			context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
 			context.emit({ .operation = opcode::DISCARD_TOP });
 			count++;
 		}
@@ -294,7 +301,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			if (context.tokenizer.match_token(token_type::SET)) {
 				context.tokenizer.scan_token();
 				compile_expression(context);
-				context.emit({ .operation = opcode::STORE_TABLE });
+				context.emit({ .operation = opcode::STORE_TABLE, .operand = 1 });
 
 				context.unset_src_loc();
 				return;
@@ -314,7 +321,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			if (context.tokenizer.match_token(token_type::SET)) {
 				context.tokenizer.scan_token();
 				compile_expression(context);
-				context.emit({ .operation = opcode::STORE_TABLE });
+				context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
 
 				context.unset_src_loc();
 				return;
@@ -563,7 +570,9 @@ instance::compilation_context::lexical_scope instance::compile_block(compilation
 	return scope;
 }
 
-void instance::compile_function(compilation_context& context, std::string name) {
+uint32_t instance::compile_function(compilation_context& context, std::string name, bool is_class_method) {
+	bool is_constructor = name == "construct" && is_class_method;
+	
 	context.tokenizer.enter_function(name);
 	context.tokenizer.scan_token();
 
@@ -586,21 +595,30 @@ void instance::compile_function(compilation_context& context, std::string name) 
 		context.panic("Function Error: Parameter count cannot exceed 255.");
 	}
 
-	bool no_capture = context.tokenizer.match_token(token_type::NO_CAPTURE);
+	bool no_capture = !is_class_method && context.tokenizer.match_token(token_type::NO_CAPTURE);
 	if (no_capture) { context.tokenizer.scan_token(); }
 
 	std::vector<instruction> block_ins;
 	std::vector<std::pair<size_t, source_loc>> ip_src_map;
 	context.lexical_scopes.push_back({ .next_local_id = 0, .instructions = block_ins, .ip_src_map = ip_src_map, .is_loop_block = false });
-	context.function_decls.push_back({ .name = name, .id = context.function_decls.size(), .param_count = static_cast<operand>(param_names.size()) });
+	context.function_decls.push_back({ .name = name, .id = context.function_decls.size(), .param_count = static_cast<operand>(param_names.size()), .no_capture = no_capture, .is_class_method = is_class_method });
 
 	for (std::string param_name : param_names) {
 		context.alloc_local(param_name, true);
 	}
-	if (no_capture) {
-		std::stringstream ss;
-		ss << "capture_table_" << context.function_decls.back().id;
-		context.alloc_local(ss.str());
+
+	if (!no_capture) {
+		if (is_constructor) {
+
+		}
+		else if (is_class_method) {
+			context.alloc_local("self");
+		}
+		else {
+			std::stringstream ss;
+			ss << "capture_table_" << context.function_decls.back().id;
+			context.alloc_local(ss.str());
+		}
 	}
 
 	while (!context.tokenizer.match_token(token_type::END_BLOCK, true))
@@ -614,19 +632,13 @@ void instance::compile_function(compilation_context& context, std::string name) 
 		context.emit({ .operation = opcode::RETURN });
 	}
 
-	{
-		bool captures_variables = !context.function_decls.back().captured_variables.empty();
-		if (no_capture && captures_variables) {
-			std::stringstream ss;
-			ss << "Function Error: Function " << name << " promised no variables are captrued, yet it captrues " << context.function_decls.back().captured_variables.size() << " variable(s).";
-			context.panic(ss.str());
-		}
-		else if (!captures_variables && !no_capture) {
-			std::stringstream ss;
-			ss << "Function Warning: Function " << name << " doesn't capture any variables. Consider adding the no_capture annotation for enhanced performance.";
-			context.make_warning(ss.str());
-		}
+	auto captured_vars = context.function_decls.back().captured_variables;
+	if (!captured_vars.empty() && !no_capture && !is_class_method) {
+		std::stringstream ss;
+		ss << "Function Warning: Function " << name << " doesn't capture any variables. Consider adding the no_capture annotation for enhanced performance.";
+		context.make_warning(ss.str());
 	}
+
 
 	//remove declared locals from active variables
 	for (auto hash : context.lexical_scopes.back().declared_locals) {
@@ -634,20 +646,56 @@ void instance::compile_function(compilation_context& context, std::string name) 
 	}
 
 	//add instructions to instance
+	uint32_t id = emit_finalize_function(context, block_ins, ip_src_map);
+
+	opcode operation = no_capture ? opcode::CAPTURE_FUNCPTR : opcode::CAPTURE_CLOSURE;
+	if (operation == opcode::CAPTURE_CLOSURE) {
+		context.emit({.operation = opcode::ALLOCATE_TABLE_LITERAL, .operand = static_cast<operand>(captured_vars.size())});
+		for (auto captured_variable : captured_vars) {
+			context.emit({ .operation = opcode::DUPLICATE_TOP });
+			emit_load_property(captured_variable, context);
+
+			auto it = context.active_variables.find(captured_variable);
+			if (it->second.func_id == context.function_decls.size()) { //capture from current function
+				context.emit({ .operation = opcode::LOAD_LOCAL,.operand = it->second.offset });
+			}
+			else {
+				context.emit({ .operation = opcode::LOAD_LOCAL, .operand = context.function_decls.back().param_count });
+				emit_load_property(captured_variable, context);
+				context.emit({ .operation = opcode::LOAD_TABLE });
+			}
+
+			context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
+			context.emit({ .operation = opcode::DISCARD_TOP });
+		}
+	}
+
+	if (!is_class_method) {
+		context.emit({ .operation = opcode::CAPTURE_CLOSURE, .operand = static_cast<operand>(id >> 16) });
+		id = id & UINT16_MAX;
+		context.emit({ .operation = static_cast<opcode>(id >> 8), .operand = static_cast<operand>(id & UINT8_MAX) });
+	}
+
+	return id;
+}
+
+uint32_t instance::emit_finalize_function(compilation_context& context, std::vector<instruction>& ins, std::vector<std::pair<size_t, source_loc>>& ip_src_map) {
 	compilation_context::lexical_scope scope = context.lexical_scopes.back();
 	context.lexical_scopes.pop_back();
 
-	size_t offset = instructions.size();
+	size_t start_addr = instructions.size();
 	if (scope.declared_locals.size() > 0) {
 		instructions.push_back({ .operation = opcode::PROBE_LOCALS, .operand = static_cast<operand>(scope.declared_locals.size()) });
 	}
 
-	instructions.insert(instructions.end(), block_ins.begin(), block_ins.end());
+	size_t offset = instructions.size();
+	instructions.insert(instructions.end(), ins.begin(), ins.end());
 	for (auto src_loc : scope.ip_src_map) {
 		this->ip_src_map.insert(std::make_pair(src_loc.first + offset, src_loc.second));
 	}
 
-	function_entry function(name, offset, instructions.size() - offset, static_cast<operand>(param_names.size()), !no_capture);
+	compilation_context::function_declaration& function_decl = context.function_decls.back();
+	function_entry function(function_decl.name, start_addr, instructions.size() - start_addr, function_decl.param_count);
 	compilation_context::function_declaration func_decl = context.function_decls.back();
 	function.referenced_constants = std::vector<uint32_t>(func_decl.refed_constants.begin(), func_decl.refed_constants.end());
 	function.referenced_functions = std::vector<uint32_t>(func_decl.refed_functions.begin(), func_decl.refed_functions.end());
@@ -669,70 +717,11 @@ void instance::compile_function(compilation_context& context, std::string name) 
 	else {
 		repl_used_functions.push_back(id);
 	}
-
-	opcode operation = no_capture ? opcode::CAPTURE_FUNCPTR : opcode::CAPTURE_CLOSURE;
-
-	if (operation == opcode::CAPTURE_CLOSURE) {
-		context.emit({.operation = opcode::ALLOCATE_TABLE_LITERAL, .operand = static_cast<operand>(func_decl.captured_variables.size())});
-		for (auto captured_variable : func_decl.captured_variables) {
-			context.emit({ .operation = opcode::DUPLICATE_TOP });
-			emit_load_property(captured_variable, context);
-
-			auto it = context.active_variables.find(captured_variable);
-			if (it->second.func_id == context.function_decls.size()) { //capture from current function
-				context.emit({ .operation = opcode::LOAD_LOCAL,.operand = it->second.offset });
-			}
-			else {
-				context.emit({ .operation = opcode::LOAD_LOCAL, .operand = context.function_decls.back().param_count });
-				emit_load_property(captured_variable, context);
-				context.emit({ .operation = opcode::LOAD_TABLE });
-			}
-
-			context.emit({ .operation = opcode::STORE_TABLE });
-			context.emit({ .operation = opcode::DISCARD_TOP });
-		}
-	}
-	context.emit({ .operation = opcode::CAPTURE_CLOSURE, .operand = static_cast<operand>(id >> 16) });
-	id = id & UINT16_MAX;
-	context.emit({ .operation = static_cast<opcode>(id >> 8), .operand = static_cast<operand>(id & UINT8_MAX) });
+	return id;
 }
 
 void instance::compile_class(compilation_context& context) {
-	context.tokenizer.expect_token(token_type::CLASS);
-	context.tokenizer.scan_token();
-
-	context.tokenizer.expect_token(token_type::IDENTIFIER);
-	std::string class_name = context.tokenizer.get_last_token().str();
-	context.tokenizer.scan_token();
-
-	size_t alloc_ins_addr = context.emit({ .operation = ALLOCATE_CLASS });
-	if (context.tokenizer.match_token(token_type::OPEN_PAREN)) {
-		context.tokenizer.scan_token();
-		compile_expression(context);
-		//context.tokenizer.mat
-	}
-
-	std::vector<std::string> properties;
-	while (!context.tokenizer.match_tokens({token_type::FUNCTION, token_type::END_BLOCK}, true))
-	{
-		context.tokenizer.expect_token(token_type::IDENTIFIER);
-		std::string prop_name = context.tokenizer.get_last_token().str();
-		size_t prop_name_hash = Hash::dj2b(prop_name.c_str());
-		context.tokenizer.scan_token();
-
-		if (context.tokenizer.match_token(token_type::SET)) {
-			context.tokenizer.scan_token();
-			
-			context.emit({ .operand = opcode::DUPLICATE_TOP });
-			emit_load_property(prop_name_hash, context);
-			compile_expression(context);
-			context.emit({ .operand = opcode::STORE_TABLE });
-		}
-
-		properties.push_back(prop_name);
-	}
-
-
+	
 }
 
 void instance::compile(compilation_context& context, bool repl_mode) {
