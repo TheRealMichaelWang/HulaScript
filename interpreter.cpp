@@ -18,6 +18,10 @@ void instance::execute() {
 		case opcode::DISCARD_TOP:
 			evaluation_stack.pop_back();
 			break;
+		case opcode::BRING_TO_TOP: {
+			evaluation_stack.push_back(*(evaluation_stack.end() - (ins.operand + 1)));
+			break;
+		}
 
 		case opcode::LOAD_CONSTANT_FAST:
 			evaluation_stack.push_back(constants[ins.operand]);
@@ -133,11 +137,10 @@ void instance::execute() {
 					table = tables.at(base_table_val.data.id);
 				}
 				else {
-					if (flags & value::flags::TABLE_IS_FINAL) {
-						panic("Cannot add to an immutable table.");
-					}
-
 					if (table.count == table.block.capacity) {
+						if (flags & value::flags::TABLE_IS_FINAL) {
+							panic("Cannot add to an immutable table.");
+						}
 						reallocate_table(id, table.block.capacity == 0 ? 4 : table.block.capacity * 2, true);
 					}
 
@@ -170,7 +173,7 @@ void instance::execute() {
 		}
 		case opcode::ALLOCATE_INHERITED_CLASS: {
 			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
-			evaluation_stack.push_back(value(value::vtype::TABLE, value::flags::TABLE_IS_FINAL & value::flags::TABLE_INHERITS_PARENT, 0, table_id));
+			evaluation_stack.push_back(value(value::vtype::TABLE, value::flags::TABLE_IS_FINAL | value::flags::TABLE_INHERITS_PARENT, 0, table_id));
 			break;
 		}
 
@@ -348,9 +351,25 @@ void instance::execute() {
 
 			if (function.parameter_count != ins.operand) {
 				std::stringstream ss;
-				ss << "Argument Error: Function " << function.name << " expected " << function.parameter_count << " argument(s), but got " << ins.operand << " instead.";
+				ss << "Argument Error: Function " << function.name << " expected " << static_cast<size_t>(function.parameter_count) << " argument(s), but got " << static_cast<size_t>(ins.operand) << " instead.";
 				panic(ss.str());
 			}
+
+			ip = function.start_address;
+			continue;
+		}
+		case opcode::CALL_LABEL: {
+			uint32_t id = ins.operand;
+			instruction& payload = instructions[ip + 1];
+
+			id = (id << 8) + static_cast<uint8_t>(payload.operation);
+			id = (id << 8) + payload.operand;
+
+			extended_offsets.push_back(static_cast<operand>(locals.size() - local_offset));
+			local_offset = locals.size();
+			return_stack.push_back(ip + 1); //push return address
+
+			function_entry& function = functions.at(id);
 
 			ip = function.start_address;
 			continue;
@@ -360,10 +379,9 @@ void instance::execute() {
 			local_offset -= extended_offsets.back();
 			extended_offsets.pop_back();
 			
-			ip = return_stack.back();
+			ip = return_stack.back() + 1;
 			return_stack.pop_back();
-
-			break;
+			continue;
 
 		case opcode::CAPTURE_FUNCPTR:
 			[[fallthrough]];

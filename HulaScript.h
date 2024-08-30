@@ -37,7 +37,7 @@ namespace HulaScript {
 				NONE = 0,
 				HAS_CAPTURE_TABLE = 1,
 				TABLE_IS_FINAL = 2,
-				TABLE_INHERITS_PARENT = 3
+				TABLE_INHERITS_PARENT = 4
 			};
 
 			uint16_t flags;
@@ -109,6 +109,7 @@ namespace HulaScript {
 
 			DUPLICATE_TOP,
 			DISCARD_TOP,
+			BRING_TO_TOP,
 
 			LOAD_CONSTANT_FAST,
 			LOAD_CONSTANT,
@@ -154,6 +155,7 @@ namespace HulaScript {
 			IF_TRUE_JUMP_BACK,
 
 			CALL,
+			CALL_LABEL,
 			RETURN,
 
 			CAPTURE_FUNCPTR, //captures a closure without a capture table
@@ -369,11 +371,14 @@ namespace HulaScript {
 			tokenizer& tokenizer;
 			std::vector<source_loc> current_src_pos;
 			std::vector<compilation_error> warnings;
+			size_t global_offset = 0;
+			std::vector<size_t> declared_globals;
 
 			std::pair<variable, bool> alloc_local(std::string name, bool must_declare=false);
 			bool alloc_and_store(std::string name, bool must_declare = false);
+			operand alloc_and_store_global(std::string name);
 
-			size_t emit(instruction ins) {
+			size_t emit(instruction ins) noexcept {
 				size_t i = lexical_scopes.back().instructions.size();
 				lexical_scopes.back().instructions.push_back(ins);
 				return i;
@@ -398,11 +403,11 @@ namespace HulaScript {
 				}
 			}
 
-			void panic(std::string msg) {
+			void panic(std::string msg) const {
 				throw compilation_error(msg, current_src_pos.back());
 			}
 
-			void make_warning(std::string msg) {
+			void make_warning(std::string msg) noexcept {
 				warnings.push_back(compilation_error(msg, current_src_pos.back()));
 			}
 
@@ -430,6 +435,12 @@ namespace HulaScript {
 			const size_t current_ip() const noexcept {
 				return lexical_scopes.back().instructions.size();
 			}
+
+			void emit_function_operation(opcode op, uint32_t id) noexcept {
+				emit({ .operation = op, .operand = static_cast<operand>(id >> 16) });
+				id = id & UINT16_MAX;
+				emit({ .operation = static_cast<opcode>(id >> 8), .operand = static_cast<operand>(id & UINT8_MAX) });
+			}
 		};
 
 		std::vector<size_t> top_level_local_vars;
@@ -443,6 +454,8 @@ namespace HulaScript {
 
 		uint32_t emit_finalize_function(compilation_context& context, std::vector<instruction>& ins, std::vector<std::pair<size_t, source_loc>>& ip_src_map);
 
+		void compile_args_and_call(compilation_context& context);
+
 		void compile_value(compilation_context& context, bool expect_statement, bool expects_value);
 		void compile_expression(compilation_context& context, int min_prec=0, bool skip_lhs_compile=false);
 
@@ -454,7 +467,7 @@ namespace HulaScript {
 			return compile_block(context, end_toks);
 		}
 
-		uint32_t compile_function(compilation_context& context, std::string name, bool is_class_method=false);
+		uint32_t compile_function(compilation_context& context, std::string name, bool is_class_method=false, bool requires_super_call = false);
 		void compile_class(compilation_context& context);
 
 		void compile(compilation_context& context, bool repl_mode=false);
