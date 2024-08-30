@@ -56,6 +56,32 @@ bool instance::compilation_context::alloc_and_store(std::string name, bool must_
 	}
 }
 
+instance::operand instance::compilation_context::alloc_and_store_global(std::string name) {
+	size_t hash = Hash::dj2b(name.c_str());
+	if (active_variables.contains(hash)) {
+		std::stringstream ss;
+		ss << "Naming Error: Variable " << name << " already exists.";
+		panic(ss.str());
+	}
+
+	size_t raw_offset = global_offset + declared_globals.size();
+	if (raw_offset > UINT8_MAX) {
+		panic("Variable Error: Cannot declare more than 256 globals.");
+	}
+
+	operand var_offset = static_cast<operand>(raw_offset);
+	active_variables.insert({ hash, {
+		.name_hash = hash,
+		.is_global = true,
+		.offset = var_offset,
+		.func_id = 0
+	} });
+	declared_globals.push_back(hash);
+
+	emit({ .operation = opcode::DECL_GLOBAL, .operand = var_offset });
+	return var_offset;
+}
+
 void instance::emit_load_variable(std::string name, compilation_context& context) {
 	size_t hash = Hash::dj2b(name.c_str());
 	auto it = context.active_variables.find(hash);
@@ -88,6 +114,29 @@ void instance::emit_load_variable(std::string name, compilation_context& context
 			context.emit({ .operation = opcode::LOAD_LOCAL, .operand = it->second.offset });
 		}
 	}
+}
+
+void instance::compile_args_and_call(compilation_context& context) {
+	context.tokenizer.expect_token(token_type::OPEN_PAREN);
+	context.tokenizer.scan_token();
+
+	size_t arguments = 0;
+	while (!context.tokenizer.match_token(token_type::CLOSE_PAREN, true))
+	{
+		if (arguments > 0) {
+			context.tokenizer.expect_token(token_type::COMMA);
+			context.tokenizer.scan_token();
+		}
+		compile_expression(context);
+		arguments++;
+	}
+	context.tokenizer.scan_token();
+
+	if (arguments > UINT8_MAX) {
+		context.panic("Function Error: Argument count cannot exceed 255 arguments.");
+	}
+
+	context.emit({ .operation = opcode::CALL, .operand = static_cast<opcode>(arguments) });
 }
 
 void instance::compile_value(compilation_context& context, bool expects_statement, bool expects_value) {
@@ -334,25 +383,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			}
 		}
 		case token_type::OPEN_PAREN: {
-			context.tokenizer.scan_token();
-
-			size_t arguments = 0;
-			while (!context.tokenizer.match_token(token_type::CLOSE_PAREN, true))
-			{
-				if (arguments > 0) {
-					context.tokenizer.expect_token(token_type::COMMA);
-					context.tokenizer.scan_token();
-				}
-				compile_expression(context);
-				arguments++;
-			}
-			context.tokenizer.scan_token();
-
-			if (arguments > UINT8_MAX) {
-				context.panic("Function Error: Argument count cannot exceed 255 arguments.");
-			}
-
-			context.emit({ .operation = opcode::CALL, .operand = static_cast<opcode>(arguments) });
+			compile_args_and_call(context);
 			is_statement = true;
 			break;
 		}
@@ -502,7 +533,12 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 	case token_type::RETURN: {
 		context.tokenizer.scan_token();
 
-		compile_expression(context);
+		if (context.tokenizer.match_token(token_type::END_BLOCK)) {
+			context.emit({ .operation = opcode::PUSH_NIL });
+		}
+		else {
+			compile_expression(context);
+		}
 		context.emit({ .operation = opcode::RETURN });
 
 		context.lexical_scopes.back().all_code_paths_return = true;
@@ -570,7 +606,7 @@ instance::compilation_context::lexical_scope instance::compile_block(compilation
 	return scope;
 }
 
-uint32_t instance::compile_function(compilation_context& context, std::string name, bool is_class_method) {
+uint32_t instance::compile_function(compilation_context& context, std::string name, bool is_class_method, bool requires_super_call) {
 	bool is_constructor = name == "construct" && is_class_method;
 	
 	context.tokenizer.enter_function(name);
@@ -595,29 +631,55 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 		context.panic("Function Error: Parameter count cannot exceed 255.");
 	}
 
-	bool no_capture = !is_class_method && context.tokenizer.match_token(token_type::NO_CAPTURE);
-	if (no_capture) { context.tokenizer.scan_token(); }
+	bool no_capture = context.tokenizer.match_token(token_type::NO_CAPTURE);
+	if (no_capture) { 
+		if (is_class_method) {
+			context.panic("Class Error: The no_capture annotation is invalid in a class method.");
+		}
+		context.tokenizer.scan_token(); 
+	}
+	
 
 	std::vector<instruction> block_ins;
 	std::vector<std::pair<size_t, source_loc>> ip_src_map;
 	context.lexical_scopes.push_back({ .next_local_id = 0, .instructions = block_ins, .ip_src_map = ip_src_map, .is_loop_block = false });
 	context.function_decls.push_back({ .name = name, .id = context.function_decls.size(), .param_count = static_cast<operand>(param_names.size()), .no_capture = no_capture, .is_class_method = is_class_method });
 
-	for (std::string param_name : param_names) {
-		context.alloc_local(param_name, true);
+	if (!is_constructor) {
+		for (std::string param_name : param_names) {
+			context.alloc_local(param_name, true);
+		}
 	}
 
 	if (!no_capture) {
 		if (is_constructor) {
+			if (requires_super_call) {
+				context.alloc_and_store("super", true);
+				context.tokenizer.expect_token(token_type::COLON);
+			}
+			context.alloc_and_store("self", true);
+			for (auto it = param_names.rbegin(); it != param_names.rend(); it++) {
+				context.alloc_and_store(*it);
+			}
 
+			if (context.tokenizer.match_token(token_type::COLON)) {
+				context.tokenizer.scan_token();
+
+				emit_load_variable("self", context);
+				emit_load_property(Hash::dj2b("base"), context);
+				emit_load_variable("super", context);
+				compile_args_and_call(context);
+				context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
+				context.emit({ .operation = opcode::DISCARD_TOP });
+			}
 		}
 		else if (is_class_method) {
-			context.alloc_local("self");
+			context.alloc_local("self", true);
 		}
 		else {
 			std::stringstream ss;
 			ss << "capture_table_" << context.function_decls.back().id;
-			context.alloc_local(ss.str());
+			context.alloc_local(ss.str(), true);
 		}
 	}
 
@@ -629,6 +691,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 	context.tokenizer.scan_token();
 
 	if (!context.lexical_scopes.back().all_code_paths_return) {
+		context.emit({ .operation = opcode::PUSH_NIL });
 		context.emit({ .operation = opcode::RETURN });
 	}
 
@@ -639,7 +702,6 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 		context.make_warning(ss.str());
 	}
 
-
 	//remove declared locals from active variables
 	for (auto hash : context.lexical_scopes.back().declared_locals) {
 		context.active_variables.erase(hash);
@@ -649,7 +711,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 	uint32_t id = emit_finalize_function(context, block_ins, ip_src_map);
 
 	opcode operation = no_capture ? opcode::CAPTURE_FUNCPTR : opcode::CAPTURE_CLOSURE;
-	if (operation == opcode::CAPTURE_CLOSURE) {
+	if (operation == opcode::CAPTURE_CLOSURE && !is_class_method) {
 		context.emit({.operation = opcode::ALLOCATE_TABLE_LITERAL, .operand = static_cast<operand>(captured_vars.size())});
 		for (auto captured_variable : captured_vars) {
 			context.emit({ .operation = opcode::DUPLICATE_TOP });
@@ -671,9 +733,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 	}
 
 	if (!is_class_method) {
-		context.emit({ .operation = opcode::CAPTURE_CLOSURE, .operand = static_cast<operand>(id >> 16) });
-		id = id & UINT16_MAX;
-		context.emit({ .operation = static_cast<opcode>(id >> 8), .operand = static_cast<operand>(id & UINT8_MAX) });
+		context.emit_function_operation(operation, id);
 	}
 
 	return id;
@@ -721,7 +781,196 @@ uint32_t instance::emit_finalize_function(compilation_context& context, std::vec
 }
 
 void instance::compile_class(compilation_context& context) {
-	
+	context.tokenizer.expect_token(token_type::CLASS);
+	auto class_begin_loc = context.tokenizer.last_tok_begin();
+	context.tokenizer.scan_token();
+	context.tokenizer.expect_token(token_type::IDENTIFIER);
+	std::string class_name = context.tokenizer.get_last_token().str();
+	context.tokenizer.scan_token();
+
+	bool inherits_class = context.tokenizer.match_token(token_type::OPEN_PAREN);
+	if (inherits_class) {
+		context.tokenizer.scan_token();
+		compile_expression(context);
+		context.tokenizer.expect_token(token_type::CLOSE_PAREN);
+		context.tokenizer.scan_token();
+	}
+
+	std::vector<size_t> default_value_stack;
+	std::vector<std::pair<std::string, bool>> properties;
+	while (!context.tokenizer.match_tokens({ token_type::END_BLOCK, token_type::FUNCTION }, true))
+	{
+		context.tokenizer.expect_token(token_type::IDENTIFIER);
+		std::string property_name = context.tokenizer.get_last_token().str();
+		context.tokenizer.scan_token();
+
+		if (context.tokenizer.match_token(token_type::SET)) {
+			context.tokenizer.scan_token();
+			compile_expression(context);
+
+			size_t property_name_hash = Hash::dj2b(property_name.c_str());
+			default_value_stack.push_back(property_name_hash);
+			properties.push_back(std::make_pair(property_name, true));
+		}
+		else {
+			properties.push_back(std::make_pair(property_name, false));
+		}
+	}
+
+	std::optional<uint32_t> constructor = std::nullopt;
+	std::vector<std::pair<std::string, uint32_t>> methods;
+	while (!context.tokenizer.match_token(token_type::END_BLOCK, true))
+	{
+		context.tokenizer.expect_token(token_type::FUNCTION);
+		context.tokenizer.scan_token();
+		context.tokenizer.expect_token(token_type::IDENTIFIER);
+		std::string method_name = context.tokenizer.get_last_token().str();
+		uint32_t func_id = compile_function(context, method_name, true, inherits_class);
+
+		if (method_name == "construct") {
+			if (constructor.has_value()) {
+				std::stringstream ss;
+				ss << "Class Error: Cannot redeclare constructor for class" << class_name << '.';
+				context.panic(ss.str());
+			}
+			constructor = func_id;
+		}
+		else {
+			methods.push_back(std::make_pair(method_name, func_id));
+		}
+	}
+	context.tokenizer.scan_token();
+
+	std::vector<instruction> block_ins;
+	std::vector<std::pair<size_t, source_loc>> ip_src_map;
+	context.lexical_scopes.push_back({ .next_local_id = 0, .instructions = block_ins, .ip_src_map = ip_src_map, .is_loop_block = false });
+	context.function_decls.push_back({ .name = class_name, .id = context.function_decls.size(), .no_capture = !(inherits_class || default_value_stack.size() > 0), .is_class_method = false });
+	context.set_src_loc(class_begin_loc);
+	if (constructor.has_value()) {
+		function_entry& constructor_entry = functions.at(constructor.value());
+		context.function_decls.back().param_count = constructor_entry.parameter_count;
+		for (size_t i = 0; i < constructor_entry.parameter_count; i++) {
+			std::stringstream ss;
+			ss << "@constructor_param_" << i;
+			context.alloc_local(ss.str(), true);
+		}
+	}
+	else {
+		context.function_decls.back().param_count = static_cast<operand>(properties.size() - default_value_stack.size());
+		for (auto prop : properties) {
+			if (!prop.second) {
+				context.alloc_local(prop.first, true);
+			}
+		}
+	}
+	if (!context.function_decls.back().no_capture) {
+		context.alloc_local("@capture_table");
+	}
+
+	size_t size = properties.size() + methods.size();
+	if (size > UINT8_MAX) {
+		std::stringstream ss;
+		ss << "Class Error: The total count of a classes properties and methods cannot exceed 255 (class " << class_name << " has " << size << " right now).";
+		context.panic(ss.str());
+	}
+	opcode alloc_operation = inherits_class ? opcode::ALLOCATE_INHERITED_CLASS : ALLOCATE_CLASS;
+	context.emit({ .operation = alloc_operation, .operand = static_cast<operand>(size) });
+
+	//set default properties
+	for (auto prop : properties) {
+		if (prop.second) {
+			context.emit({ .operation = opcode::DUPLICATE_TOP });
+			emit_load_property(Hash::dj2b(prop.first.c_str()), context);
+			emit_load_variable("@capture_table", context);
+			emit_load_property(Hash::dj2b(prop.first.c_str()), context);
+			context.emit({ .operation = opcode::LOAD_TABLE });
+			context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
+			context.emit({ .operation = opcode::DISCARD_TOP });
+		}
+	}
+	//set class methods
+	for (auto method : methods) {
+		context.emit({ .operation = opcode::DUPLICATE_TOP });
+		emit_load_property(Hash::dj2b(method.first.c_str()), context);
+		context.emit({ .operation = opcode::DUPLICATE_TOP });
+		context.emit_function_operation(opcode::CAPTURE_CLOSURE, method.second);
+		context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
+		context.emit({ .operation = opcode::DISCARD_TOP });
+
+		context.function_decls.back().refed_functions.insert(method.second);
+	}
+
+	if (constructor.has_value()) {
+		context.function_decls.back().refed_functions.insert(constructor.value());
+
+		context.alloc_and_store("@result", true);
+		function_entry& constructor_entry = functions.at(constructor.value());
+		for (size_t i = 0; i < constructor_entry.parameter_count; i++) {
+			std::stringstream ss;
+			ss << "@constructor_param_" << i;
+			emit_load_variable(ss.str(), context);
+		}
+		emit_load_variable("@result", context);
+		if (inherits_class) {
+			emit_load_variable("@capture_table", context);
+			emit_load_property(Hash::dj2b("super"), context);
+			context.emit({ .operation = opcode::LOAD_TABLE });
+		}
+		context.emit_function_operation(opcode::CALL_LABEL, constructor.value());
+		context.emit({ .operation = opcode::DISCARD_TOP });
+		emit_load_variable("@result", context);
+	}
+	else {
+		for (auto prop : properties) {
+			if (!prop.second) {
+				context.emit({ .operation = opcode::DUPLICATE_TOP });
+				emit_load_property(Hash::dj2b(prop.first.c_str()), context);
+				emit_load_variable(prop.first, context);
+				context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
+				context.emit({ .operation = opcode::DISCARD_TOP });
+			}
+		}
+	}
+	context.emit({ .operation = opcode::RETURN });
+	bool make_capture_table = !context.function_decls.back().no_capture;
+	context.unset_src_loc();
+	uint32_t func_id = emit_finalize_function(context, block_ins, ip_src_map);
+
+	if (make_capture_table) {
+		size_t table_size = default_value_stack.size() + static_cast<int>(inherits_class);
+		context.emit({ .operation = opcode::ALLOCATE_TABLE_LITERAL, .operand = static_cast<operand>(table_size) });
+		size_t to_pop = 0;
+		while (!default_value_stack.empty()) {
+			size_t prop_name_hash = default_value_stack.back();
+			default_value_stack.pop_back();
+
+			context.emit({ .operation = opcode::DUPLICATE_TOP });
+			emit_load_property(prop_name_hash, context);
+			context.emit({ .operation = opcode::BRING_TO_TOP, .operand = static_cast<operand>(to_pop + 2) });
+			context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
+			context.emit({ .operation = opcode::DISCARD_TOP });
+			to_pop++;
+		}
+		if (inherits_class) {
+			context.emit({ .operation = opcode::DUPLICATE_TOP });
+			emit_load_property(Hash::dj2b("super"), context);
+			context.emit({ .operation = opcode::BRING_TO_TOP, .operand = static_cast<operand>(to_pop + 2) });
+			context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
+			context.emit({ .operation = opcode::DISCARD_TOP });
+			to_pop++;
+		}
+
+		context.emit_function_operation(opcode::CAPTURE_CLOSURE, func_id);
+		context.alloc_and_store_global(class_name);
+
+		for (size_t i = 0; i < to_pop; i++) {
+			context.emit({ .operation = opcode::DISCARD_TOP });
+		}
+	}
+	else {
+		context.emit_function_operation(opcode::CAPTURE_FUNCPTR, func_id);
+		context.alloc_and_store_global(class_name);
+	}
 }
 
 void instance::compile(compilation_context& context, bool repl_mode) {
@@ -730,28 +979,27 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 
 	context.lexical_scopes.push_back({ .next_local_id = top_level_local_vars.size(), .declared_locals = top_level_local_vars , .instructions = repl_section, .ip_src_map = ip_src_map, .all_code_paths_return = false, .is_loop_block = false});
 	
-	operand offset = 0;
+	operand local_offset = 0;
 	for (auto name_hash : top_level_local_vars) {
 		context.active_variables.insert({ name_hash, {
 			.name_hash = name_hash,
 			.is_global = false,
-			.offset = offset,
+			.offset = local_offset,
 			.func_id = 0
 		} });
-		offset++;
+		local_offset++;
 	}
-	offset = 0;
+	context.global_offset = 0;
 	for (auto name_hash : global_vars) {
 		context.active_variables.insert({ name_hash, {
 			.name_hash = name_hash,
 			.is_global = true,
-			.offset = offset,
+			.offset = static_cast<operand>(context.global_offset),
 			.func_id = 0
 		} });
-		offset++;
+		context.global_offset++;
 	}
 
-	std::vector<size_t> declared_globals;
 	while (!context.tokenizer.match_token(token_type::END_OF_SOURCE, true))
 	{
 		auto last_token = context.tokenizer.get_last_token();
@@ -761,34 +1009,13 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 			context.tokenizer.scan_token();
 			context.tokenizer.expect_token(token_type::IDENTIFIER);
 			std::string identifier = context.tokenizer.get_last_token().str();
-			size_t hash = Hash::dj2b(identifier.c_str());
-			if (context.active_variables.contains(hash)) {
-				std::stringstream ss;
-				ss << "Naming Error: Variable " << identifier << " already exists.";
-				context.panic(ss.str());
-			}
 
 			context.tokenizer.scan_token();
 			context.tokenizer.expect_token(token_type::SET);
 			context.tokenizer.scan_token();
 			compile_expression(context);
 
-			size_t raw_offset = offset + declared_globals.size();
-			if (raw_offset > UINT8_MAX) {
-			context.panic("Variable Error: Cannot declare more than 256 globals.");
-			}
-
-			operand var_offset = static_cast<operand>(raw_offset);
-			context.active_variables.insert({ hash, {
-				.name_hash = hash,
-				.is_global = true,
-				.offset = var_offset,
-				.func_id = 0
-			} });
-			declared_globals.push_back(hash);
-
-			context.emit({ .operation = opcode::DECL_GLOBAL, .operand = var_offset });
-
+			context.alloc_and_store_global(identifier);
 			break;
 		}
 		case token_type::FUNCTION: {
@@ -796,28 +1023,19 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 
 			context.tokenizer.expect_token(token_type::IDENTIFIER);
 			std::string identifier = context.tokenizer.get_last_token().str();
-			size_t hash = Hash::dj2b(identifier.c_str());
-
-			size_t raw_offset = offset + declared_globals.size();
-			if (raw_offset > UINT8_MAX) {
-				context.panic("Variable Error: Cannot declare more than 256 globals.");
-			}
-			operand var_offset = static_cast<operand>(raw_offset);
-			context.active_variables.insert({ hash, {
-				.name_hash = hash,
-				.is_global = true,
-				.offset = var_offset,
-				.func_id = 0
-			} });
-			declared_globals.push_back(hash);
+			context.tokenizer.scan_token();
 
 			compile_function(context, identifier);
-			context.emit({ .operation = opcode::DECL_GLOBAL, .operand = var_offset });
+			operand func_var_offset = context.alloc_and_store_global(identifier);
 
 			if (repl_mode) {
-				context.emit({ .operation = opcode::LOAD_GLOBAL, .operand = var_offset });
+				context.emit({ .operation = opcode::LOAD_GLOBAL, .operand = func_var_offset });
 			}
 
+			break;
+		}
+		case token_type::CLASS: {
+			compile_class(context);
 			break;
 		}
 		default:
@@ -831,7 +1049,7 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 	}
 
 	top_level_local_vars = context.lexical_scopes.back().declared_locals;
-	global_vars.insert(global_vars.end(), declared_globals.begin(), declared_globals.end());
+	global_vars.insert(global_vars.end(), context.declared_globals.begin(), context.declared_globals.end());
 
 	ip = instructions.size();
 	instructions.insert(instructions.end(), repl_section.begin(), repl_section.end());

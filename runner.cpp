@@ -23,8 +23,15 @@ std::variant<instance::value, std::vector<compilation_error>, std::monostate> in
 	compilation_context context = {
 		.tokenizer = tokenizer
 	};
+	
+	try {
+		compile(context, repl_mode);
+	}
+	catch (...) {
+		garbage_collect(true);
+		throw;
+	}
 
-	compile(context, repl_mode);
 	if (!context.warnings.empty() && !ignore_warnings) {
 		return context.warnings;
 	}

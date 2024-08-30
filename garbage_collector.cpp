@@ -26,7 +26,7 @@ size_t instance::allocate_table(size_t capacity, bool allow_collect) {
 
 	tables.insert({ next_table_id, t });
 	next_table_id++;
-	return next_table_id;
+	return next_table_id - 1;
 }
 
 void instance::reallocate_table(size_t table_id, size_t new_capacity, bool allow_collect) {
@@ -74,6 +74,9 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 			{
 			case value::vtype::CLOSURE:
 				functions_to_trace.push_back(to_trace.function_id);
+				if (!(to_trace.flags & value::flags::HAS_CAPTURE_TABLE)) {
+					break;
+				}
 				[[fallthrough]];
 			case value::vtype::TABLE: {
 				table& table = tables.at(to_trace.data.id);

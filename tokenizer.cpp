@@ -142,8 +142,6 @@ token tokenizer::scan_token() {
 			return last_token = token(token_type::END_BLOCK);
 		case Hash::dj2b("global"):
 			return last_token = token(token_type::GLOBAL);
-		case Hash::dj2b("self"):
-			return last_token = token(token_type::SELF);
 		case Hash::dj2b("table"):
 			return last_token = token(token_type::TABLE);
 		case Hash::dj2b("no_capture"):

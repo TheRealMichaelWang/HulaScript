@@ -20,7 +20,6 @@ namespace HulaScript {
 		FUNCTION,
 		TABLE,
 		CLASS,
-		SELF,
 		NO_CAPTURE,
 
 		IF,

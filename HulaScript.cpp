@@ -59,12 +59,6 @@ int main()
 		catch (const HulaScript::runtime_error& error) {
 			cout << error.to_print_string();
 		}
-		catch (std::exception& e) {
-			int k = 0;
-		}
-		catch (...) {
-			int k = 0;
-		}
 		cout << std::endl;
 	}
 
