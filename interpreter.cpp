@@ -126,7 +126,7 @@ void instance::execute() {
 					evaluation_stack.push_back(heap[table.block.start + it->second] = set_value);
 					break;
 				}
-				else if (flags & value::flags::TABLE_INHERITS_PARENT) {
+				else if (flags & value::flags::TABLE_INHERITS_PARENT && ins.operand) {
 					size_t& base_table_index = table.key_hashes.at(Hash::dj2b("base"));
 					value& base_table_val = heap[table.block.start + base_table_index];
 					flags = base_table_val.flags;
