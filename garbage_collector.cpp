@@ -34,7 +34,12 @@ void instance::reallocate_table(size_t table_id, size_t new_capacity, bool allow
 
 	if (new_capacity > t.block.capacity) {
 		gc_block block = allocate_block(new_capacity, allow_collect);
-		free_blocks.insert({ t.block.capacity, t.block });
+		auto start_it = heap.begin() + t.block.start;
+		std::move(start_it, start_it + t.count, heap.begin() + block.start);
+
+		if (block.capacity > 0) {
+			free_blocks.insert({ t.block.capacity, t.block });
+		}
 		t.block = block;
 	}
 	else if (new_capacity < t.block.capacity) {
@@ -52,8 +57,9 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	values_to_trace.insert(values_to_trace.end(), globals.begin(), globals.end());
 	values_to_trace.insert(values_to_trace.end(), locals.begin(), locals.end());
 	values_to_trace.insert(values_to_trace.end(), temp_gc_exempt.begin(), temp_gc_exempt.end());
-	for (auto id : repl_used_constants)
+	for (auto id : repl_used_constants) {
 		values_to_trace.push_back(constants[id]);
+	}
 
 	temp_gc_exempt.clear();
 
@@ -177,8 +183,11 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	for (uint_fast32_t i = 0; i < constants.size(); i++) {
 		if (!marked_constants.contains(i)) {
 			size_t hash = constants[i].hash();
-			constant_hashses.erase(hash);
-			availible_constant_ids.push_back(i);
+			auto it = constant_hashses.find(hash);
+			if (it != constant_hashses.end()) {
+				constant_hashses.erase(it);
+				availible_constant_ids.push_back(i);
+			}
 		}
 	}
 

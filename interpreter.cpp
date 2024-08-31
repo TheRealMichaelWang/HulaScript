@@ -87,12 +87,14 @@ void instance::execute() {
 			evaluation_stack.pop_back();
 			expect_type(value::vtype::TABLE);
 			uint16_t flags = evaluation_stack.back().flags;
-			table& table = tables.at(evaluation_stack.back().data.id);
+			size_t table_id = evaluation_stack.back().data.id;
 			evaluation_stack.pop_back();
 			
 			size_t hash = key.hash();
 
 			for (;;) {
+				table& table = tables.at(table_id);
+
 				auto it = table.key_hashes.find(hash);
 				if (it != table.key_hashes.end()) {
 					evaluation_stack.push_back(heap[table.block.start + it->second]);
@@ -102,7 +104,7 @@ void instance::execute() {
 					size_t& base_table_index = table.key_hashes.at(Hash::dj2b("base"));
 					value& base_table_val = heap[table.block.start + base_table_index];
 					flags = base_table_val.flags;
-					table = tables.at(base_table_val.data.id);
+					table_id = base_table_val.data.id;
 				}
 				else {
 					evaluation_stack.push_back(value());
@@ -117,14 +119,15 @@ void instance::execute() {
 			value key = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			expect_type(value::vtype::TABLE);
-			size_t id = evaluation_stack.back().data.id;
-			uint16_t flags = evaluation_stack.back().flags;
-			table& table = tables.at(id);
+			value table_value = evaluation_stack.back();
+			size_t table_id = table_value.data.id;
+			uint16_t flags = table_value.flags;
 			evaluation_stack.pop_back();
 
 			size_t hash = key.hash();
 
 			for (;;) {
+				table& table = tables.at(table_id);
 				auto it = table.key_hashes.find(hash);
 				if (it != table.key_hashes.end()) {
 					evaluation_stack.push_back(heap[table.block.start + it->second] = set_value);
@@ -134,14 +137,17 @@ void instance::execute() {
 					size_t& base_table_index = table.key_hashes.at(Hash::dj2b("base"));
 					value& base_table_val = heap[table.block.start + base_table_index];
 					flags = base_table_val.flags;
-					table = tables.at(base_table_val.data.id);
+					table_id = base_table_val.data.id;
 				}
 				else {
+					if (flags & value::flags::TABLE_IS_FINAL) {
+						panic("Cannot add to an immutable table.");
+					}
 					if (table.count == table.block.capacity) {
-						if (flags & value::flags::TABLE_IS_FINAL) {
-							panic("Cannot add to an immutable table.");
-						}
-						reallocate_table(id, table.block.capacity == 0 ? 4 : table.block.capacity * 2, true);
+						temp_gc_exempt.push_back(table_value);
+						temp_gc_exempt.push_back(set_value);
+						reallocate_table(table_id, table.block.capacity == 0 ? 4 : table.block.capacity * 2, true);
+						temp_gc_exempt.clear();
 					}
 
 					table.key_hashes.insert({ hash, table.count });
@@ -168,12 +174,21 @@ void instance::execute() {
 		}
 		case opcode::ALLOCATE_CLASS: {
 			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
-			evaluation_stack.push_back(value(value::vtype::TABLE, value::flags::TABLE_IS_FINAL, 0, table_id));
+			evaluation_stack.push_back(value(value::vtype::TABLE, 0, 0, table_id));
 			break;
 		}
 		case opcode::ALLOCATE_INHERITED_CLASS: {
-			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
-			evaluation_stack.push_back(value(value::vtype::TABLE, value::flags::TABLE_IS_FINAL | value::flags::TABLE_INHERITS_PARENT, 0, table_id));
+			size_t table_id = allocate_table(static_cast<size_t>(ins.operand) + 1, true);
+			evaluation_stack.push_back(value(value::vtype::TABLE, 0 | value::flags::TABLE_INHERITS_PARENT, 0, table_id));
+			break;
+		}
+		case opcode::FINALIZE_TABLE: {
+			expect_type(value::vtype::TABLE);
+			evaluation_stack.back().flags |= value::flags::TABLE_IS_FINAL;
+
+			size_t table_id = evaluation_stack.back().data.id;
+			reallocate_table(table_id, tables.at(table_id).count, true);
+
 			break;
 		}
 
