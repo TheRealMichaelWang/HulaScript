@@ -294,6 +294,10 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		break;
 	}
 	case token_type::IF: {
+		if (expects_statement) {
+			context.panic("Syntax Error: Expected statement, got value instead.");
+		}
+
 		context.tokenizer.scan_token();
 		compile_expression(context);
 		size_t cond_jump_addr = context.emit({ .operation = opcode::IF_FALSE_JUMP_AHEAD });
@@ -351,7 +355,9 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 				context.tokenizer.scan_token();
 				compile_expression(context);
 				context.emit({ .operation = opcode::STORE_TABLE, .operand = 1 });
-
+				if (expects_statement) {
+					context.emit({ .operation = opcode::DISCARD_TOP });
+				}
 				context.unset_src_loc();
 				return;
 			}
@@ -371,6 +377,9 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 				context.tokenizer.scan_token();
 				compile_expression(context);
 				context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
+				if (expects_statement) {
+					context.emit({ .operation = opcode::DISCARD_TOP });
+				}
 
 				context.unset_src_loc();
 				return;
@@ -392,6 +401,9 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 				context.panic("Syntax Error: Expected statement, got value instead.");
 			}
 			context.unset_src_loc();
+			if (expects_statement) {
+				context.emit({ .operation = opcode::DISCARD_TOP });
+			}
 			return;
 		}
 		}
@@ -561,7 +573,6 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 	default: {
 		if (expects_statement) {
 			compile_value(context, true, false);
-			context.emit({ .operation = opcode::DISCARD_TOP });
 		}
 		else {
 			compile_value(context, false, false);
@@ -606,8 +617,8 @@ instance::compilation_context::lexical_scope instance::compile_block(compilation
 	return scope;
 }
 
-uint32_t instance::compile_function(compilation_context& context, std::string name, bool is_class_method, bool requires_super_call) {
-	bool is_constructor = name == "construct" && is_class_method;
+uint32_t instance::compile_function(compilation_context& context, std::string name, bool is_class_method, bool is_constructor, bool requires_super_call) {
+	assert(is_constructor ? is_class_method : true);
 	
 	context.tokenizer.enter_function(name);
 	context.tokenizer.scan_token();
@@ -825,9 +836,12 @@ void instance::compile_class(compilation_context& context) {
 		context.tokenizer.scan_token();
 		context.tokenizer.expect_token(token_type::IDENTIFIER);
 		std::string method_name = context.tokenizer.get_last_token().str();
-		uint32_t func_id = compile_function(context, method_name, true, inherits_class);
+		std::stringstream ss;
+		ss << class_name << '.' << method_name;
+		bool is_constructor = method_name == "construct";
+		uint32_t func_id = compile_function(context, ss.str(), true, is_constructor, inherits_class);
 
-		if (method_name == "construct") {
+		if (is_constructor) {
 			if (constructor.has_value()) {
 				std::stringstream ss;
 				ss << "Class Error: Cannot redeclare constructor for class" << class_name << '.';
@@ -867,14 +881,8 @@ void instance::compile_class(compilation_context& context) {
 		context.alloc_local("@capture_table");
 	}
 
-	size_t size = properties.size() + methods.size();
-	if (size > UINT8_MAX) {
-		std::stringstream ss;
-		ss << "Class Error: The total count of a classes properties and methods cannot exceed 255 (class " << class_name << " has " << size << " right now).";
-		context.panic(ss.str());
-	}
 	opcode alloc_operation = inherits_class ? opcode::ALLOCATE_INHERITED_CLASS : ALLOCATE_CLASS;
-	context.emit({ .operation = alloc_operation, .operand = static_cast<operand>(size) });
+	context.emit({ .operation = alloc_operation, .operand = static_cast<operand>(properties.size() + methods.size())});
 
 	//set default properties
 	for (auto prop : properties) {
@@ -931,7 +939,9 @@ void instance::compile_class(compilation_context& context) {
 			}
 		}
 	}
+	context.emit({ .operation = opcode::FINALIZE_TABLE });
 	context.emit({ .operation = opcode::RETURN });
+
 	bool make_capture_table = !context.function_decls.back().no_capture;
 	context.unset_src_loc();
 	uint32_t func_id = emit_finalize_function(context, block_ins, ip_src_map);

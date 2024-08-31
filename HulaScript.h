@@ -70,16 +70,18 @@ namespace HulaScript {
 					break;
 
 				case HulaScript::instance::value::INTERNAL_STRHASH:
-					[[fallthrough]];
+					return data.id;
 				case HulaScript::instance::value::BOOLEAN:
 					[[fallthrough]];
 				case HulaScript::instance::value::TABLE:
 					[[fallthrough]];
-				case HulaScript::instance::value::STRING:
-					[[fallthrough]];
 				case HulaScript::instance::value::NUMBER:
 					payload = data.id;
 					break;
+				case HulaScript::instance::value::STRING: {
+					payload = Hash::dj2b(data.str);
+					break;
+				}
 				case HulaScript::instance::value::CLOSURE:
 					size_t payload2 = flags;
 					payload2 <<= 32;
@@ -130,6 +132,7 @@ namespace HulaScript {
 			ALLOCATE_TABLE_LITERAL,
 			ALLOCATE_CLASS,
 			ALLOCATE_INHERITED_CLASS,
+			FINALIZE_TABLE,
 
 			ADD,
 			SUBTRACT,
@@ -467,7 +470,7 @@ namespace HulaScript {
 			return compile_block(context, end_toks);
 		}
 
-		uint32_t compile_function(compilation_context& context, std::string name, bool is_class_method=false, bool requires_super_call = false);
+		uint32_t compile_function(compilation_context& context, std::string name, bool is_class_method=false, bool is_constructor = false, bool requires_super_call = false);
 		void compile_class(compilation_context& context);
 
 		void compile(compilation_context& context, bool repl_mode=false);

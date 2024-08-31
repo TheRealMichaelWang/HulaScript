@@ -31,5 +31,6 @@ michael.say_bi()
 class student
     name
     age = 18
+    graduation = false
 end
 tim = student("Tim")
