@@ -15,6 +15,15 @@ class person2
         self.age = age
         self.year = age - 18
     end
+
+    function say_hi()
+        return "Hello there"
+    end
+
+    function say_bi()
+        return "You are a bold one"
+    end
 end
 michael = person2("Michael", 19)
-michael.year
+michael.say_hi()
+michael.say_bi()

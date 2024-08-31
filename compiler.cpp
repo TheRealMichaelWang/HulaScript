@@ -892,7 +892,7 @@ void instance::compile_class(compilation_context& context) {
 	for (auto method : methods) {
 		context.emit({ .operation = opcode::DUPLICATE_TOP });
 		emit_load_property(Hash::dj2b(method.first.c_str()), context);
-		context.emit({ .operation = opcode::DUPLICATE_TOP });
+		context.emit({ .operation = opcode::BRING_TO_TOP, .operand = 1 });
 		context.emit_function_operation(opcode::CAPTURE_CLOSURE, method.second);
 		context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
 		context.emit({ .operation = opcode::DISCARD_TOP });
