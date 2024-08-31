@@ -80,9 +80,11 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 				[[fallthrough]];
 			case value::vtype::TABLE: {
 				table& table = tables.at(to_trace.data.id);
-				marked_tables.insert(to_trace.data.id);
-				for (size_t i = 0; i < table.count; i++) {
-					values_to_trace.push_back(heap[i + table.block.start]);
+				if (!marked_tables.contains(to_trace.data.id)) {
+					marked_tables.insert(to_trace.data.id);
+					for (size_t i = 0; i < table.count; i++) {
+						values_to_trace.push_back(heap[i + table.block.start]);
+					}
 				}
 				break;
 			}
