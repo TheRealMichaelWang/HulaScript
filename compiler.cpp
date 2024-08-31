@@ -946,7 +946,7 @@ void instance::compile_class(compilation_context& context) {
 
 			context.emit({ .operation = opcode::DUPLICATE_TOP });
 			emit_load_property(prop_name_hash, context);
-			context.emit({ .operation = opcode::BRING_TO_TOP, .operand = static_cast<operand>(to_pop + 2) });
+			context.emit({ .operation = opcode::BRING_TO_TOP, .operand = static_cast<operand>(to_pop + 3) });
 			context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
 			context.emit({ .operation = opcode::DISCARD_TOP });
 			to_pop++;
@@ -954,7 +954,7 @@ void instance::compile_class(compilation_context& context) {
 		if (inherits_class) {
 			context.emit({ .operation = opcode::DUPLICATE_TOP });
 			emit_load_property(Hash::dj2b("super"), context);
-			context.emit({ .operation = opcode::BRING_TO_TOP, .operand = static_cast<operand>(to_pop + 2) });
+			context.emit({ .operation = opcode::BRING_TO_TOP, .operand = static_cast<operand>(to_pop + 3) });
 			context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
 			context.emit({ .operation = opcode::DISCARD_TOP });
 			to_pop++;
