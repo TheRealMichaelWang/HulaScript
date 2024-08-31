@@ -178,13 +178,13 @@ void tokenizer::expect_tokens(std::vector<token_type> expected_types) const {
 }
 
 std::string instance::get_value_print_string(value to_print_init) {
-	phmap::flat_hash_set<size_t> printed_tables;
-	
 	std::stringstream ss;
 
 	std::vector<value> to_print;
 	std::vector<size_t> close_counts;
 	to_print.push_back(to_print_init);
+
+	phmap::flat_hash_map<size_t, size_t> printed_tables;
 
 	while (!to_print.empty()) {
 		value current = to_print.back();
@@ -193,6 +193,13 @@ std::string instance::get_value_print_string(value to_print_init) {
 		switch (current.type)
 		{
 		case value::vtype::TABLE: {
+			auto it = printed_tables.find(current.data.id);
+			if (it != printed_tables.end()) {
+				ss << "Table beggining at col " << (it->second);
+				break;
+			}
+			printed_tables.insert({ current.data.id, ss.tellp()});
+				
 			table& table = tables.at(current.data.id);
 
 			ss << '[';

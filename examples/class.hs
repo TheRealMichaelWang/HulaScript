@@ -27,3 +27,9 @@ end
 michael = person2("Michael", 19)
 michael.say_hi()
 michael.say_bi()
+
+class student
+    name
+    age = 18
+end
+tim = student("Tim")
