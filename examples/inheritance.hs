@@ -20,3 +20,18 @@ class dog(animal)
 end
 fido = dog("Fido")
 fido.wagging
+
+class student(function(name, age)
+    person = [1,2,3]
+    person.name = name
+    person.age = age
+	return person
+end)
+    grade
+
+    function construct(name, age, grade) : (name, age)
+        self.grade = grade
+	end
+end
+
+tim = student("Tim", 9000, 1)

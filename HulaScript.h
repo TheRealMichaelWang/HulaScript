@@ -361,7 +361,7 @@ namespace HulaScript {
 				bool no_capture;
 				bool is_class_method;
 
-				phmap::flat_hash_set<size_t> captured_variables;
+				phmap::flat_hash_set<std::string> captured_variables;
 				phmap::flat_hash_set<uint32_t> refed_constants;
 				phmap::flat_hash_set<uint32_t> refed_functions;
 			};
@@ -450,6 +450,7 @@ namespace HulaScript {
 		std::vector<size_t> global_vars;
 
 		void emit_load_variable(std::string name, compilation_context& context);
+
 
 		void emit_load_property(size_t hash, compilation_context& context) {
 			context.emit_load_constant(add_constant(value(value::vtype::INTERNAL_STRHASH, value::flags::NONE, 0, hash)), repl_used_constants);

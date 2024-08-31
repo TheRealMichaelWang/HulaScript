@@ -102,11 +102,12 @@ void instance::emit_load_variable(std::string name, compilation_context& context
 			else if (context.function_decls.back().no_capture) {
 				panic("Usage Error: Cannot capture variable within a function annotated with no_capture.");
 			}
+			
+			context.function_decls.back().captured_variables.insert(name);
 
-			for (size_t i = it->second.func_id; i < context.function_decls.size(); i++) {
-				context.function_decls[i].captured_variables.emplace(hash);
-			}
-			context.emit({ .operation = opcode::LOAD_LOCAL, .operand = context.function_decls.back().param_count });
+			std::stringstream ss;
+			ss << "capture_table_" << context.function_decls.back().id;
+			emit_load_variable(ss.str(), context);
 			emit_load_property(hash, context);
 			context.emit({ .operation = opcode::LOAD_TABLE });
 		}
@@ -707,7 +708,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 	}
 
 	auto captured_vars = context.function_decls.back().captured_variables;
-	if (!captured_vars.empty() && !no_capture && !is_class_method) {
+	if (captured_vars.empty() && !no_capture && !is_class_method) {
 		std::stringstream ss;
 		ss << "Function Warning: Function " << name << " doesn't capture any variables. Consider adding the no_capture annotation for enhanced performance.";
 		context.make_warning(ss.str());
@@ -726,17 +727,8 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 		context.emit({.operation = opcode::ALLOCATE_TABLE_LITERAL, .operand = static_cast<operand>(captured_vars.size())});
 		for (auto captured_variable : captured_vars) {
 			context.emit({ .operation = opcode::DUPLICATE_TOP });
-			emit_load_property(captured_variable, context);
-
-			auto it = context.active_variables.find(captured_variable);
-			if (it->second.func_id == context.function_decls.size()) { //capture from current function
-				context.emit({ .operation = opcode::LOAD_LOCAL,.operand = it->second.offset });
-			}
-			else {
-				context.emit({ .operation = opcode::LOAD_LOCAL, .operand = context.function_decls.back().param_count });
-				emit_load_property(captured_variable, context);
-				context.emit({ .operation = opcode::LOAD_TABLE });
-			}
+			emit_load_property(Hash::dj2b(captured_variable.c_str()), context);
+			emit_load_variable(captured_variable, context);
 
 			context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
 			context.emit({ .operation = opcode::DISCARD_TOP });
@@ -1033,7 +1025,6 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 
 			context.tokenizer.expect_token(token_type::IDENTIFIER);
 			std::string identifier = context.tokenizer.get_last_token().str();
-			context.tokenizer.scan_token();
 
 			compile_function(context, identifier);
 			operand func_var_offset = context.alloc_and_store_global(identifier);
