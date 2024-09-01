@@ -22,12 +22,19 @@ int main()
 			string line;
 			getline(cin, line);
 
-			auto res = repl_completer.write_input(line);
-			if (res.has_value()) {
-				break;
+			try {
+				auto res = repl_completer.write_input(line);
+				if (res.has_value()) {
+					break;
+				}
+				else {
+					cout << "... ";
+				}
 			}
-			else {
-				cout << "... ";
+			catch (HulaScript::compilation_error& error) {
+				repl_completer.clear();
+				std::cout << error.to_print_string() << std::endl;
+				std::cout << ">>> ";
 			}
 		}
 
