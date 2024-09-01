@@ -308,6 +308,7 @@ namespace HulaScript {
 		//COMPILER
 		struct compilation_context {
 			struct lexical_scope {
+				size_t final_ins_offset = 0;
 				size_t next_local_id;
 
 				std::vector<size_t> declared_locals;
@@ -324,23 +325,23 @@ namespace HulaScript {
 				}
 
 				void merge_scope(lexical_scope& scope) {
-					size_t offset = instructions.size();
+					scope.final_ins_offset = instructions.size();
 					instructions.insert(instructions.end(), scope.instructions.begin(), scope.instructions.end());
 					
 					ip_src_map.reserve(ip_src_map.size() + scope.ip_src_map.size());
 					for (auto ip_src : scope.ip_src_map) {
-						ip_src_map.push_back(std::make_pair(offset + ip_src.first, ip_src.second));
+						ip_src_map.push_back(std::make_pair(final_ins_offset + ip_src.first, ip_src.second));
 					}
 
 					if (!(!is_loop_block && scope.is_loop_block)) { //demorgans law...holy shit 2050
 						continue_requests.reserve(continue_requests.size() + scope.continue_requests.size());
 						for (size_t ip : scope.continue_requests) {
-							continue_requests.push_back(offset + ip);
+							continue_requests.push_back(scope.final_ins_offset + ip);
 						}
 
 						break_requests.reserve(break_requests.size() + scope.break_requests.size());
 						for (size_t ip : scope.break_requests) {
-							break_requests.push_back(offset + ip);
+							break_requests.push_back(scope.final_ins_offset + ip);
 						}
 					}
 				}

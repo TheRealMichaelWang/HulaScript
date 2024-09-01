@@ -37,7 +37,7 @@ std::pair<instance::compilation_context::variable, bool> instance::compilation_c
 bool instance::compilation_context::alloc_and_store(std::string name, bool must_declare) {
 	auto res = alloc_local(name, must_declare);
 	if (res.second) {
-		emit({ .operation = (res.first.func_id == 0 ? opcode::DECL_TOPLVL_LOCAL : opcode::DECL_LOCAL), .operand = res.first.offset});
+		emit({ .operation = (lexical_scopes.size() == 1 ? opcode::DECL_TOPLVL_LOCAL : opcode::DECL_LOCAL), .operand = res.first.offset});
 		return true;
 	}
 	else if (res.first.is_global) {
@@ -480,12 +480,12 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 		context.set_operand(context.emit({ .operation = opcode::JUMP_BACK }), context.current_ip() - continue_dest_ip);
 
 		for (size_t continue_req_ip : lexical_scope.continue_requests) {
-			context.set_operand(continue_req_ip, continue_dest_ip - continue_req_ip);
+			context.set_operand(continue_req_ip + lexical_scope.final_ins_offset, continue_dest_ip - (continue_req_ip + lexical_scope.final_ins_offset));
 		}
 		for (size_t break_req_ip : lexical_scope.break_requests) {
-			context.set_operand(break_req_ip, context.current_ip() - break_req_ip);
+			context.set_operand(break_req_ip + lexical_scope.final_ins_offset, context.current_ip() - (break_req_ip + lexical_scope.final_ins_offset));
 		}
-		context.set_operand(cond_ip, context.current_ip() - cond_ip);
+		context.set_operand(cond_ip + lexical_scope.final_ins_offset, context.current_ip() - (cond_ip + lexical_scope.final_ins_offset));
 
 		break;
 	}
