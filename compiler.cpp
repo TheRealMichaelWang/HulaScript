@@ -261,25 +261,30 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 				context.tokenizer.scan_token();
 			}
 
-			context.tokenizer.match_token(token_type::OPEN_BRACE);
-			context.tokenizer.scan_token();
-
 			context.emit({ .operation = opcode::DUPLICATE_TOP });
-			if (context.tokenizer.match_token(token_type::STRING_LITERAL)) {
+			if (context.tokenizer.match_token(token_type::PERIOD)) {
+				context.tokenizer.scan_token();
+				context.tokenizer.expect_token(token_type::IDENTIFIER);
 				emit_load_property(Hash::dj2b(context.tokenizer.get_last_token().str().c_str()), context);
 				context.tokenizer.scan_token();
-			}
-			else {
+				context.tokenizer.expect_token(token_type::SET);
+				context.tokenizer.scan_token();
 				compile_expression(context);
 			}
+			else {
+				context.tokenizer.expect_token(token_type::OPEN_BRACE);
+				context.tokenizer.scan_token();
 
-			context.tokenizer.match_token(token_type::COMMA);
-			context.tokenizer.scan_token();
+				compile_expression(context);
 
-			compile_expression(context);
+				context.tokenizer.match_token(token_type::COMMA);
+				context.tokenizer.scan_token();
 
-			context.tokenizer.match_token(token_type::CLOSE_BRACE);
-			context.tokenizer.scan_token();
+				compile_expression(context);
+
+				context.tokenizer.match_token(token_type::CLOSE_BRACE);
+				context.tokenizer.scan_token();
+			}
 
 			context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
 			context.emit({ .operation = opcode::DISCARD_TOP });
