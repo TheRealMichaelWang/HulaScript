@@ -66,6 +66,12 @@ namespace HulaScript {
 				case token_type::FUNCTION:
 					expected_toks.push_back(token_type::END_BLOCK);
 					break;
+				case token_type::FOR: {
+					expected_toks.push_back(token_type::END_BLOCK);
+					expected_toks.push_back(token_type::DO);
+					expected_toks.push_back(token_type::IN);
+					break;
+				}
 				}
 			}
 
