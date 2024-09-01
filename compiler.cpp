@@ -195,7 +195,9 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			}
 
 			for (auto it = to_declare.rbegin(); it != to_declare.rend(); it++) {
-				context.alloc_local(*it, true);
+				if (!context.alloc_and_store(*it)) {
+					context.emit({ .operation = opcode::DISCARD_TOP });
+				}
 			}
 
 			context.unset_src_loc();
@@ -470,7 +472,7 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 		size_t cond_ip = context.emit({ .operation = opcode::IF_FALSE_JUMP_AHEAD });
 		auto lexical_scope = compile_block(context, { token_type::END_BLOCK }, true);
 		context.tokenizer.scan_token();
-		context.emit({ .operation = opcode::JUMP_BACK, .operand = static_cast<operand>(context.current_ip() - continue_dest_ip) });
+		context.set_operand(context.emit({ .operation = opcode::JUMP_BACK }), context.current_ip() - continue_dest_ip);
 
 		for (size_t continue_req_ip : lexical_scope.continue_requests) {
 			context.set_operand(continue_req_ip, continue_dest_ip - continue_req_ip);
@@ -501,6 +503,10 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 			context.set_operand(break_req_ip, context.current_ip() - break_req_ip);
 		}
 
+		break;
+	}
+	case token_type::FOR: {
+		compile_for_loop(context);
 		break;
 	}
 	case token_type::IF: {
@@ -592,12 +598,16 @@ instance::compilation_context::lexical_scope instance::compile_block(compilation
 	std::vector<instruction> block_ins;
 	std::vector<std::pair<size_t, source_loc>> ip_src_map;
 
-	context.lexical_scopes.push_back({ .next_local_id = prev_scope.next_local_id, .instructions = block_ins, .ip_src_map = ip_src_map, .all_code_paths_return = false, .is_loop_block = is_loop });
+	context.lexical_scopes.push_back({ .next_local_id = prev_scope.next_local_id, .instructions = block_ins, .ip_src_map = ip_src_map, .all_code_paths_return = false, .is_loop_block = is_loop || prev_scope.is_loop_block });
 	while (!context.tokenizer.match_tokens(end_toks, true))
 	{
 		compile_statement(context);
 	}
 
+	return unwind_lexical_scope(context);
+}
+
+instance::compilation_context::lexical_scope instance::unwind_lexical_scope(instance::compilation_context& context) {
 	//emit unwind locals instruction
 	if (context.lexical_scopes.back().declared_locals.size() > 0) {
 		context.emit({ .operation = opcode::UNWIND_LOCALS, .operand = static_cast<operand>(context.lexical_scopes.back().declared_locals.size()) });
@@ -614,7 +624,7 @@ instance::compilation_context::lexical_scope instance::compile_block(compilation
 		context.emit({ .operation = opcode::PROBE_LOCALS, .operand = static_cast<operand>(context.lexical_scopes.back().declared_locals.size()) });
 	}
 
-	prev_scope.merge_scope(scope);
+	context.lexical_scopes.back().merge_scope(scope);
 	return scope;
 }
 
@@ -650,7 +660,6 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 		}
 		context.tokenizer.scan_token(); 
 	}
-	
 
 	std::vector<instruction> block_ins;
 	std::vector<std::pair<size_t, source_loc>> ip_src_map;
@@ -671,7 +680,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 			}
 			context.alloc_and_store("self", true);
 			for (auto it = param_names.rbegin(); it != param_names.rend(); it++) {
-				context.alloc_and_store(*it);
+				context.alloc_and_store(*it, true);
 			}
 
 			if (context.tokenizer.match_token(token_type::COLON)) {

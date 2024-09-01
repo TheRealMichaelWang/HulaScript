@@ -466,10 +466,15 @@ namespace HulaScript {
 		void compile_statement(compilation_context& context, bool expects_statement = true);
 		
 		compilation_context::lexical_scope compile_block(compilation_context& context, std::vector<token_type> end_toks, bool is_loop=false);
+		
 		compilation_context::lexical_scope compile_block(compilation_context& context) {
 			std::vector<token_type> end_toks = { token_type::END_BLOCK };
 			return compile_block(context, end_toks);
 		}
+
+		compilation_context::lexical_scope unwind_lexical_scope(compilation_context& context);
+
+		void compile_for_loop(compilation_context& context);
 
 		uint32_t compile_function(compilation_context& context, std::string name, bool is_class_method=false, bool is_constructor = false, bool requires_super_call = false);
 		void compile_class(compilation_context& context);
