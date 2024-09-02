@@ -53,7 +53,7 @@ void instance::compile_for_loop(compilation_context& context) {
 	context.set_operand(context.emit({ .operation = opcode::JUMP_BACK }), context.current_ip() - continue_dest_ip);
 	auto scope = unwind_lexical_scope(context);
 	for (auto continue_request : scope.continue_requests) {
-		context.set_operand(continue_request + scope.final_ins_offset, context.current_ip() - (continue_dest_ip + scope.final_ins_offset));
+		context.set_instruction(continue_request + scope.final_ins_offset, opcode::JUMP_BACK, continue_request - continue_dest_ip);
 	}
 	
 	if (context.tokenizer.match_token(token_type::ELSE)) {

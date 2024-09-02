@@ -100,6 +100,10 @@ void instance::execute() {
 					evaluation_stack.push_back(heap[table.block.start + it->second]);
 					break;
 				}
+				else if (hash == Hash::dj2b("@length")) {
+					evaluation_stack.push_back(value(static_cast<double>(table.count)));
+					break;
+				}
 				else if(flags & value::flags::TABLE_INHERITS_PARENT) {
 					size_t& base_table_index = table.key_hashes.at(Hash::dj2b("base"));
 					value& base_table_val = heap[table.block.start + base_table_index];

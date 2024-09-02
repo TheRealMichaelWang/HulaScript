@@ -330,7 +330,7 @@ namespace HulaScript {
 					
 					ip_src_map.reserve(ip_src_map.size() + scope.ip_src_map.size());
 					for (auto ip_src : scope.ip_src_map) {
-						ip_src_map.push_back(std::make_pair(final_ins_offset + ip_src.first, ip_src.second));
+						ip_src_map.push_back(std::make_pair(scope.final_ins_offset + ip_src.first, ip_src.second));
 					}
 
 					if (!(!is_loop_block && scope.is_loop_block)) { //demorgans law...holy shit 2050
@@ -393,6 +393,11 @@ namespace HulaScript {
 					panic("Cannot set operand to value larger than 255.");
 				}
 				lexical_scopes.back().instructions[addr].operand = static_cast<operand>(new_operand);
+			}
+
+			void set_instruction(size_t addr, opcode operation, size_t operand) {
+				lexical_scopes.back().instructions[addr].operation = operation;
+				set_operand(addr, operand);
 			}
 
 			void set_src_loc(source_loc loc) {
