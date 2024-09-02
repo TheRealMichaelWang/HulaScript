@@ -480,7 +480,7 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 		context.set_operand(context.emit({ .operation = opcode::JUMP_BACK }), context.current_ip() - continue_dest_ip);
 
 		for (size_t continue_req_ip : lexical_scope.continue_requests) {
-			context.set_operand(continue_req_ip + lexical_scope.final_ins_offset, continue_dest_ip - (continue_req_ip + lexical_scope.final_ins_offset));
+			context.set_instruction(continue_req_ip + lexical_scope.final_ins_offset, opcode::JUMP_BACK, continue_dest_ip - (continue_req_ip + lexical_scope.final_ins_offset));
 		}
 		for (size_t break_req_ip : lexical_scope.break_requests) {
 			context.set_operand(break_req_ip + lexical_scope.final_ins_offset, context.current_ip() - (break_req_ip + lexical_scope.final_ins_offset));
@@ -500,12 +500,12 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 		}
 
 		for (size_t continue_req_ip : lexical_scope.continue_requests) {
-			context.set_operand(continue_req_ip, context.current_ip() - continue_req_ip);
+			context.set_instruction(continue_req_ip + lexical_scope.final_ins_offset, opcode::JUMP_AHEAD, context.current_ip() - (continue_req_ip + lexical_scope.final_ins_offset));
 		}
 		compile_expression(context); 
 		context.emit({ .operation = opcode::IF_TRUE_JUMP_BACK, .operand = static_cast<operand>(context.current_ip() - repeat_dest_ip) });
 		for (size_t break_req_ip : lexical_scope.break_requests) {
-			context.set_operand(break_req_ip, context.current_ip() - break_req_ip);
+			context.set_operand(break_req_ip + lexical_scope.final_ins_offset, context.current_ip() - (break_req_ip + lexical_scope.final_ins_offset));
 		}
 
 		break;
@@ -573,14 +573,14 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 		if (!context.lexical_scopes.back().is_loop_block) {
 			context.panic("Loop Error: Unexpected break statement outside of loop.");
 		}
-		context.lexical_scopes.back().break_requests.push_back(context.current_ip());
+		context.lexical_scopes.back().break_requests.push_back(context.emit({ .operation = opcode::JUMP_AHEAD }));
 		break;
 	case token_type::LOOP_CONTINUE:
 		context.tokenizer.scan_token();
 		if (!context.lexical_scopes.back().is_loop_block) {
 			context.panic("Loop Error: Unexpected continue statement outside of loop.");
 		}
-		context.lexical_scopes.back().continue_requests.push_back(context.current_ip());
+		context.lexical_scopes.back().continue_requests.push_back(context.emit({ }));
 		break;
 	default: {
 		if (expects_statement) {

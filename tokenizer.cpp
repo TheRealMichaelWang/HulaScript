@@ -90,11 +90,12 @@ token tokenizer::scan_token() {
 	last_tok_col = current_col;
 	last_tok_row = current_row;
 	if (std::isalpha(last_char) || last_char == '@') {
+		std::stringstream ss;
 		if (last_char == '@') {
+			ss << '@';
 			scan_char();
 		}
 
-		std::stringstream ss;
 		while (std::isalnum(last_char) || last_char == '_')
 		{
 			ss << last_char;
