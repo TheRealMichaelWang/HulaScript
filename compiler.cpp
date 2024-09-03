@@ -328,7 +328,9 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		context.unset_src_loc();
 		return;
 	}
-
+	case token_type::FOR:
+		compile_for_loop_value(context);
+		break;
 	case token_type::OPEN_PAREN: {
 		context.tokenizer.scan_token();
 		compile_expression(context);
@@ -600,16 +602,20 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 
 instance::compilation_context::lexical_scope instance::compile_block(compilation_context& context, std::vector<token_type> end_toks, bool is_loop) {
 	auto prev_scope = context.lexical_scopes.back();
-	std::vector<instruction> block_ins;
-	std::vector<std::pair<size_t, source_loc>> ip_src_map;
+	make_lexical_scope(context, is_loop || prev_scope.is_loop_block);
 
-	context.lexical_scopes.push_back({ .next_local_id = prev_scope.next_local_id, .instructions = block_ins, .ip_src_map = ip_src_map, .all_code_paths_return = false, .is_loop_block = is_loop || prev_scope.is_loop_block });
 	while (!context.tokenizer.match_tokens(end_toks, true))
 	{
 		compile_statement(context);
 	}
 
 	return unwind_lexical_scope(context);
+}
+
+void instance::make_lexical_scope(compilation_context& context, bool is_loop) {
+	auto prev_scope = context.lexical_scopes.back();
+
+	context.lexical_scopes.push_back({ .next_local_id = prev_scope.next_local_id, .all_code_paths_return = false, .is_loop_block = is_loop });
 }
 
 instance::compilation_context::lexical_scope instance::unwind_lexical_scope(instance::compilation_context& context) {
@@ -666,9 +672,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 		context.tokenizer.scan_token(); 
 	}
 
-	std::vector<instruction> block_ins;
-	std::vector<std::pair<size_t, source_loc>> ip_src_map;
-	context.lexical_scopes.push_back({ .next_local_id = 0, .instructions = block_ins, .ip_src_map = ip_src_map, .is_loop_block = false });
+	context.lexical_scopes.push_back({ .next_local_id = 0, .is_loop_block = false });
 	context.function_decls.push_back({ .name = name, .id = context.function_decls.size(), .param_count = static_cast<operand>(param_names.size()), .no_capture = no_capture, .is_class_method = is_class_method });
 
 	if (!is_constructor) {
@@ -734,7 +738,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 	}
 
 	//add instructions to instance
-	uint32_t id = emit_finalize_function(context, block_ins, ip_src_map);
+	uint32_t id = emit_finalize_function(context);
 
 	opcode operation = no_capture ? opcode::CAPTURE_FUNCPTR : opcode::CAPTURE_CLOSURE;
 	if (operation == opcode::CAPTURE_CLOSURE && !is_class_method) {
@@ -756,7 +760,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 	return id;
 }
 
-uint32_t instance::emit_finalize_function(compilation_context& context, std::vector<instruction>& ins, std::vector<std::pair<size_t, source_loc>>& ip_src_map) {
+uint32_t instance::emit_finalize_function(compilation_context& context) {
 	compilation_context::lexical_scope scope = context.lexical_scopes.back();
 	context.lexical_scopes.pop_back();
 
@@ -766,7 +770,7 @@ uint32_t instance::emit_finalize_function(compilation_context& context, std::vec
 	}
 
 	size_t offset = instructions.size();
-	instructions.insert(instructions.end(), ins.begin(), ins.end());
+	instructions.insert(instructions.end(), scope.instructions.begin(), scope.instructions.end());
 	for (auto src_loc : scope.ip_src_map) {
 		this->ip_src_map.insert(std::make_pair(src_loc.first + offset, src_loc.second));
 	}
@@ -861,9 +865,7 @@ void instance::compile_class(compilation_context& context) {
 	}
 	context.tokenizer.scan_token();
 
-	std::vector<instruction> block_ins;
-	std::vector<std::pair<size_t, source_loc>> ip_src_map;
-	context.lexical_scopes.push_back({ .next_local_id = 0, .instructions = block_ins, .ip_src_map = ip_src_map, .is_loop_block = false });
+	context.lexical_scopes.push_back({ .next_local_id = 0, .is_loop_block = false });
 	context.function_decls.push_back({ .name = class_name, .id = context.function_decls.size(), .no_capture = !(inherits_class || default_value_stack.size() > 0), .is_class_method = false });
 	context.set_src_loc(class_begin_loc);
 	if (constructor.has_value()) {
@@ -950,7 +952,7 @@ void instance::compile_class(compilation_context& context) {
 
 	bool make_capture_table = !context.function_decls.back().no_capture;
 	context.unset_src_loc();
-	uint32_t func_id = emit_finalize_function(context, block_ins, ip_src_map);
+	uint32_t func_id = emit_finalize_function(context);
 
 	if (make_capture_table) {
 		size_t table_size = default_value_stack.size() + static_cast<int>(inherits_class);
@@ -990,10 +992,7 @@ void instance::compile_class(compilation_context& context) {
 }
 
 void instance::compile(compilation_context& context, bool repl_mode) {
-	std::vector<instruction> repl_section;
-	std::vector<std::pair<size_t, source_loc>> ip_src_map;
-
-	context.lexical_scopes.push_back({ .next_local_id = top_level_local_vars.size(), .declared_locals = top_level_local_vars , .instructions = repl_section, .ip_src_map = ip_src_map, .all_code_paths_return = false, .is_loop_block = false});
+	context.lexical_scopes.push_back({ .next_local_id = top_level_local_vars.size(), .declared_locals = top_level_local_vars, .all_code_paths_return = false, .is_loop_block = false});
 	
 	operand local_offset = 0;
 	for (auto name_hash : top_level_local_vars) {
@@ -1067,8 +1066,8 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 	global_vars.insert(global_vars.end(), context.declared_globals.begin(), context.declared_globals.end());
 
 	ip = instructions.size();
-	instructions.insert(instructions.end(), repl_section.begin(), repl_section.end());
-	for (auto src_loc : ip_src_map) {
+	instructions.insert(instructions.end(), context.lexical_scopes.back().instructions.begin(), context.lexical_scopes.back().instructions.end());
+	for (auto src_loc : context.lexical_scopes.back().ip_src_map) {
 		this->ip_src_map.insert(std::make_pair(src_loc.first + ip, src_loc.second));
 	}
 
