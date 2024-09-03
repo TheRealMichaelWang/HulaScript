@@ -24,6 +24,8 @@ class range
 	end
 end
 
+k = for i in range(0, 10, 1) do i end
+
 a = []
 for i in range(0, 10, 1) do
 	if i == 5 then

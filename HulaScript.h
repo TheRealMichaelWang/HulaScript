@@ -312,8 +312,8 @@ namespace HulaScript {
 				size_t next_local_id;
 
 				std::vector<size_t> declared_locals;
-				std::vector<instruction>& instructions;
-				std::vector<std::pair<size_t, source_loc>>& ip_src_map;
+				std::vector<instruction> instructions;
+				std::vector<std::pair<size_t, source_loc>> ip_src_map;
 				std::vector<size_t> continue_requests;
 				std::vector<size_t> break_requests;
 				bool all_code_paths_return;
@@ -457,12 +457,11 @@ namespace HulaScript {
 
 		void emit_load_variable(std::string name, compilation_context& context);
 
-
 		void emit_load_property(size_t hash, compilation_context& context) {
 			context.emit_load_constant(add_constant(value(value::vtype::INTERNAL_STRHASH, value::flags::NONE, 0, hash)), repl_used_constants);
 		}
 
-		uint32_t emit_finalize_function(compilation_context& context, std::vector<instruction>& ins, std::vector<std::pair<size_t, source_loc>>& ip_src_map);
+		uint32_t emit_finalize_function(compilation_context& context);
 
 		void compile_args_and_call(compilation_context& context);
 
@@ -478,9 +477,12 @@ namespace HulaScript {
 			return compile_block(context, end_toks);
 		}
 
+		void make_lexical_scope(compilation_context& context, bool is_loop);
+
 		compilation_context::lexical_scope unwind_lexical_scope(compilation_context& context);
 
 		void compile_for_loop(compilation_context& context);
+		void compile_for_loop_value(compilation_context& context);
 
 		uint32_t compile_function(compilation_context& context, std::string name, bool is_class_method=false, bool is_constructor = false, bool requires_super_call = false);
 		void compile_class(compilation_context& context);
