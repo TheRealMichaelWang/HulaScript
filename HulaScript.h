@@ -20,6 +20,8 @@
 namespace HulaScript {
 	class instance {
 	public:
+		class foreign_object;
+
 		struct value {
 		private:
 			enum vtype : uint8_t {
@@ -30,6 +32,8 @@ namespace HulaScript {
 				TABLE,
 				CLOSURE,
 
+				FOREIGN_OBJECT,
+				FOREIGN_OBJECT_METHOD,
 				INTERNAL_STRHASH
 			} type;
 
@@ -48,11 +52,16 @@ namespace HulaScript {
 				bool boolean;
 				size_t id;
 				char* str;
+				foreign_object* foreign_object;
 			} data;
 
 			value(char* str) : type(vtype::STRING), flags(flags::NONE), function_id(0), data({ .str = str }) { }
 
 			value(vtype t, uint16_t flags, uint32_t function_id, uint64_t data) : type(t), flags(flags), function_id(function_id), data({ .id = data }) { }
+
+			value(foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT), flags(flags::NONE), function_id(0), data({ .foreign_object = foreign_object }){ }
+
+			value(uint32_t method_id, foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT_METHOD), flags(flags::NONE), function_id(method_id), data({ .foreign_object = foreign_object }) { }
 
 			friend class instance;
 		public:
@@ -90,6 +99,16 @@ namespace HulaScript {
 					break;
 				}
 				return HulaScript::Hash::combine(static_cast<size_t>(type), payload);
+			}
+		};
+
+		class foreign_object {
+			virtual value load_property(size_t name_hash, instance& instance) {
+				return value();
+			}
+			
+			virtual value call(uint32_t method_id, std::vector<value> arguments, instance& instance) {
+				return value();
 			}
 		};
 
@@ -204,6 +223,7 @@ namespace HulaScript {
 		std::vector<uint32_t> availible_constant_ids;
 		phmap::flat_hash_map<size_t, uint32_t> constant_hashses;
 		phmap::flat_hash_set<std::unique_ptr<char[]>> active_strs;
+		phmap::flat_hash_set<std::unique_ptr<foreign_object>> active_foreign_objs;
 
 		phmap::btree_multimap<size_t, gc_block> free_blocks;
 		phmap::flat_hash_map<size_t, table> tables;
