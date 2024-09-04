@@ -67,6 +67,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	phmap::flat_hash_set<uint32_t> marked_functions;
 	phmap::flat_hash_set<char*> marked_strs;
 	phmap::flat_hash_set<uint32_t> marked_constants;
+	phmap::flat_hash_set<foreign_object*> marked_foreign_objects;
 
 	functions_to_trace.insert(functions_to_trace.end(), repl_used_functions.begin(), repl_used_functions.end());
 
@@ -97,6 +98,13 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 			case value::vtype::STRING:
 				marked_strs.insert(to_trace.data.str);
 				break;
+			case value::vtype::FOREIGN_OBJECT_METHOD:
+				[[fallthrough]];
+			case value::vtype::FOREIGN_OBJECT: {
+				marked_foreign_objects.insert(to_trace.data.foreign_object);
+				to_trace.data.foreign_object->trace(values_to_trace);
+				break;
+			}
 			}
 		}
 
@@ -133,6 +141,15 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	for (auto it = active_strs.begin(); it != active_strs.end();) {
 		if (!marked_strs.contains(it->get())) {
 			it = active_strs.erase(it);
+		}
+		else {
+			it++;
+		}
+	}
+
+	for (auto it = active_foreign_objs.begin(); it != active_foreign_objs.end();) {
+		if (!marked_foreign_objects.contains(it->get())) {
+			it = active_foreign_objs.erase(it);
 		}
 		else {
 			it++;
