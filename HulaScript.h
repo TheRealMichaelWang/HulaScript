@@ -103,6 +103,7 @@ namespace HulaScript {
 		};
 
 		class foreign_object {
+		protected:
 			virtual value load_property(size_t name_hash, instance& instance) {
 				return value();
 			}
@@ -110,6 +111,10 @@ namespace HulaScript {
 			virtual value call(uint32_t method_id, std::vector<value> arguments, instance& instance) {
 				return value();
 			}
+
+			virtual void trace(std::vector<value>& to_trace) { }
+
+			friend class instance;
 		};
 
 		std::variant<value, std::vector<compilation_error>, std::monostate> run(std::string source, std::optional<std::string> file_name, bool repl_mode = true, bool ignore_warnings=false);
