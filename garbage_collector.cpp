@@ -201,6 +201,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 		if (!marked_constants.contains(i)) {
 			size_t hash = constants[i].hash();
 			auto it = constant_hashses.find(hash);
+
 			if (it != constant_hashses.end()) {
 				constant_hashses.erase(it);
 				availible_constant_ids.push_back(i);

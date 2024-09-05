@@ -61,14 +61,14 @@ namespace HulaScript {
 
 			value(foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT), flags(flags::NONE), function_id(0), data({ .foreign_object = foreign_object }){ }
 
-			value(uint32_t method_id, foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT_METHOD), flags(flags::NONE), function_id(method_id), data({ .foreign_object = foreign_object }) { }
-
 			friend class instance;
 		public:
 			value() : value(vtype::NIL, flags::NONE, 0, 0) { }
 
 			value(double number) : type(vtype::NUMBER), flags(flags::NONE), function_id(0), data({ .number = number }) { }
 			value(bool boolean) : type(vtype::BOOLEAN), flags(flags::NONE), function_id(0), data({ .boolean = boolean }) { }
+
+			value(uint32_t method_id, foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT_METHOD), flags(flags::NONE), function_id(method_id), data({ .foreign_object = foreign_object }) { }
 
 			const constexpr size_t hash() const noexcept {
 				size_t payload = 0;
@@ -108,7 +108,7 @@ namespace HulaScript {
 				return value();
 			}
 			
-			virtual value call(uint32_t method_id, std::vector<value> arguments, instance& instance) {
+			virtual value call_method(uint32_t method_id, std::vector<value>& arguments, instance& instance) {
 				return value();
 			}
 
@@ -121,6 +121,27 @@ namespace HulaScript {
 		std::optional<value> run_loaded();
 
 		std::string get_value_print_string(value to_print);
+
+		value add_foreign_object(std::unique_ptr<foreign_object>&& foreign_obj) {
+			value to_ret = value(foreign_obj.get());
+			active_foreign_objs.insert(std::move(foreign_obj));
+			return to_ret;
+		}
+
+		bool declare_global(std::string name, value val) {
+			size_t hash = Hash::dj2b(name.c_str());
+			if (global_vars.size() > UINT8_MAX) {
+				return false;
+			}
+			global_vars.push_back(hash);
+			globals.push_back(val);
+		}
+
+		value make_string(std::string str) {
+			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size() + 1]));
+			std::strcpy(res.first->get(), str.c_str());
+			return value(res.first->get());
+		}
 	private:
 
 		//VIRTUAL MACHINE
@@ -229,6 +250,7 @@ namespace HulaScript {
 		phmap::flat_hash_map<size_t, uint32_t> constant_hashses;
 		phmap::flat_hash_set<std::unique_ptr<char[]>> active_strs;
 		phmap::flat_hash_set<std::unique_ptr<foreign_object>> active_foreign_objs;
+		phmap::flat_hash_map<uint32_t, std::function<value(std::vector<value>& arguments, instance& instance)>> active_foreign_functions;
 
 		phmap::btree_multimap<size_t, gc_block> free_blocks;
 		phmap::flat_hash_map<size_t, table> tables;
@@ -272,12 +294,6 @@ namespace HulaScript {
 		void finalize();
 
 		void expect_type(value::vtype expected_type) const;
-
-		value make_string(std::string str) {
-			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size() + 1]));
-			std::strcpy(res.first->get(), str.c_str());
-			return value(res.first->get());
-		}
 
 		std::optional<source_loc> src_from_ip(size_t ip) const noexcept {
 			auto it = ip_src_map.upper_bound(ip);

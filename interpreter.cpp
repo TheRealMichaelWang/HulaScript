@@ -84,13 +84,20 @@ void instance::execute() {
 		//table operations
 		case opcode::LOAD_TABLE: {
 			value key = evaluation_stack.back();
-			evaluation_stack.pop_back();
-			expect_type(value::vtype::TABLE);
-			uint16_t flags = evaluation_stack.back().flags;
-			size_t table_id = evaluation_stack.back().data.id;
-			evaluation_stack.pop_back();
-			
 			size_t hash = key.hash();
+			evaluation_stack.pop_back();
+
+			value table_value = evaluation_stack.back();
+			evaluation_stack.pop_back();
+
+			if(table_value.type == value::vtype::FOREIGN_OBJECT) {
+				evaluation_stack.push_back(table_value.data.foreign_object->load_property(hash, *this));
+				break;
+			}
+
+			expect_type(value::vtype::TABLE);
+			uint16_t flags = table_value.flags;
+			size_t table_id = table_value.data.id;
 
 			for (;;) {
 				table& table = tables.at(table_id);
@@ -360,22 +367,36 @@ void instance::execute() {
 			//push arguments into local variable stack
 			locals.insert(locals.end(), evaluation_stack.end() - ins.operand, evaluation_stack.end());
 			evaluation_stack.erase(evaluation_stack.end() - ins.operand, evaluation_stack.end());
-
-			expect_type(value::vtype::CLOSURE);
-			function_entry& function = functions.at(evaluation_stack.back().function_id);
-			if (evaluation_stack.back().flags & value::flags::HAS_CAPTURE_TABLE) {
-				locals.push_back(value(value::vtype::TABLE, value::flags::NONE, 0, evaluation_stack.back().data.id));
-			}
+			
+			value call_value = evaluation_stack.back();
 			evaluation_stack.pop_back();
-
-			if (function.parameter_count != ins.operand) {
-				std::stringstream ss;
-				ss << "Argument Error: Function " << function.name << " expected " << static_cast<size_t>(function.parameter_count) << " argument(s), but got " << static_cast<size_t>(ins.operand) << " instead.";
-				panic(ss.str());
+			switch (call_value.type)
+			{
+			case value::vtype::CLOSURE: {
+				function_entry& function = functions.at(call_value.function_id);
+				if (call_value.flags & value::flags::HAS_CAPTURE_TABLE) {
+					locals.push_back(value(value::vtype::TABLE, value::flags::NONE, 0, call_value.data.id));
+				}
+				if (function.parameter_count != ins.operand) {
+					std::stringstream ss;
+					ss << "Argument Error: Function " << function.name << " expected " << static_cast<size_t>(function.parameter_count) << " argument(s), but got " << static_cast<size_t>(ins.operand) << " instead.";
+					panic(ss.str());
+				}
+				ip = function.start_address;
+				continue;
 			}
-
-			ip = function.start_address;
-			continue;
+			case value::vtype::FOREIGN_OBJECT_METHOD: {
+				std::vector<value> arguments(locals.end() - ins.operand, locals.end());
+				locals.erase(locals.end() - ins.operand, locals.end());
+				evaluation_stack.push_back(call_value.data.foreign_object->call_method(call_value.function_id, arguments, *this));
+				break;
+			}
+			default:
+				evaluation_stack.push_back(call_value);
+				expect_type(value::vtype::CLOSURE);
+				break;
+			}
+			break;
 		}
 		case opcode::CALL_LABEL: {
 			uint32_t id = ins.operand;

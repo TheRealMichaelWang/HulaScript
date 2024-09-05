@@ -8,12 +8,26 @@
 
 using namespace std;
 
+class test_obj : public HulaScript::instance::foreign_object {
+	HulaScript::instance::value load_property(size_t name_hash, HulaScript::instance& instance) override {
+		switch (name_hash)
+		{
+		case HulaScript::Hash::dj2b("name"):
+			return instance.make_string("Michael");
+		default:
+			return HulaScript::instance::value();
+		}
+	}
+};
+
 int main()
 {
 	cout << "HulaScript - Rewritten & REPL" << std::endl;
 	
 	HulaScript::repl_completer repl_completer;
 	HulaScript::instance instance;
+
+	instance.declare_global("a", instance.add_foreign_object(std::make_unique<test_obj>(test_obj())));
 
 	while (true) {
 		cout << ">>> ";
