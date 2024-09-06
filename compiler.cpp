@@ -575,6 +575,7 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 		if (!context.lexical_scopes.back().is_loop_block) {
 			context.panic("Loop Error: Unexpected break statement outside of loop.");
 		}
+		context.emit_unwind_loop_vars();
 		context.lexical_scopes.back().break_requests.push_back(context.emit({ .operation = opcode::JUMP_AHEAD }));
 		break;
 	case token_type::LOOP_CONTINUE:
@@ -582,6 +583,7 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 		if (!context.lexical_scopes.back().is_loop_block) {
 			context.panic("Loop Error: Unexpected continue statement outside of loop.");
 		}
+		context.emit_unwind_loop_vars();
 		context.lexical_scopes.back().continue_requests.push_back(context.emit({ }));
 		break;
 	default: {

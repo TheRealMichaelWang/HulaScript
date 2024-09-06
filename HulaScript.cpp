@@ -8,19 +8,18 @@
 
 using namespace std;
 
-class test_obj : public HulaScript::instance::foreign_object {
-	HulaScript::instance::value load_property(size_t name_hash, HulaScript::instance& instance) override {
-		switch (name_hash)
-		{
-		case HulaScript::Hash::dj2b("name"):
-			return instance.make_string("Michael");
-		default:
-			return HulaScript::instance::value();
-		}
-	}
-};
+static bool should_quit = false;
 
-static HulaScript::instance::value funny(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
+static HulaScript::instance::value quit(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
+	should_quit = true;
+	return HulaScript::instance::value();
+}
+
+static HulaScript::instance::value print(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
+	for (auto argument : arguments) {
+		std::cout << instance.get_value_print_string(argument);
+	}
+	std::cout << endl;
 	return HulaScript::instance::value(static_cast<double>(arguments.size()));
 }
 
@@ -31,10 +30,10 @@ int main()
 	HulaScript::repl_completer repl_completer;
 	HulaScript::instance instance;
 
-	instance.declare_global("a", instance.add_foreign_object(std::make_unique<test_obj>(test_obj())));
-	instance.declare_global("funny", instance.make_foreign_function(funny));
+	instance.declare_global("quit", instance.make_foreign_function(quit));
+	instance.declare_global("print", instance.make_foreign_function(print));
 
-	while (true) {
+	while (!should_quit) {
 		cout << ">>> ";
 		
 		while (true) {

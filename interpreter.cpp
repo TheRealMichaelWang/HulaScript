@@ -360,10 +360,6 @@ void instance::execute() {
 			continue;
 
 		case opcode::CALL: {
-			extended_offsets.push_back(static_cast<operand>(locals.size() - local_offset));
-			local_offset = locals.size();
-			return_stack.push_back(ip); //push return address
-
 			//push arguments into local variable stack
 			locals.insert(locals.end(), evaluation_stack.end() - ins.operand, evaluation_stack.end());
 			evaluation_stack.erase(evaluation_stack.end() - ins.operand, evaluation_stack.end());
@@ -373,6 +369,10 @@ void instance::execute() {
 			switch (call_value.type)
 			{
 			case value::vtype::CLOSURE: {
+				extended_offsets.push_back(static_cast<operand>(locals.size() - local_offset));
+				local_offset = locals.size();
+				return_stack.push_back(ip); //push return address
+
 				function_entry& function = functions.at(call_value.function_id);
 				if (call_value.flags & value::flags::HAS_CAPTURE_TABLE) {
 					locals.push_back(value(value::vtype::TABLE, value::flags::NONE, 0, call_value.data.id));

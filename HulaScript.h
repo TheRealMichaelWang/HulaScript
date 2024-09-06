@@ -71,36 +71,56 @@ namespace HulaScript {
 
 			value(uint32_t method_id, foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT_METHOD), flags(flags::NONE), function_id(method_id), data({ .foreign_object = foreign_object }) { }
 
+			double number(instance& instance) const {
+				expect_type(vtype::NUMBER, instance);
+				return data.number;
+			}
+
+			bool boolean(instance& instance) const {
+				expect_type(vtype::BOOLEAN, instance);
+				return data.boolean;
+			}
+
 			const constexpr size_t hash() const noexcept {
 				size_t payload = 0;
 				switch (type)
 				{
-				case HulaScript::instance::value::NIL:
+				case vtype::NIL:
 					payload = 0;
 					break;
 
-				case HulaScript::instance::value::INTERNAL_STRHASH:
+				case vtype::INTERNAL_STRHASH:
 					return data.id;
-				case HulaScript::instance::value::BOOLEAN:
+				case vtype::BOOLEAN:
 					[[fallthrough]];
-				case HulaScript::instance::value::TABLE:
+				case vtype::TABLE:
 					[[fallthrough]];
-				case HulaScript::instance::value::NUMBER:
+				case vtype::FOREIGN_OBJECT:
+					[[fallthrough]];
+				case vtype::NUMBER:
 					payload = data.id;
 					break;
-				case HulaScript::instance::value::STRING: {
+				case vtype::STRING: {
 					payload = Hash::dj2b(data.str);
 					break;
 				}
-				case HulaScript::instance::value::CLOSURE:
+				case vtype::FOREIGN_OBJECT_METHOD:
+					[[fallthrough]];
+				case vtype::CLOSURE: {
 					size_t payload2 = flags;
 					payload2 <<= 32;
 					payload2 += function_id;
 					payload = HulaScript::Hash::combine(payload2, data.id);
 					break;
 				}
+				case vtype::FOREIGN_FUNCTION:
+					payload = function_id;
+					break;
+				}
 				return HulaScript::Hash::combine(static_cast<size_t>(type), payload);
 			}
+
+			void expect_type(vtype expected_type, const instance& instance) const;
 		};
 
 		class foreign_object {
@@ -156,6 +176,27 @@ namespace HulaScript {
 			global_vars.push_back(hash);
 			globals.push_back(val);
 		}
+
+		void panic(std::string msg) const {
+			std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;
+			call_stack.reserve(return_stack.size() + 1);
+
+			std::vector<size_t> ip_stack(return_stack);
+			ip_stack.push_back(ip);
+			for (auto it = ip_stack.begin(); it != ip_stack.end(); ) {
+				size_t ip = *it;
+				size_t count = 0;
+				do {
+					count++;
+					it++;
+				} while (it != ip_stack.end() && *it == ip);
+				call_stack.push_back(std::make_pair(src_from_ip(ip), count));
+			}
+
+			throw runtime_error(msg, call_stack);
+		}
+
+		instance();
 	private:
 
 		//VIRTUAL MACHINE
@@ -309,7 +350,9 @@ namespace HulaScript {
 		void garbage_collect(bool compact_instructions) noexcept;
 		void finalize();
 
-		void expect_type(value::vtype expected_type) const;
+		void expect_type(value::vtype expected_type) const {
+			evaluation_stack.back().expect_type(expected_type, *this);
+		}
 
 		std::optional<source_loc> src_from_ip(size_t ip) const noexcept {
 			auto it = ip_src_map.upper_bound(ip);
@@ -318,25 +361,6 @@ namespace HulaScript {
 			}
 			it--;
 			return it->second;
-		}
-
-		void panic(std::string msg) const {
-			std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;
-			call_stack.reserve(return_stack.size() + 1);
-
-			std::vector<size_t> ip_stack(return_stack);
-			ip_stack.push_back(ip);
-			for (auto it = ip_stack.begin(); it != ip_stack.end(); ) {
-				size_t ip = *it;
-				size_t count = 0;
-				do {
-					count++;
-					it++;
-				} while (it != ip_stack.end() && *it == ip);
-				call_stack.push_back(std::make_pair(src_from_ip(ip), count));
-			}
-
-			throw runtime_error(msg, call_stack);
 		}
 
 		uint32_t add_constant(value constant) {
@@ -496,6 +520,21 @@ namespace HulaScript {
 
 			void modify_ins_operand(size_t ins_adr, operand new_op) {
 				lexical_scopes.back().instructions[ins_adr].operand = new_op;
+			}
+
+			void emit_unwind_loop_vars() {
+				size_t count = 0;
+				for (auto it = lexical_scopes.rbegin(); it != lexical_scopes.rend(); it++) {
+					if (it->is_loop_block) {
+						count++;
+					}
+					else {
+						break;
+					}
+				}
+				if (count > 0) {
+					emit({ .operation = opcode::UNWIND_LOCALS, .operand = static_cast<operand>(count) });
+				}
 			}
 
 			const size_t current_ip() const noexcept {

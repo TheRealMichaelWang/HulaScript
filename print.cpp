@@ -49,7 +49,7 @@ std::string source_loc::to_print_string() const noexcept {
 	return ss.str();
 }
 
-void instance::expect_type(value::vtype expected_type) const {
+void instance::value::expect_type(value::vtype expected_type, const instance& instance) const {
 	static const char* type_names[] = {
 		"NIL",
 		"NUMBER",
@@ -59,10 +59,10 @@ void instance::expect_type(value::vtype expected_type) const {
 		"CLOSURE"
 	};
 
-	if (evaluation_stack.back().type != expected_type) {
+	if (type != expected_type) {
 		std::stringstream ss;
-		ss << "Type Error: Expected value of type " << type_names[expected_type] << " but got " << type_names[evaluation_stack.back().type] << " instead.";
-		panic(ss.str());
+		ss << "Type Error: Expected value of type " << type_names[expected_type] << " but got " << type_names[type] << " instead.";
+		instance.panic(ss.str());
 	}
 }
 
