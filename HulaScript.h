@@ -129,6 +129,25 @@ namespace HulaScript {
 			return to_ret;
 		}
 
+		value make_foreign_function(std::function<value(std::vector<value>& arguments, instance& instance)> function) {
+			uint32_t id;
+			if (availible_foreign_function_ids.empty()) {
+				id = static_cast<uint32_t>(foreign_functions.size());
+			}
+			else {
+				id = availible_foreign_function_ids.back();
+				availible_foreign_function_ids.pop_back();
+			}
+			foreign_functions.insert({ id, function });
+			return value(value::vtype::FOREIGN_FUNCTION, value::flags::NONE, id, 0);
+		}
+
+		value make_string(std::string str) {
+			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size() + 1]));
+			std::strcpy(res.first->get(), str.c_str());
+			return value(res.first->get());
+		}
+
 		bool declare_global(std::string name, value val) {
 			size_t hash = Hash::dj2b(name.c_str());
 			if (global_vars.size() > UINT8_MAX) {
@@ -136,12 +155,6 @@ namespace HulaScript {
 			}
 			global_vars.push_back(hash);
 			globals.push_back(val);
-		}
-
-		value make_string(std::string str) {
-			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size() + 1]));
-			std::strcpy(res.first->get(), str.c_str());
-			return value(res.first->get());
 		}
 	private:
 
