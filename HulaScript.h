@@ -34,6 +34,7 @@ namespace HulaScript {
 
 				FOREIGN_OBJECT,
 				FOREIGN_OBJECT_METHOD,
+				FOREIGN_FUNCTION,
 				INTERNAL_STRHASH
 			} type;
 
@@ -124,7 +125,7 @@ namespace HulaScript {
 
 		value add_foreign_object(std::unique_ptr<foreign_object>&& foreign_obj) {
 			value to_ret = value(foreign_obj.get());
-			active_foreign_objs.insert(std::move(foreign_obj));
+			foreign_objs.insert(std::move(foreign_obj));
 			return to_ret;
 		}
 
@@ -249,8 +250,10 @@ namespace HulaScript {
 		std::vector<uint32_t> availible_constant_ids;
 		phmap::flat_hash_map<size_t, uint32_t> constant_hashses;
 		phmap::flat_hash_set<std::unique_ptr<char[]>> active_strs;
-		phmap::flat_hash_set<std::unique_ptr<foreign_object>> active_foreign_objs;
-		phmap::flat_hash_map<uint32_t, std::function<value(std::vector<value>& arguments, instance& instance)>> active_foreign_functions;
+		phmap::flat_hash_set<std::unique_ptr<foreign_object>> foreign_objs;
+
+		phmap::flat_hash_map<uint32_t, std::function<value(std::vector<value>& arguments, instance& instance)>> foreign_functions;
+		std::vector<uint32_t> availible_foreign_function_ids;
 
 		phmap::btree_multimap<size_t, gc_block> free_blocks;
 		phmap::flat_hash_map<size_t, table> tables;
