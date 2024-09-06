@@ -63,3 +63,7 @@ a = [1,2,3,5,7,8]
 a.iterator = function()
 	return arrayIterator(a)
 end
+
+for i in irange(10) do
+	print(i)
+end

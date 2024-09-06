@@ -20,7 +20,7 @@ namespace HulaScript {
 			if (method_id >= methods.size()) {
 				return instance::value();
 			}
-			(dynamic_cast<child_type*>(this)->*methods[method_id])(arguments, instance);
+			return (dynamic_cast<child_type*>(this)->*methods[method_id])(arguments, instance);
 		}
 	protected:
 		bool declare_method(std::string name, instance::value(child_type::* method)(std::vector<instance::value>& arguments, instance& instance)) {

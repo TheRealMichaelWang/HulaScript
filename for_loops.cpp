@@ -133,10 +133,6 @@ void instance::compile_for_loop_value(compilation_context& context) {
 	context.tokenizer.scan_token();
 
 	auto scope = unwind_lexical_scope(context);
-	for (auto continue_request : scope.continue_requests) {
-		context.set_instruction(continue_request + scope.final_ins_offset, opcode::JUMP_BACK, continue_request - continue_dest_ip);
-	}
-	for (auto break_request : scope.break_requests) {
-		context.set_operand(break_request + scope.final_ins_offset, context.current_ip() - (break_request + scope.final_ins_offset));
-	}
-};
+	assert(scope.break_requests.size() == 0);
+	assert(scope.continue_requests.size() == 0);
+}
