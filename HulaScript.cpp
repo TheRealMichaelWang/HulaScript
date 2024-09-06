@@ -20,6 +20,10 @@ class test_obj : public HulaScript::instance::foreign_object {
 	}
 };
 
+static HulaScript::instance::value funny(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
+	return HulaScript::instance::value(static_cast<double>(arguments.size()));
+}
+
 int main()
 {
 	cout << "HulaScript - Rewritten & REPL" << std::endl;
@@ -28,6 +32,7 @@ int main()
 	HulaScript::instance instance;
 
 	instance.declare_global("a", instance.add_foreign_object(std::make_unique<test_obj>(test_obj())));
+	instance.declare_global("funny", instance.make_foreign_function(funny));
 
 	while (true) {
 		cout << ">>> ";
