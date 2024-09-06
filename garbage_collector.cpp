@@ -68,6 +68,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	phmap::flat_hash_set<char*> marked_strs;
 	phmap::flat_hash_set<uint32_t> marked_constants;
 	phmap::flat_hash_set<foreign_object*> marked_foreign_objects;
+	phmap::flat_hash_set<uint32_t> marked_foreign_functions;
 
 	functions_to_trace.insert(functions_to_trace.end(), repl_used_functions.begin(), repl_used_functions.end());
 
@@ -104,6 +105,10 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 				marked_foreign_objects.insert(to_trace.data.foreign_object);
 				to_trace.data.foreign_object->trace(values_to_trace);
 				break;
+			case value::vtype::FOREIGN_FUNCTION: {
+				marked_foreign_functions.insert(to_trace.function_id);
+				break;
+			}
 			}
 			}
 		}
@@ -147,9 +152,19 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 		}
 	}
 
-	for (auto it = active_foreign_objs.begin(); it != active_foreign_objs.end();) {
+	for (auto it = foreign_objs.begin(); it != foreign_objs.end();) {
 		if (!marked_foreign_objects.contains(it->get())) {
-			it = active_foreign_objs.erase(it);
+			it = foreign_objs.erase(it);
+		}
+		else {
+			it++;
+		}
+	}
+
+	for (auto it = foreign_functions.begin(); it != foreign_functions.end();) {
+		if (!marked_foreign_functions.contains(it->first)) {
+			availible_foreign_function_ids.push_back(it->first);
+			it = foreign_functions.erase(it);
 		}
 		else {
 			it++;
