@@ -391,6 +391,14 @@ void instance::execute() {
 				evaluation_stack.push_back(call_value.data.foreign_object->call_method(call_value.function_id, arguments, *this));
 				break;
 			}
+			case value::vtype::FOREIGN_FUNCTION: {
+				std::vector<value> arguments(locals.end() - ins.operand, locals.end());
+				locals.erase(locals.end() - ins.operand, locals.end());
+
+				evaluation_stack.push_back(foreign_functions[call_value.function_id](arguments, *this));
+
+				break;
+			}
 			default:
 				evaluation_stack.push_back(call_value);
 				expect_type(value::vtype::CLOSURE);
