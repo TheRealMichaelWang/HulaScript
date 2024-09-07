@@ -95,7 +95,7 @@ void instance::execute() {
 				break;
 			}
 
-			expect_type(value::vtype::TABLE);
+			table_value.expect_type(value::vtype::TABLE, *this);
 			uint16_t flags = table_value.flags;
 			size_t table_id = table_value.data.id;
 
@@ -361,6 +361,7 @@ void instance::execute() {
 
 		case opcode::CALL: {
 			//push arguments into local variable stack
+			size_t local_count = locals.size();
 			locals.insert(locals.end(), evaluation_stack.end() - ins.operand, evaluation_stack.end());
 			evaluation_stack.erase(evaluation_stack.end() - ins.operand, evaluation_stack.end());
 			
@@ -369,8 +370,8 @@ void instance::execute() {
 			switch (call_value.type)
 			{
 			case value::vtype::CLOSURE: {
-				extended_offsets.push_back(static_cast<operand>(locals.size() - local_offset));
-				local_offset = locals.size();
+				extended_offsets.push_back(static_cast<operand>(local_count - local_offset));
+				local_offset = local_count;
 				return_stack.push_back(ip); //push return address
 
 				function_entry& function = functions.at(call_value.function_id);
