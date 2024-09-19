@@ -61,7 +61,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 		values_to_trace.push_back(constants[id]);
 	}
 
-	temp_gc_exempt.clear();
+	//temp_gc_exempt.clear();
 
 	phmap::flat_hash_set<size_t> marked_tables;
 	phmap::flat_hash_set<uint32_t> marked_functions;
