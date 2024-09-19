@@ -300,6 +300,18 @@ namespace HulaScript {
 			std::vector<uint32_t> referenced_constants;
 		};
 
+		class table_iterator : public foreign_object {
+		public:
+			table_iterator(instance::value table, const instance& instance) noexcept(false) : table(table), i(0) {
+				table.expect_type(value::vtype::TABLE, instance);
+			}
+
+			
+		private:
+			size_t i;
+			instance::value table;
+		};
+
 		std::vector<value> constants;
 		std::vector<uint32_t> availible_constant_ids;
 		phmap::flat_hash_map<size_t, uint32_t> constant_hashses;

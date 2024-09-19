@@ -44,7 +44,7 @@ private:
 	}
 };
 
-static HulaScript::instance::value get_int_range(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
+static instance::value get_int_range(std::vector<instance::value> arguments, instance& instance) {
 	int64_t start = 0;
 	int64_t step = 1;
 	int64_t stop;
