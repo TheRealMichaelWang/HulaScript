@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cassert>
 #include <sstream>
+#include "table_iterator.h"
 #include "HulaScript.h"
 
 using namespace HulaScript;
@@ -111,6 +112,10 @@ void instance::execute() {
 					evaluation_stack.push_back(value(static_cast<double>(table.count)));
 					break;
 				}
+				else if (hash == Hash::dj2b("iterator") && flags & value::flags::TABLE_ARRAY_ITERATE) {
+					evaluation_stack.push_back(value(value::vtype::INTERNAL_LAZY_TABLE_ITERATOR, 0, 0, table_id));
+					break;
+				}
 				else if(flags & value::flags::TABLE_INHERITS_PARENT) {
 					size_t& base_table_index = table.key_hashes.at(Hash::dj2b("base"));
 					value& base_table_val = heap[table.block.start + base_table_index];
@@ -180,7 +185,7 @@ void instance::execute() {
 		}
 		case opcode::ALLOCATE_TABLE_LITERAL: {
 			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
-			evaluation_stack.push_back(value(value::vtype::TABLE, value::flags::NONE, 0, table_id));
+			evaluation_stack.push_back(value(value::vtype::TABLE, value::flags::TABLE_ARRAY_ITERATE, 0, table_id));
 			break;
 		}
 		case opcode::ALLOCATE_CLASS: {
@@ -370,6 +375,14 @@ void instance::execute() {
 
 				evaluation_stack.push_back(foreign_functions[call_value.function_id](arguments, *this));
 
+				break;
+			}
+			case value::vtype::INTERNAL_LAZY_TABLE_ITERATOR: {
+				if (ins.operand != 0) {
+					panic("Array table iterator expects precisley 0 arguments.");
+				}
+				
+				evaluation_stack.push_back(add_foreign_object(std::make_unique<table_iterator>(table_iterator(call_value, *this))));
 				break;
 			}
 			default:

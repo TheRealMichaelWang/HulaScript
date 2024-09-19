@@ -46,12 +46,12 @@ namespace HulaScript {
 		}
 
 	protected:
-		virtual bool has_next() = 0;
+		virtual bool has_next(instance& instance) = 0;
 		virtual instance::value next(instance& instance) = 0;
 
 	private:
 		instance::value ffi_has_next(std::vector<instance::value>& arguments, instance& instance) {
-			return instance::value(has_next());
+			return instance::value(has_next(instance));
 		}
 
 		instance::value ffi_next(std::vector<instance::value>& arguments, instance& instance) {
