@@ -35,14 +35,16 @@ namespace HulaScript {
 				FOREIGN_OBJECT,
 				FOREIGN_OBJECT_METHOD,
 				FOREIGN_FUNCTION,
-				INTERNAL_STRHASH
+				INTERNAL_STRHASH,
+				INTERNAL_LAZY_TABLE_ITERATOR
 			} type;
 
 			enum flags {
 				NONE = 0,
 				HAS_CAPTURE_TABLE = 1,
 				TABLE_IS_FINAL = 2,
-				TABLE_INHERITS_PARENT = 4
+				TABLE_INHERITS_PARENT = 4,
+				TABLE_ARRAY_ITERATE = 8,
 			};
 
 			uint16_t flags;
@@ -97,6 +99,8 @@ namespace HulaScript {
 					[[fallthrough]];
 				case vtype::FOREIGN_OBJECT:
 					[[fallthrough]];
+				case vtype::INTERNAL_LAZY_TABLE_ITERATOR:
+					[[fallthrough]];
 				case vtype::NUMBER:
 					payload = data.id;
 					break;
@@ -121,6 +125,8 @@ namespace HulaScript {
 			}
 
 			void expect_type(vtype expected_type, const instance& instance) const;
+
+			friend class table_iterator;
 		};
 
 		class foreign_object {
@@ -413,6 +419,7 @@ namespace HulaScript {
 				return index;
 			}
 		}
+		friend class table_iterator;
 
 		//COMPILER
 		struct compilation_context {

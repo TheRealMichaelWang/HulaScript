@@ -14,7 +14,7 @@ private:
 	int64_t stop;
 	int64_t step;
 
-	bool has_next() override {
+	bool has_next(instance& instance) override {
 		return i != stop;
 	}
 
