@@ -5,23 +5,20 @@
 
 using namespace HulaScript;
 
-class int_range_iterator : public foreign_method_object<int_range_iterator> {
+class int_range_iterator : public foreign_iterator {
 public:
-	int_range_iterator(int64_t start, int64_t stop, int64_t step) : i(start), stop(stop), step(step) {
-		declare_method("hasNext", &int_range_iterator::has_next);
-		declare_method("next", &int_range_iterator::next);
-	}
+	int_range_iterator(int64_t start, int64_t stop, int64_t step) : i(start), stop(stop), step(step) { }
 
 private:
 	int64_t i;
 	int64_t stop;
 	int64_t step;
 
-	instance::value has_next(std::vector<instance::value>& arguments, instance& instance) {
-		return instance::value(i != stop);
+	bool has_next() override {
+		return i != stop;
 	}
 
-	instance::value next(std::vector<instance::value>& arguments, instance& instance) {
+	instance::value next(instance& instance) override {
 		instance::value toret(static_cast<double>(i));
 		i += step;
 		return toret;
