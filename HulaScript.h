@@ -133,6 +133,13 @@ namespace HulaScript {
 				return value();
 			}
 
+			virtual value add_operator(value operand, instance& instance) { return value(); }
+			virtual value subtract_operator(value operand, instance& instance) { return value(); }
+			virtual value multiply_operator(value operand, instance& instance) { return value(); }
+			virtual value divide_operator(value operand, instance& instance) { return value(); }
+			virtual value modulo_operator(value operand, instance& instance) { return value(); }
+			virtual value exponentiate_operator(value operand, instance& instance) { return value(); }
+
 			virtual void trace(std::vector<value>& to_trace) { }
 
 			friend class instance;
@@ -202,6 +209,7 @@ namespace HulaScript {
 		//VIRTUAL MACHINE
 
 		using operand = uint8_t;
+		typedef void (instance::*operator_handler)(value& a, value& b);
 
 		enum opcode : uint8_t {
 			DECL_LOCAL,
@@ -299,6 +307,26 @@ namespace HulaScript {
 			std::vector<uint32_t> referenced_functions;
 			std::vector<uint32_t> referenced_constants;
 		};
+
+		static operator_handler operator_handlers[(opcode::EXPONENTIATE - opcode::ADD) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1];
+		void handle_numerical_add(value& a, value& b);
+		void handle_numerical_subtract(value& a, value& b);
+		void handle_numerical_multiply(value& a, value& b);
+		void handle_numerical_divide(value& a, value& b);
+		void handle_numerical_modulo(value& a, value& b);
+		void handle_numerical_exponentiate(value& a, value& b);
+
+		void handle_string_add(value& a, value& b);
+
+		void handle_table_add(value& a, value& b);
+		void handle_table_multiply(value& a, value& b);
+
+		void handle_foreign_obj_add(value& a, value& b);
+		void handle_foreign_obj_subtract(value& a, value& b);
+		void handle_foreign_obj_multiply(value& a, value& b);
+		void handle_foreign_obj_divide(value& a, value& b);
+		void handle_foreign_obj_modulo(value& a, value& b);
+		void handle_foreign_obj_exponentiate(value& a, value& b);
 
 		std::vector<value> constants;
 		std::vector<uint32_t> availible_constant_ids;

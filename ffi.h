@@ -37,4 +37,25 @@ namespace HulaScript {
 		phmap::flat_hash_map<size_t, uint32_t> method_id_lookup;
 		std::vector<instance::value(child_type::*)(std::vector<instance::value>& arguments, instance& instance)> methods;
 	};
+
+	class foreign_iterator : public foreign_method_object<foreign_iterator> {
+	public:
+		foreign_iterator() {
+			declare_method("next", &foreign_iterator::ffi_next);
+			declare_method("hasNext", &foreign_iterator::ffi_has_next);
+		}
+
+	protected:
+		virtual bool has_next() = 0;
+		virtual instance::value next(instance& instance) = 0;
+
+	private:
+		instance::value ffi_has_next(std::vector<instance::value>& arguments, instance& instance) {
+			return instance::value(has_next());
+		}
+
+		instance::value ffi_next(std::vector<instance::value>& arguments, instance& instance) {
+			return next(instance);
+		}
+	};
 }

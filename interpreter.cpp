@@ -204,64 +204,36 @@ void instance::execute() {
 		}
 
 		//arithmetic operations
-		case opcode::ADD: {
-			expect_type(value::vtype::NUMBER);
+		case opcode::ADD:
+			[[fallthrough]];
+		case opcode::SUBTRACT:
+			[[fallthrough]];
+		case opcode::MULTIPLY:
+			[[fallthrough]];
+		case opcode::DIVIDE:
+			[[fallthrough]];
+		case opcode::MODULO:
+			[[fallthrough]];
+		case opcode::EXPONENTIATE:
+		{
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			expect_type(value::vtype::NUMBER);
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			evaluation_stack.push_back(value(a.data.number + b.data.number));
-			break;
-		}
-		case opcode::SUBTRACT: {
-			expect_type(value::vtype::NUMBER);
-			value b = evaluation_stack.back();
-			evaluation_stack.pop_back();
-			expect_type(value::vtype::NUMBER);
-			value a = evaluation_stack.back();
-			evaluation_stack.pop_back();
-			evaluation_stack.push_back(value(a.data.number - b.data.number));
-			break;
-		}
-		case opcode::MULTIPLY: {
-			expect_type(value::vtype::NUMBER);
-			value b = evaluation_stack.back();
-			evaluation_stack.pop_back();
-			expect_type(value::vtype::NUMBER);
-			value a = evaluation_stack.back();
-			evaluation_stack.pop_back();
-			evaluation_stack.push_back(value(a.data.number * b.data.number));
-			break;
-		}
-		case opcode::DIVIDE: {
-			expect_type(value::vtype::NUMBER);
-			value b = evaluation_stack.back();
-			evaluation_stack.pop_back();
-			expect_type(value::vtype::NUMBER);
-			value a = evaluation_stack.back();
-			evaluation_stack.pop_back();
-			evaluation_stack.push_back(value(a.data.number / b.data.number));
-			break;
-		}
-		case opcode::MODULO: {
-			expect_type(value::vtype::NUMBER);
-			value b = evaluation_stack.back();
-			evaluation_stack.pop_back();
-			expect_type(value::vtype::NUMBER);
-			value a = evaluation_stack.back();
-			evaluation_stack.pop_back();
-			evaluation_stack.push_back(value(std::fmod(a.data.number, b.data.number)));
-			break;
-		}
-		case opcode::EXPONENTIATE: {
-			expect_type(value::vtype::NUMBER);
-			value b = evaluation_stack.back();
-			evaluation_stack.pop_back();
-			expect_type(value::vtype::NUMBER);
-			value a = evaluation_stack.back();
-			evaluation_stack.pop_back();
-			evaluation_stack.push_back(value(std::pow(a.data.number, b.data.number)));
+
+			if (a.type == value::vtype::NIL || b.type == value::vtype::NIL) {
+				a.expect_type(value::vtype::NUMBER, *this);
+				b.expect_type(value::vtype::NUMBER, *this);
+				break;
+			}
+			
+			operator_handler handler = operator_handlers[ins.operation - opcode::ADD][a.type - value::vtype::NUMBER][b.type - value::vtype::NUMBER];
+			if (handler == NULL) {
+				a.expect_type(value::vtype::NUMBER, *this);
+				b.expect_type(value::vtype::NUMBER, *this);
+			}
+
+			(this->*handler)(a, b);
 			break;
 		}
 		case opcode::MORE: {
