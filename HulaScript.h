@@ -23,7 +23,7 @@ namespace HulaScript {
 		class foreign_object;
 
 		struct value {
-		private:
+		public:
 			enum vtype : uint8_t {
 				NIL,
 				NUMBER,
@@ -37,7 +37,9 @@ namespace HulaScript {
 				FOREIGN_FUNCTION,
 				INTERNAL_STRHASH,
 				INTERNAL_LAZY_TABLE_ITERATOR
-			} type;
+			};
+		private:
+			vtype type;
 
 			enum flags {
 				NONE = 0,
@@ -45,6 +47,7 @@ namespace HulaScript {
 				TABLE_IS_FINAL = 2,
 				TABLE_INHERITS_PARENT = 4,
 				TABLE_ARRAY_ITERATE = 8,
+				INVALID_CONSTANT = 16
 			};
 
 			uint16_t flags;
@@ -77,6 +80,13 @@ namespace HulaScript {
 				expect_type(vtype::NUMBER, instance);
 				return data.number;
 			}
+
+			foreign_object* foreign_obj(instance& instance) const {
+				expect_type(vtype::FOREIGN_OBJECT, instance);
+				return data.foreign_object;
+			}
+
+			int64_t index(int64_t min, int64_t max, instance& instance) const;
 
 			bool boolean(instance& instance) const {
 				expect_type(vtype::BOOLEAN, instance);
@@ -139,16 +149,19 @@ namespace HulaScript {
 				return value();
 			}
 
-			virtual value add_operator(value operand, instance& instance) { return value(); }
-			virtual value subtract_operator(value operand, instance& instance) { return value(); }
-			virtual value multiply_operator(value operand, instance& instance) { return value(); }
-			virtual value divide_operator(value operand, instance& instance) { return value(); }
-			virtual value modulo_operator(value operand, instance& instance) { return value(); }
-			virtual value exponentiate_operator(value operand, instance& instance) { return value(); }
+			virtual value add_operator(value& operand, instance& instance) { return value(); }
+			virtual value subtract_operator(value& operand, instance& instance) { return value(); }
+			virtual value multiply_operator(value& operand, instance& instance) { return value(); }
+			virtual value divide_operator(value& operand, instance& instance) { return value(); }
+			virtual value modulo_operator(value& operand, instance& instance) { return value(); }
+			virtual value exponentiate_operator(value& operand, instance& instance) { return value(); }
 
 			virtual void trace(std::vector<value>& to_trace) { }
+			virtual std::string to_string() { return "Untitled Foreign Object"; }
 
 			friend class instance;
+		public:
+			virtual ~foreign_object() = default;
 		};
 
 		std::variant<value, std::vector<compilation_error>, std::monostate> run(std::string source, std::optional<std::string> file_name, bool repl_mode = true, bool ignore_warnings=false);
@@ -179,6 +192,31 @@ namespace HulaScript {
 			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size() + 1]));
 			std::strcpy(res.first->get(), str.c_str());
 			return value(res.first->get());
+		}
+
+		value make_table_obj(const std::vector<std::pair<std::string, value>>& elems, bool is_final=false) {
+			size_t table_id = allocate_table(elems.size(), false);
+			table& table = tables.at(table_id);
+			for (size_t i = 0; i < elems.size(); i++) {
+				table.key_hashes.insert({ Hash::dj2b(elems[i].first.c_str()), i });
+				heap[table.block.start + i] = elems[i].second;
+			}
+			table.count = elems.size();
+
+			return value(value::vtype::TABLE, is_final ? value::flags::NONE : value::flags::TABLE_IS_FINAL, 0, table_id);
+		}
+
+		value make_array(const std::vector<value>& elems, bool is_final = false) {
+			size_t table_id = allocate_table(elems.size(), false);
+			table& table = tables.at(table_id);
+			for (size_t i = 0; i < elems.size(); i++) {
+				value index_val(static_cast<double>(i));
+				table.key_hashes.insert({ index_val.hash(), i });
+				heap[table.block.start + i] = elems[i];
+			}
+			table.count = elems.size();
+
+			return value(value::vtype::TABLE, is_final ? value::flags::NONE : value::flags::TABLE_IS_FINAL, 0, table_id);
 		}
 
 		bool declare_global(std::string name, value val) {

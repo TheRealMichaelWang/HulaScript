@@ -20,7 +20,7 @@ namespace HulaScript {
 			source.clear();
 		}
 
-		std::optional<std::string> write_input(std::string new_input) {
+		std::optional<std::string> write_input(const std::string& new_input) {
 			if (expected_toks.size() == 0) {
 				source.clear();
 			}
