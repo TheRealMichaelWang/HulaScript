@@ -322,12 +322,12 @@ void instance::execute() {
 		case opcode::JUMP_AHEAD:
 			ip += ins.operand;
 			continue;
-		case opcode::IF_TRUE_JUMP_BACK: {
+		case opcode::IF_FALSE_JUMP_BACK: {
 			expect_type(value::vtype::BOOLEAN);
 			bool cond = evaluation_stack.back().data.boolean;
 			evaluation_stack.pop_back();
 
-			if (cond) {
+			if (!cond) {
 				break;
 			}
 		}
