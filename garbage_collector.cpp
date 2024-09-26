@@ -142,6 +142,21 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 		}
 	}
 
+	//remove unused constants
+	for (uint_fast32_t i = 0; i < constants.size(); i++) {
+		if (!marked_constants.contains(i)) {
+			if (constants[i].flags & value::flags::INVALID_CONSTANT) {
+				continue;
+			}
+
+			size_t hash = constants[i].hash();
+			constant_hashses.erase(hash);
+			availible_constant_ids.push_back(i);
+
+			constants[i].flags |= value::flags::INVALID_CONSTANT;
+		}
+	}
+
 	//removed unused strings
 	for (auto it = active_strs.begin(); it != active_strs.end();) {
 		if (!marked_strs.contains(it->get())) {
@@ -209,18 +224,6 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 		}
 		else {
 			it++;
-		}
-	}
-	//remove unused constants
-	for (uint_fast32_t i = 0; i < constants.size(); i++) {
-		if (!marked_constants.contains(i)) {
-			size_t hash = constants[i].hash();
-			auto it = constant_hashses.find(hash);
-
-			if (it != constant_hashses.end()) {
-				constant_hashses.erase(it);
-				availible_constant_ids.push_back(i);
-			}
 		}
 	}
 
