@@ -344,6 +344,13 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		compile_function(context, ss.str());
 		break;
 	}
+	case token_type::MINUS: {
+		context.tokenizer.scan_token();
+		context.emit_load_constant(add_constant(value(0.0)), repl_used_constants);
+		compile_value(context, false, true);
+		context.emit({ .operation = opcode::SUBTRACT });
+		break;
+	}
 	default:
 		context.tokenizer.unexpected_token();
 	}
