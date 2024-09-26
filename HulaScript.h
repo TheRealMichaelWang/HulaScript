@@ -307,7 +307,7 @@ namespace HulaScript {
 			JUMP_AHEAD,
 			JUMP_BACK,
 			IF_FALSE_JUMP_AHEAD,
-			IF_TRUE_JUMP_BACK,
+			IF_FALSE_JUMP_BACK,
 
 			CALL,
 			CALL_LABEL,
@@ -599,7 +599,7 @@ namespace HulaScript {
 				size_t count = 0;
 				for (auto it = lexical_scopes.rbegin(); it != lexical_scopes.rend(); it++) {
 					if (it->is_loop_block) {
-						count++;
+						count += it->declared_locals.size();
 					}
 					else {
 						break;
