@@ -64,3 +64,16 @@ std::optional<instance::value> instance::run_loaded() {
 		throw;
 	}
 }
+
+instance::value instance::invoke_value(value to_call, std::vector<value> arguments) {
+	evaluation_stack.push_back(to_call);
+	evaluation_stack.insert(evaluation_stack.end(), arguments.begin(), arguments.end());
+	
+	std::vector<instruction> ins;
+	ins.push_back({ .operation = opcode::CALL, .operand = static_cast<operand>(arguments.size()) });
+	execute_arbitrary(ins);
+
+	value to_return = evaluation_stack.back();
+	evaluation_stack.pop_back();
+	return to_return;
+}

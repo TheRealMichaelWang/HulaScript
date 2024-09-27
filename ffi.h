@@ -1,7 +1,8 @@
 #pragma once
 
-#include "HulaScript.h"
 #include <vector>
+#include <stdexcept>
+#include "HulaScript.h"
 #include "phmap.h"
 
 namespace HulaScript {
@@ -61,7 +62,70 @@ namespace HulaScript {
 
 	//helps you access and manipulate a table
 	class ffi_table_helper {
-	private:
+	public:
+		ffi_table_helper(instance::value table_value, instance& owner_instance) : owner_instance(owner_instance), table_entry(owner_instance.tables.at(table_value.expect_type(instance::value::vtype::TABLE, owner_instance).data.id)), flags(table_value.flags) { }
 
+		const bool is_array() const noexcept {
+			return flags & instance::value::flags::TABLE_ARRAY_ITERATE;
+		}
+
+		const size_t size() const noexcept {
+			return table_entry.count;
+		}
+
+		instance::value& at_index(size_t index) const {
+			if (is_array()) {
+				if (index >= table_entry.count) {
+					throw std::out_of_range("Index is outside of the range of the table-array.");
+				}
+
+				return owner_instance.heap[table_entry.block.start + index];
+			}
+		}
+
+		instance::value& at(instance::value key) {
+			return at(key.hash());
+		}
+
+		instance::value& at(std::string key_str) {
+			return at(Hash::dj2b(key_str.c_str()));
+		}
+
+		//traverses inherited parent for property as well
+		instance::value& get_property(std::string property) {
+			size_t hash = Hash::dj2b(property.c_str());
+
+			instance::table& current_entry = table_entry;
+			for (;;) {
+				auto it = current_entry.key_hashes.find(hash);
+
+				if (it == current_entry.key_hashes.end()) {
+					auto base_it = current_entry.key_hashes.find(Hash::dj2b("base"));
+
+					if (base_it == current_entry.key_hashes.end()) {
+						throw std::invalid_argument("Property not found in table-object.");
+					}
+					
+					auto& base_val = owner_instance.heap[current_entry.block.start + base_it->second];
+					current_entry = owner_instance.tables.at(base_val.expect_type(instance::value::vtype::TABLE, owner_instance).data.id);
+				}
+				else {
+					return owner_instance.heap[current_entry.block.start + it->second];
+				}
+			}
+		}
+	private:
+		instance::table& table_entry;
+		instance& owner_instance;
+		uint16_t flags;
+
+		instance::value& at(size_t hash) const {
+			auto it = table_entry.key_hashes.find(hash);
+			if (it == table_entry.key_hashes.end()) {
+				throw std::invalid_argument("Key-Hash not found in table.");
+			}
+
+			return owner_instance.heap[table_entry.block.start + it->second];
+		}
 	};
 }

@@ -81,17 +81,17 @@ namespace HulaScript {
 				return data.number;
 			}
 
+			bool boolean(instance& instance) const {
+				expect_type(vtype::BOOLEAN, instance);
+				return data.boolean;
+			}
+
 			foreign_object* foreign_obj(instance& instance) const {
 				expect_type(vtype::FOREIGN_OBJECT, instance);
 				return data.foreign_object;
 			}
 
-			int64_t index(int64_t min, int64_t max, instance& instance) const;
-
-			bool boolean(instance& instance) const {
-				expect_type(vtype::BOOLEAN, instance);
-				return data.boolean;
-			}
+			const int64_t index(int64_t min, int64_t max, instance& instance) const;
 
 			const constexpr size_t hash() const noexcept {
 				size_t payload = 0;
@@ -134,9 +134,10 @@ namespace HulaScript {
 				return HulaScript::Hash::combine(static_cast<size_t>(type), payload);
 			}
 
-			void expect_type(vtype expected_type, const instance& instance) const;
+			value expect_type(vtype expected_type, const instance& instance) const;
 
 			friend class table_iterator;
+			friend class ffi_table_helper;
 		};
 
 		class foreign_object {
@@ -219,6 +220,8 @@ namespace HulaScript {
 			return value(value::vtype::TABLE, is_final ? value::flags::NONE : value::flags::TABLE_IS_FINAL, 0, table_id);
 		}
 
+		value invoke_value(value to_call, std::vector<value> arguments);
+
 		bool declare_global(std::string name, value val) {
 			size_t hash = Hash::dj2b(name.c_str());
 			if (global_vars.size() > UINT8_MAX) {
@@ -254,7 +257,7 @@ namespace HulaScript {
 
 		using operand = uint8_t;
 		typedef void (instance::*operator_handler)(value& a, value& b);
-
+		
 		enum opcode : uint8_t {
 			DECL_LOCAL,
 			DECL_TOPLVL_LOCAL,
@@ -410,7 +413,11 @@ namespace HulaScript {
 		uint32_t next_function_id = 0;
 		uint32_t declared_top_level_locals = 0;
 
+		//executes instructions loaded in instructions
 		void execute();
+
+		//executes arbitrary_ins
+		void execute_arbitrary(const std::vector<instruction>& arbitrary_ins);
 
 		//allocates a zone in heap, represented by gc_block
 		gc_block allocate_block(size_t capacity, bool allow_collect);
@@ -458,6 +465,7 @@ namespace HulaScript {
 			}
 		}
 		friend class table_iterator;
+		friend class ffi_table_helper;
 
 		//COMPILER
 		struct compilation_context {
