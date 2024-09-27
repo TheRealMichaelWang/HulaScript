@@ -76,6 +76,15 @@ static instance::value get_int_range(std::vector<instance::value> arguments, ins
 	return instance.add_foreign_object(std::make_unique<int_range>(int_range(start, stop, step)));
 }
 
+static instance::value forall(std::vector<instance::value> arguments, instance& instance) {
+	if (arguments.size() != 2) {
+		instance.panic("FFI Error: Forall expects 2 arguments.");
+	}
+
+	arguments[0].expect_type(instance::value::vtype::TABLE, instance);
+	
+}
+
 instance::instance() {
 	declare_global("irange", make_foreign_function(get_int_range));
 }
