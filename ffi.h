@@ -58,4 +58,10 @@ namespace HulaScript {
 			return next(instance);
 		}
 	};
+
+	//helps you access and manipulate a table
+	class ffi_table_helper {
+	private:
+
+	};
 }
