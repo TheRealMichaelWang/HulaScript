@@ -81,10 +81,15 @@ static instance::value forall(std::vector<instance::value> arguments, instance& 
 		instance.panic("FFI Error: Forall expects 2 arguments.");
 	}
 
-	arguments[0].expect_type(instance::value::vtype::TABLE, instance);
-	
+	ffi_table_helper table_helper(arguments[0], instance);
+	for (size_t i = 0; i < table_helper.size(); i++) {
+		instance.invoke_value(arguments[1], { table_helper.at_index(i) });
+	}
+
+	return instance::value();
 }
 
 instance::instance() {
 	declare_global("irange", make_foreign_function(get_int_range));
+	declare_global("forall", make_foreign_function(forall));
 }

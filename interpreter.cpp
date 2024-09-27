@@ -445,3 +445,15 @@ void instance::execute() {
 		ip++;
 	}
 }
+
+void HulaScript::instance::execute_arbitrary(const std::vector<instruction>& arbitrary_ins) {
+	size_t start_ip = instructions.size();
+	size_t old_ip = ip;
+	instructions.insert(instructions.end(), arbitrary_ins.begin(), arbitrary_ins.end());
+
+	ip = start_ip;
+	execute();
+
+	instructions.erase(instructions.begin() + start_ip, instructions.end());
+	ip = old_ip;
+}

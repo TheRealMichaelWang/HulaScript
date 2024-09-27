@@ -49,7 +49,7 @@ std::string source_loc::to_print_string() const noexcept {
 	return ss.str();
 }
 
-void instance::value::expect_type(value::vtype expected_type, const instance& instance) const {
+instance::value instance::value::expect_type(value::vtype expected_type, const instance& instance) const {
 	static const char* type_names[] = {
 		"NIL",
 		"NUMBER",
@@ -64,6 +64,8 @@ void instance::value::expect_type(value::vtype expected_type, const instance& in
 		ss << "Type Error: Expected value of type " << type_names[expected_type] << " but got " << type_names[type] << " instead.";
 		instance.panic(ss.str());
 	}
+
+	return *this;
 }
 
 static const char* tok_names[] = {
@@ -265,4 +267,16 @@ std::string instance::get_value_print_string(value to_print_init) {
 	}
 
 	return ss.str();
+}
+
+const int64_t instance::value::index(int64_t min, int64_t max, instance& instance) const {
+	expect_type(HulaScript::instance::value::vtype::NUMBER, instance);
+
+	if (data.number < min || data.number >= max) {
+		std::stringstream ss;
+		ss << data.number << " is outside the range of [" << min << ", " << max << ").";
+		instance.panic(ss.str());
+	}
+
+	return static_cast<int64_t>(data.number);
 }
