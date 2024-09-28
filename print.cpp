@@ -49,7 +49,7 @@ std::string source_loc::to_print_string() const noexcept {
 	return ss.str();
 }
 
-instance::value instance::value::expect_type(value::vtype expected_type, const instance& instance) const {
+void instance::value::expect_type(value::vtype expected_type, const instance& instance) const {
 	static const char* type_names[] = {
 		"NIL",
 		"NUMBER",
@@ -64,8 +64,6 @@ instance::value instance::value::expect_type(value::vtype expected_type, const i
 		ss << "Type Error: Expected value of type " << type_names[expected_type] << " but got " << type_names[type] << " instead.";
 		instance.panic(ss.str());
 	}
-
-	return *this;
 }
 
 static const char* tok_names[] = {
