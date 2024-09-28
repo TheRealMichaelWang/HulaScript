@@ -81,6 +81,19 @@ namespace HulaScript {
 			return owner_instance.heap[table_entry.block.start + index];
 		}
 
+		void swap_index(size_t a, size_t b) {
+			if (a >= table_entry.count) {
+				throw std::out_of_range("Index a is outside of the range of the table-array.");
+			}
+			if (b >= table_entry.count) {
+				throw std::out_of_range("Index b is outside of the range of the table-array.");
+			}
+
+			instance::value temp = owner_instance.heap[table_entry.block.start + a];
+			owner_instance.heap[table_entry.block.start + a] = owner_instance.heap[table_entry.block.start + b];
+			owner_instance.heap[table_entry.block.start + b] = temp;
+		}
+
 		instance::value& at(instance::value key) {
 			return at(key.hash());
 		}
