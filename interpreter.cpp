@@ -121,6 +121,12 @@ void instance::execute() {
 					case Hash::dj2b("filter"):
 						evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_FILTER, flags, 0, table_id));
 						break;
+					case Hash::dj2b("append"):
+						evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_APPEND, flags, 0, table_id));
+						break;
+					case Hash::dj2b("appendRange"):
+						evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_APPEND_RANGE, flags, 0, table_id));
+						break;
 					default:
 						evaluation_stack.push_back(value());
 						break;
@@ -405,6 +411,30 @@ void instance::execute() {
 				locals.pop_back();
 
 				evaluation_stack.push_back(filter_table(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments, *this));
+				break;
+			}
+			case value::vtype::INTERNAL_TABLE_APPEND: {
+				if (ins.operand != 1) {
+					panic("Array append expects 1 argument, filter function.");
+				}
+
+				value arguments = locals.back();
+				locals.pop_back();
+
+				evaluation_stack.push_back(append_table(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments, *this));
+
+				break;
+			}
+			case value::vtype::INTERNAL_TABLE_APPEND_RANGE: {
+				if (ins.operand != 1) {
+					panic("Array append expects 1 argument, filter function.");
+				}
+
+				value arguments = locals.back();
+				locals.pop_back();
+
+				evaluation_stack.push_back(append_range(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments, *this));
+
 				break;
 			}
 			default:

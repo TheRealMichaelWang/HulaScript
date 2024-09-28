@@ -183,6 +183,37 @@ instance::value HulaScript::filter_table(instance::value table_value, instance::
 	return instance.make_array(elems);
 }
 
+instance::value HulaScript::append_table(instance::value table_value, instance::value to_append, instance& instance) {
+	HulaScript::ffi_table_helper helper(table_value, instance);
+	if (!helper.is_array()) {
+		instance.panic("FFI Error: Append expects table to be an array.");
+	}
+	
+	helper.append(to_append, true);
+	return instance::value();
+}
+
+instance::value HulaScript::append_range(instance::value table_value, instance::value to_append, instance& instance) {
+	HulaScript::ffi_table_helper helper(table_value, instance);
+	if (!helper.is_array()) {
+		instance.panic("FFI Error: Append expects table to be an array.");
+	}
+
+	HulaScript::ffi_table_helper toappend_helper(to_append, instance);
+	if (!toappend_helper.is_array()) { //append an array
+		instance.panic("FFI Error: Append expects table to append to be an array.");
+	}
+
+	toappend_helper.temp_gc_protect();
+	helper.reserve(helper.size() + toappend_helper.size(), true);
+	for (size_t i = 0; i < toappend_helper.size(); i++) {
+		helper.append(toappend_helper.at_index(i));
+	}
+	toappend_helper.temp_gc_unprotect();
+
+	return instance::value();
+}
+
 instance::instance() {
 	declare_global("irange", make_foreign_function(new_int_range));
 	declare_global("random", make_foreign_function(new_random_generator));

@@ -36,8 +36,11 @@ namespace HulaScript {
 				FOREIGN_OBJECT_METHOD,
 				FOREIGN_FUNCTION,
 				INTERNAL_STRHASH,
+
 				INTERNAL_TABLE_GET_ITERATOR,
-				INTERNAL_TABLE_FILTER
+				INTERNAL_TABLE_FILTER,
+				INTERNAL_TABLE_APPEND,
+				INTERNAL_TABLE_APPEND_RANGE
 			};
 		private:
 			vtype type;
@@ -135,7 +138,11 @@ namespace HulaScript {
 				return HulaScript::Hash::combine(static_cast<size_t>(type), payload);
 			}
 
-			value expect_type(vtype expected_type, const instance& instance) const;
+			void expect_type(vtype expected_type, const instance& instance) const;
+
+			const bool check_type(vtype is_type) const noexcept {
+				return type == is_type;
+			}
 
 			friend class ffi_table_helper;
 		};

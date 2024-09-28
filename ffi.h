@@ -63,17 +63,20 @@ namespace HulaScript {
 	//helps you access and manipulate a table
 	class ffi_table_helper {
 	public:
-		ffi_table_helper(instance::value table_value, instance& owner_instance) : owner_instance(owner_instance), table_entry(owner_instance.tables.at(table_value.expect_type(instance::value::vtype::TABLE, owner_instance).data.id)), flags(table_value.flags) { }
+		ffi_table_helper(instance::value table_value, instance& owner_instance) : owner_instance(owner_instance), table_id(table_value.data.id), flags(table_value.flags) { 
+			table_value.expect_type(instance::value::vtype::TABLE, owner_instance);
+		}
 
 		const bool is_array() const noexcept {
 			return flags & instance::value::flags::TABLE_ARRAY_ITERATE;
 		}
 
 		const size_t size() const noexcept {
-			return table_entry.count;
+			return owner_instance.tables.at(table_id).count;
 		}
 
 		instance::value& at_index(size_t index) const {
+			instance::table& table_entry = owner_instance.tables.at(table_id);
 			if (index >= table_entry.count) {
 				throw std::out_of_range("Index is outside of the range of the table-array.");
 			}
@@ -82,6 +85,8 @@ namespace HulaScript {
 		}
 
 		void swap_index(size_t a, size_t b) {
+			instance::table& table_entry = owner_instance.tables.at(table_id);
+
 			if (a >= table_entry.count) {
 				throw std::out_of_range("Index a is outside of the range of the table-array.");
 			}
@@ -94,49 +99,23 @@ namespace HulaScript {
 			owner_instance.heap[table_entry.block.start + b] = temp;
 		}
 
-		instance::value& at(instance::value key) {
-			return at(key.hash());
+		void temp_gc_protect() {
+			owner_instance.temp_gc_exempt.push_back(instance::value(instance::value::vtype::TABLE, flags, 0, table_id));
+		}
+		void temp_gc_unprotect() {
+			owner_instance.temp_gc_exempt.pop_back();
 		}
 
-		instance::value& at(std::string key_str) {
-			return at(Hash::dj2b(key_str.c_str()));
-		}
+		instance::value get(instance::value key) const;
+		instance::value get(std::string key) const;
+		void emplace(instance::value key, instance::value set_val);
+		void emplace(std::string key, instance::value set_val);
 
-		//traverses inherited parent for property as well
-		instance::value& get_property(std::string property) {
-			size_t hash = Hash::dj2b(property.c_str());
-
-			instance::table& current_entry = table_entry;
-			for (;;) {
-				auto it = current_entry.key_hashes.find(hash);
-
-				if (it == current_entry.key_hashes.end()) {
-					auto base_it = current_entry.key_hashes.find(Hash::dj2b("base"));
-
-					if (base_it == current_entry.key_hashes.end()) {
-						throw std::invalid_argument("Property not found in table-object.");
-					}
-					
-					auto& base_val = owner_instance.heap[current_entry.block.start + base_it->second];
-					current_entry = owner_instance.tables.at(base_val.expect_type(instance::value::vtype::TABLE, owner_instance).data.id);
-				}
-				else {
-					return owner_instance.heap[current_entry.block.start + it->second];
-				}
-			}
-		}
+		void reserve(size_t capacity, bool allow_collect = false);
+		void append(instance::value value, bool allow_collect=false);
 	private:
-		instance::table& table_entry;
+		size_t table_id;
 		instance& owner_instance;
 		uint16_t flags;
-
-		instance::value& at(size_t hash) const {
-			auto it = table_entry.key_hashes.find(hash);
-			if (it == table_entry.key_hashes.end()) {
-				throw std::invalid_argument("Key-Hash not found in table.");
-			}
-
-			return owner_instance.heap[table_entry.block.start + it->second];
-		}
 	};
 }

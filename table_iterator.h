@@ -23,4 +23,6 @@ namespace HulaScript {
 	};
 
 	instance::value filter_table(instance::value table_value, instance::value keep_cond, instance& instance);
+	instance::value append_table(instance::value table_value, instance::value to_append, instance& instance);
+	instance::value append_range(instance::value table_value, instance::value to_append, instance& instance);
 }
