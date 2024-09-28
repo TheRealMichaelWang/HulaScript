@@ -77,6 +77,33 @@ static instance::value get_int_range(std::vector<instance::value> arguments, ins
 	return instance.add_foreign_object(std::make_unique<int_range>(int_range(start, stop, step)));
 }
 
+static instance::value sort_table(std::vector<instance::value> arguments, instance& instance) {
+	if (arguments.size() != 2) {
+		instance.panic("FFI Error: Function sort expects 2 arguments: a array-table, and a comparator (return whether left is less than right).");
+	}
+
+	HulaScript::ffi_table_helper helper(arguments[0], instance);
+	for (size_t i = 0; i < helper.size() - 1; i++) {
+		bool swapped = false;
+		for (size_t j = 0; j < helper.size() - i - 1; j++) {
+			bool cmp = instance.invoke_value(arguments[1], {
+				helper.at_index(j), helper.at_index(j + 1)
+			}).boolean(instance);
+
+			if (!cmp) {
+				helper.swap_index(j, j + 1);
+				swapped = true;
+			}
+		}
+
+		if (!swapped) {
+			break;
+		}
+	}
+
+	return instance::value();
+}
+
 instance::value HulaScript::filter_table(instance::value table_value, instance::value keep_cond, instance& instance) {
 	HulaScript::ffi_table_helper helper(table_value, instance);
 	
@@ -94,4 +121,5 @@ instance::value HulaScript::filter_table(instance::value table_value, instance::
 
 instance::instance() {
 	declare_global("irange", make_foreign_function(get_int_range));
+	declare_global("sort", make_foreign_function(sort_table));
 }

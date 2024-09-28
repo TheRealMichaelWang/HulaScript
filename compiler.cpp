@@ -800,7 +800,7 @@ uint32_t instance::emit_finalize_function(compilation_context& context) {
 	}
 	else {
 		id = availible_function_ids.back();
-		availible_table_ids.pop_back();
+		availible_function_ids.pop_back();
 	}
 	functions.insert({ id, function });
 
