@@ -212,6 +212,12 @@ void instance::handle_string_add(value& a, value& b) {
 }
 
 void instance::handle_table_add(value& a, value& b) {
+	if (!(a.flags & value::flags::TABLE_ARRAY_ITERATE && b.flags & value::flags::TABLE_ARRAY_ITERATE)) {
+		
+
+		return;
+	}
+
 	temp_gc_exempt.push_back(a);
 	temp_gc_exempt.push_back(b);
 
