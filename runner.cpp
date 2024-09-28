@@ -77,3 +77,20 @@ instance::value instance::invoke_value(value to_call, std::vector<value> argumen
 	evaluation_stack.pop_back();
 	return to_return;
 }
+
+instance::value instance::invoke_method(value object, std::string method_name, std::vector<value> arguments) {
+	evaluation_stack.push_back(object);
+	evaluation_stack.push_back(value(value::vtype::INTERNAL_STRHASH, 0, 0, Hash::dj2b(method_name.c_str())));
+	std::vector<instruction> ins;
+	ins.push_back({ .operation = opcode::LOAD_TABLE });
+	execute_arbitrary(ins);
+
+	evaluation_stack.insert(evaluation_stack.end(), arguments.begin(), arguments.end());
+	ins.clear();
+	ins.push_back({ .operation = opcode::CALL });
+	execute_arbitrary(ins);
+
+	value to_return = evaluation_stack.back();
+	evaluation_stack.pop_back();
+	return to_return;
+}

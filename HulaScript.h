@@ -221,6 +221,7 @@ namespace HulaScript {
 		}
 
 		value invoke_value(value to_call, std::vector<value> arguments);
+		value invoke_method(value object, std::string method_name, std::vector<value> arguments);
 
 		bool declare_global(std::string name, value val) {
 			size_t hash = Hash::dj2b(name.c_str());
