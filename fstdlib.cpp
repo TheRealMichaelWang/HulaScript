@@ -1,5 +1,6 @@
 #include "HulaScript.h"
 #include "ffi.h"
+#include "table_iterator.h"
 #include <cstdint>
 #include <memory>
 
@@ -76,20 +77,21 @@ static instance::value get_int_range(std::vector<instance::value> arguments, ins
 	return instance.add_foreign_object(std::make_unique<int_range>(int_range(start, stop, step)));
 }
 
-static instance::value forall(std::vector<instance::value> arguments, instance& instance) {
-	if (arguments.size() != 2) {
-		instance.panic("FFI Error: Forall expects 2 arguments.");
+instance::value HulaScript::filter_table(instance::value table_value, instance::value keep_cond, instance& instance) {
+	HulaScript::ffi_table_helper helper(table_value, instance);
+	
+	std::vector<instance::value> elems;
+	elems.reserve(helper.size());
+
+	for (size_t i = 0; i < helper.size(); i++) {
+		if (instance.invoke_value(keep_cond, { helper.at_index(i) }).boolean(instance)) {
+			elems.push_back(helper.at_index(i));
+		}
 	}
 
-	ffi_table_helper table_helper(arguments[0], instance);
-	for (size_t i = 0; i < table_helper.size(); i++) {
-		instance.invoke_value(arguments[1], { table_helper.at_index(i) });
-	}
-
-	return instance::value();
+	return instance.make_array(elems);
 }
 
 instance::instance() {
 	declare_global("irange", make_foreign_function(get_int_range));
-	declare_global("forall", make_foreign_function(forall));
 }

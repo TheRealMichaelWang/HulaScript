@@ -74,13 +74,11 @@ namespace HulaScript {
 		}
 
 		instance::value& at_index(size_t index) const {
-			if (is_array()) {
-				if (index >= table_entry.count) {
-					throw std::out_of_range("Index is outside of the range of the table-array.");
-				}
-
-				return owner_instance.heap[table_entry.block.start + index];
+			if (index >= table_entry.count) {
+				throw std::out_of_range("Index is outside of the range of the table-array.");
 			}
+
+			return owner_instance.heap[table_entry.block.start + index];
 		}
 
 		instance::value& at(instance::value key) {

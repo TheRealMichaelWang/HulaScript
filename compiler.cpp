@@ -466,7 +466,7 @@ void instance::compile_expression(compilation_context& context, int min_prec, bo
 			context.set_operand(cond_addr, context.current_ip() - cond_addr);
 		}
 		else {
-			compile_expression(context, op_precs[op_type]);
+			compile_expression(context, op_precs[(op_type - token_type::PLUS)]);
 			context.emit({ .operation = static_cast<opcode>((op_type - token_type::PLUS) + opcode::ADD) });
 		}
 	}

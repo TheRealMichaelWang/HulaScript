@@ -5,22 +5,22 @@
 namespace HulaScript {
 	class table_iterator : public foreign_iterator {
 	public:
-		table_iterator(instance::value to_iterate, instance& instance) : to_iterate(to_iterate), position(0) { 
-			to_iterate.expect_type(instance::value::vtype::INTERNAL_LAZY_TABLE_ITERATOR, instance);
-		}
+		table_iterator(instance::value to_iterate, instance& instance) : helper(to_iterate, instance), position(0) { }
 
 	private:
-		instance::value to_iterate;
+		ffi_table_helper helper;
 		size_t position;
 
 		bool has_next(instance& instance) override {
-			return position != instance.tables.at(to_iterate.data.id).count;
+			return position != helper.size();
 		}
 
 		instance::value next(instance& instance) override {
-			instance::value toret = instance.heap[instance.tables.at(to_iterate.data.id).block.start + position];
+			instance::value toret = helper.at_index(position);
 			position++;
 			return toret;
 		}
 	};
+
+	instance::value filter_table(instance::value table_value, instance::value keep_cond, instance& instance);
 }
