@@ -116,10 +116,10 @@ void instance::execute() {
 					switch (hash)
 					{
 					case Hash::dj2b("iterator"):
-						evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_GET_ITERATOR, 0, 0, table_id));
+						evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_GET_ITERATOR, flags, 0, table_id));
 						break;
 					case Hash::dj2b("filter"):
-						evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_FILTER, 0, 0, table_id));
+						evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_FILTER, flags, 0, table_id));
 						break;
 					default:
 						evaluation_stack.push_back(value());

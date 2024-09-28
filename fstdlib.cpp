@@ -167,7 +167,10 @@ static instance::value binary_search_table(std::vector<instance::value> argument
 
 instance::value HulaScript::filter_table(instance::value table_value, instance::value keep_cond, instance& instance) {
 	HulaScript::ffi_table_helper helper(table_value, instance);
-	
+	if (!helper.is_array()) {
+		instance.panic("FFI Error: Filter expects table to be an array.");
+	}
+
 	std::vector<instance::value> elems;
 	elems.reserve(helper.size());
 
