@@ -36,7 +36,8 @@ namespace HulaScript {
 				FOREIGN_OBJECT_METHOD,
 				FOREIGN_FUNCTION,
 				INTERNAL_STRHASH,
-				INTERNAL_LAZY_TABLE_ITERATOR
+				INTERNAL_TABLE_GET_ITERATOR,
+				INTERNAL_TABLE_FILTER
 			};
 		private:
 			vtype type;
@@ -109,7 +110,7 @@ namespace HulaScript {
 					[[fallthrough]];
 				case vtype::FOREIGN_OBJECT:
 					[[fallthrough]];
-				case vtype::INTERNAL_LAZY_TABLE_ITERATOR:
+				case vtype::INTERNAL_TABLE_GET_ITERATOR:
 					[[fallthrough]];
 				case vtype::NUMBER:
 					payload = data.id;
@@ -136,7 +137,6 @@ namespace HulaScript {
 
 			value expect_type(vtype expected_type, const instance& instance) const;
 
-			friend class table_iterator;
 			friend class ffi_table_helper;
 		};
 
