@@ -87,7 +87,7 @@ instance::value instance::invoke_method(value object, std::string method_name, s
 
 	evaluation_stack.insert(evaluation_stack.end(), arguments.begin(), arguments.end());
 	ins.clear();
-	ins.push_back({ .operation = opcode::CALL });
+	ins.push_back({ .operation = opcode::CALL, .operand = static_cast<operand>(arguments.size()) });
 	execute_arbitrary(ins);
 
 	value to_return = evaluation_stack.back();

@@ -165,6 +165,21 @@ static instance::value binary_search_table(std::vector<instance::value> argument
 	return instance::value(-(static_cast<double>(mid) + 1));
 }
 
+static instance::value iterator_to_array(std::vector<instance::value> arguments, instance& instance) {
+	if (arguments.size() != 1) {
+		instance.panic("FFI Error: Iterator-to-array expects one argument, an iterator object, but did not receive it.");
+	}
+	
+	std::vector<instance::value> elems;
+	instance::value iterator = instance.invoke_method(arguments[0], "iterator", { });
+
+	while (instance.invoke_method(iterator, "hasNext", {}).boolean(instance)) {
+		elems.push_back(instance.invoke_method(iterator, "next", {}));
+	}
+
+	return instance.make_array(elems);
+}
+
 instance::value HulaScript::filter_table(instance::value table_value, instance::value keep_cond, instance& instance) {
 	HulaScript::ffi_table_helper helper(table_value, instance);
 	if (!helper.is_array()) {
@@ -220,4 +235,5 @@ instance::instance() {
 
 	declare_global("sort", make_foreign_function(sort_table));
 	declare_global("binarySearch", make_foreign_function(binary_search_table));
+	declare_global("iteratorToArray", make_foreign_function(iterator_to_array));
 }

@@ -213,8 +213,7 @@ void instance::handle_string_add(value& a, value& b) {
 
 void instance::handle_table_add(value& a, value& b) {
 	if (!(a.flags & value::flags::TABLE_ARRAY_ITERATE && b.flags & value::flags::TABLE_ARRAY_ITERATE)) {
-		
-
+		evaluation_stack.push_back(invoke_method(a, "add", { b }));
 		return;
 	}
 
