@@ -25,8 +25,8 @@ instance::operator_handler instance::operator_handlers[(opcode::EXPONENTIATE - o
 		
 		//operand a is a table
 		{
-			NULL, NULL, NULL, &instance::handle_table_add,
-			NULL, NULL
+			&instance::handle_table_add, &instance::handle_table_add, &instance::handle_table_add, 
+			&instance::handle_table_add, &instance::handle_table_add, &instance::handle_table_add
 		},
 
 		//operand a is a closure
@@ -54,7 +54,10 @@ instance::operator_handler instance::operator_handlers[(opcode::EXPONENTIATE - o
 		{ NULL, NULL, NULL, NULL, NULL, NULL },
 
 		//operand a is a table
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 
+			&instance::handle_table_subtract, &instance::handle_table_subtract, &instance::handle_table_subtract,
+			&instance::handle_table_subtract, &instance::handle_table_subtract, &instance::handle_table_subtract 
+		},
 
 		//operand a is a closure
 		{ NULL, NULL, NULL, NULL, NULL, NULL },
@@ -72,7 +75,7 @@ instance::operator_handler instance::operator_handlers[(opcode::EXPONENTIATE - o
 		{
 			&instance::handle_numerical_multiply, //operand b is a number
 			NULL, NULL, 
-			&instance::handle_table_multiply, //allocate table by multiplying it by a number
+			&instance::handle_table_repeat, //allocate table by multiplying it by a number
 			NULL, NULL //b cannot be any other type
 		},
 
@@ -83,10 +86,16 @@ instance::operator_handler instance::operator_handlers[(opcode::EXPONENTIATE - o
 		{ NULL, NULL, NULL, NULL, NULL, NULL },
 
 		//operand a is a table
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 
+			&instance::handle_table_multiply, &instance::handle_table_multiply, &instance::handle_table_multiply, 
+			&instance::handle_table_multiply, &instance::handle_table_multiply, &instance::handle_table_multiply 
+		},
 
 		//operand a is a closure
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 
+			&instance::handle_closure_multiply, &instance::handle_closure_multiply, &instance::handle_closure_multiply, 
+			&instance::handle_closure_multiply, &instance::handle_closure_multiply, &instance::handle_closure_multiply 
+		},
 
 		//operand a is a foreign object
 		{
@@ -110,7 +119,9 @@ instance::operator_handler instance::operator_handlers[(opcode::EXPONENTIATE - o
 		{ NULL, NULL, NULL, NULL, NULL, NULL },
 
 		//operand a is a table
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 
+			&instance::handle_table_divide, &instance::handle_table_divide, &instance::handle_table_divide, 
+			&instance::handle_table_divide, &instance::handle_table_divide, &instance::handle_table_divide },
 
 		//operand a is a closure
 		{ NULL, NULL, NULL, NULL, NULL, NULL },
@@ -136,7 +147,10 @@ instance::operator_handler instance::operator_handlers[(opcode::EXPONENTIATE - o
 		{ NULL, NULL, NULL, NULL, NULL, NULL },
 
 		//operand a is a table
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 
+			&instance::handle_table_modulo, &instance::handle_table_modulo, &instance::handle_table_modulo, 
+			&instance::handle_table_modulo, &instance::handle_table_modulo, &instance::handle_table_modulo 
+		},
 
 		//operand a is a closure
 		{ NULL, NULL, NULL, NULL, NULL, NULL },
@@ -162,7 +176,10 @@ instance::operator_handler instance::operator_handlers[(opcode::EXPONENTIATE - o
 		{ NULL, NULL, NULL, NULL, NULL, NULL },
 
 		//operand a is a table
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 
+			&instance::handle_table_exponentiate, &instance::handle_table_exponentiate, &instance::handle_table_exponentiate, 
+			&instance::handle_table_exponentiate, &instance::handle_table_exponentiate, &instance::handle_table_exponentiate 
+		},
 
 		//operand a is a closure
 		{ NULL, NULL, NULL, NULL, NULL, NULL },
@@ -238,7 +255,7 @@ void instance::handle_table_add(value& a, value& b) {
 	evaluation_stack.push_back(value(value::vtype::TABLE, 0, 0, table_id));
 }
 
-void instance::handle_table_multiply(value& a, value& b) {
+void instance::handle_table_repeat(value& a, value& b) {
 	temp_gc_exempt.push_back(b);
 
 	if (a.data.number < 0) {
@@ -260,6 +277,35 @@ void instance::handle_table_multiply(value& a, value& b) {
 	temp_gc_exempt.pop_back();
 
 	evaluation_stack.push_back(value(value::vtype::TABLE, 0, 0, table_id));
+}
+
+void instance::handle_table_subtract(value& a, value& b) {
+	evaluation_stack.push_back(invoke_method(a, "subtract", { b }));
+}
+
+void instance::handle_table_multiply(value& a, value& b) {
+	if (a.flags & value::flags::TABLE_ARRAY_ITERATE) {
+		handle_table_repeat(b, a);
+	}
+	else {
+		evaluation_stack.push_back(invoke_method(a, "multiply", { b }));
+	}
+}
+
+void instance::handle_table_divide(value& a, value& b) {
+	evaluation_stack.push_back(invoke_method(a, "divide", { b }));
+}
+
+void instance::handle_table_modulo(value& a, value& b) {
+	evaluation_stack.push_back(invoke_method(a, "modulo", { b }));
+}
+
+void instance::handle_table_exponentiate(value& a, value& b) {
+	evaluation_stack.push_back(invoke_method(a, "exp", { b }));
+}
+
+void instance::handle_closure_multiply(value& a, value& b) {
+	evaluation_stack.push_back(invoke_value(a, { b }));
 }
 
 void instance::handle_foreign_obj_add(value& a, value& b) {
