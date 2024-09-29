@@ -374,7 +374,14 @@ namespace HulaScript {
 		void handle_string_add(value& a, value& b);
 
 		void handle_table_add(value& a, value& b);
+		void handle_table_repeat(value& a, value& b);
+		void handle_table_subtract(value& a, value& b);
 		void handle_table_multiply(value& a, value& b);
+		void handle_table_divide(value& a, value& b);
+		void handle_table_modulo(value& a, value& b);
+		void handle_table_exponentiate(value& a, value& b);
+
+		void handle_closure_multiply(value& a, value& b);
 
 		void handle_foreign_obj_add(value& a, value& b);
 		void handle_foreign_obj_subtract(value& a, value& b);
