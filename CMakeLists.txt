@@ -9,15 +9,15 @@ if (POLICY CMP0141)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
 endif()
 
-project ("HulaScript")
-
-add_subdirectory(parallel_hashmap)
+project ("HulaScriptRepl")
+add_subdirectory(HulaScript)
 
 # Add source to this project's executable.
-add_executable (HulaScript "HulaScript.cpp" "HulaScript.h" "garbage_collector.cpp" "interpreter.cpp" "tokenizer.h" "tokenizer.cpp" "source_loc.h" "print.cpp" "hash.h" "compiler.cpp" "runner.cpp" "repl_completer.h" "for_loops.cpp"  "fstdlib.cpp" "ffi.h" "operators.cpp" "table_iterator.h" "ffi_table_helper.cpp")
-set_property(TARGET HulaScript PROPERTY CXX_STANDARD 20)
-set_property(TARGET HulaScript PROPERTY CXX_STANDARD_REQUIRED ON)
+add_executable (HulaScriptRepl "repl.cpp")
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "HulaScript")
+set_property(TARGET HulaScriptRepl PROPERTY CXX_STANDARD 20)
+set_property(TARGET HulaScriptRepl PROPERTY CXX_STANDARD_REQUIRED ON)
 
-target_link_libraries(HulaScript PRIVATE Parallel_Hashmap)
+target_link_libraries(HulaScriptRepl PRIVATE HulaScript)
 
 # TODO: Add tests and install targets if needed.
