@@ -248,8 +248,9 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 			
 			std::vector<std::pair<size_t, source_loc>> to_reinsert;
 			size_t offset = function.start_address - ip;
-			for (auto it = ip_src_map.lower_bound(function.start_address); it != ip_src_map.lower_bound(function.start_address + function.length); it = ip_src_map.erase(it)) {
+			for (auto it = ip_src_map.lower_bound(function.start_address); it != ip_src_map.lower_bound(function.start_address + function.length);) {
 				to_reinsert.push_back(std::make_pair(it->first - offset, it->second));
+				it = ip_src_map.erase(it);
 			}
 			for (auto src_loc : to_reinsert) {
 				ip_src_map.insert(src_loc);

@@ -503,9 +503,15 @@ void HulaScript::instance::execute_arbitrary(const std::vector<instruction>& arb
 	size_t old_ip = ip;
 	instructions.insert(instructions.end(), arbitrary_ins.begin(), arbitrary_ins.end());
 
+	auto src_loc = src_from_ip(old_ip);
+	if (src_loc.has_value()) {
+		ip_src_map.insert({ start_ip, src_loc.value() });
+	}
+
 	ip = start_ip;
 	execute();
 
+	for (auto it = ip_src_map.lower_bound(start_ip); it != ip_src_map.end(); it = ip_src_map.erase(it)) { }
 	instructions.erase(instructions.begin() + start_ip, instructions.end());
 	ip = old_ip;
 }
