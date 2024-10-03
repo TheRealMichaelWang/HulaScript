@@ -56,7 +56,17 @@ void instance::value::expect_type(value::vtype expected_type, const instance& in
 		"BOOLEAN",
 		"STRING",
 		"TABLE",
-		"CLOSURE"
+		"CLOSURE",
+
+		"FOREIGN_OBJECT",
+		"FOREIGN_OBJECT_METHOD",
+		"FOREIGN_FUNCTION",
+		"INTERNAL STRING/PROPERTY-NAME HASH",
+		
+		"BUILTIN TABLE-GET-ITERATOR",
+		"BUILTIN TABLE-FILTER",
+		"BUILTIN TABLE-APPEND",
+		"BUILTIN TABLE-APPEND-RANGE"
 	};
 
 	if (type != expected_type) {
@@ -77,7 +87,6 @@ static const char* tok_names[] = {
 
 	"FUNCTION",
 	"TABLE",
-	"DICT",
 	"NO_CAPTURE",
 	"CLASS",
 

@@ -237,6 +237,7 @@ namespace HulaScript {
 			}
 			global_vars.push_back(hash);
 			globals.push_back(val);
+			return true;
 		}
 
 		void panic(std::string msg) const {
