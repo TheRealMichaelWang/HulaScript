@@ -205,7 +205,7 @@ void instance::handle_numerical_multiply(value& a, value& b) {
 }
 
 void instance::handle_numerical_divide(value& a, value& b) {
-	evaluation_stack.push_back(value(a.data.number * b.data.number));
+	evaluation_stack.push_back(value(a.data.number / b.data.number));
 }
 
 void instance::handle_numerical_modulo(value& a, value& b) {

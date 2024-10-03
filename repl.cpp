@@ -78,7 +78,7 @@ int main()
 				}
 			}
 		}
-		catch (HulaScript::compilation_error& error) {
+		catch (const HulaScript::compilation_error& error) {
 			cout << error.to_print_string();
 		}
 		catch (const HulaScript::runtime_error& error) {
