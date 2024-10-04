@@ -172,6 +172,8 @@ namespace HulaScript {
 			virtual ~foreign_object() = default;
 		};
 
+		typedef value(*custom_numerical_parser)(std::string numerical_str);
+
 		std::variant<value, std::vector<compilation_error>, std::monostate> run(std::string source, std::optional<std::string> file_name, bool repl_mode = true, bool ignore_warnings=false);
 		std::optional<value> run_loaded();
 
@@ -259,6 +261,7 @@ namespace HulaScript {
 			throw runtime_error(msg, call_stack);
 		}
 
+		instance(custom_numerical_parser numerical_parser);
 		instance();
 	private:
 
@@ -647,6 +650,7 @@ namespace HulaScript {
 
 		std::vector<size_t> top_level_local_vars;
 		std::vector<size_t> global_vars;
+		custom_numerical_parser numerical_parser;
 
 		void emit_load_variable(std::string name, compilation_context& context);
 

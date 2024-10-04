@@ -174,7 +174,12 @@ token tokenizer::scan_token() {
 
 		try {
 			double num = std::stod(ss.str());
-			return last_token = token(num);
+
+			if (last_char == 'n' || last_char == 'f') {
+				scan_char();
+				return last_token = token(num);
+			}
+			return last_token = token(token_type::NUMBER_CUSTOM, ss.str());
 		}
 		catch(std::invalid_argument) {
 			std::stringstream ss2;

@@ -229,11 +229,19 @@ instance::value HulaScript::append_range(instance::value table_value, instance::
 	return instance::value();
 }
 
-instance::instance() {
+static instance::value standard_number_parser(std::string str) {
+	return instance::value(std::stod(str));
+}
+
+instance::instance(custom_numerical_parser numerical_parser) : numerical_parser(numerical_parser) {
 	declare_global("irange", make_foreign_function(new_int_range));
 	declare_global("random", make_foreign_function(new_random_generator));
 
 	declare_global("sort", make_foreign_function(sort_table));
 	declare_global("binarySearch", make_foreign_function(binary_search_table));
 	declare_global("iteratorToArray", make_foreign_function(iterator_to_array));
+}
+
+instance::instance() : instance(standard_number_parser) {
+	
 }

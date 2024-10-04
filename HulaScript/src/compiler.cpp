@@ -163,6 +163,11 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		context.emit_load_constant(add_constant(value(token.number())), repl_used_constants);
 		context.tokenizer.scan_token();
 		break;
+	case token_type::NUMBER_CUSTOM: {
+		context.emit_load_constant(add_constant(numerical_parser(token.str())), repl_used_constants);
+		context.tokenizer.scan_token();
+		break;
+	}
 	case token_type::STRING_LITERAL:
 		context.emit_load_constant(add_constant(make_string(token.str())), repl_used_constants);
 		context.tokenizer.scan_token();
