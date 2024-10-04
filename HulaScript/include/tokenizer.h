@@ -106,7 +106,7 @@ namespace HulaScript {
 			scan_token();
 		}
 
-		const bool match_token(token_type expected_type, bool in_while_loop=false) const noexcept {
+		const bool match_token(token_type expected_type, bool in_while_loop=false) const {
 			if (in_while_loop && last_token.type() == token_type::END_OF_SOURCE) {
 				expect_token(expected_type);
 				return true;
@@ -114,7 +114,7 @@ namespace HulaScript {
 			return last_token.type() == expected_type;
 		}
 
-		const bool match_tokens(std::vector<token_type> expected_types, bool in_while_loop = false) const noexcept {
+		const bool match_tokens(std::vector<token_type> expected_types, bool in_while_loop = false) const {
 			if (in_while_loop && last_token.type() == token_type::END_OF_SOURCE) {
 				expect_tokens(expected_types);
 				return true;
