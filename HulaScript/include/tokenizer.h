@@ -11,6 +11,7 @@ namespace HulaScript {
 	enum token_type {
 		IDENTIFIER,
 		NUMBER,
+		NUMBER_CUSTOM,
 		STRING_LITERAL,
 
 		TRUE,

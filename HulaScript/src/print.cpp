@@ -79,6 +79,7 @@ void instance::value::expect_type(value::vtype expected_type, const instance& in
 static const char* tok_names[] = {
 	"IDENTIFIER",
 	"NUMBER",
+	"NUMBER(CUSTOM PARSEABLE)",
 	"STRING_LITERAL",
 
 	"TRUE",
