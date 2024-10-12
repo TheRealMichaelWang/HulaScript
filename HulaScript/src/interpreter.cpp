@@ -249,12 +249,7 @@ void instance::execute() {
 				break;
 			}
 			
-			operator_handler handler = operator_handlers[ins.operation - opcode::ADD][a.type - value::vtype::NUMBER][b.type - value::vtype::NUMBER];
-			if (handler == NULL) {
-				a.expect_type(value::vtype::NUMBER, *this);
-				b.expect_type(value::vtype::NUMBER, *this);
-			}
-
+			operator_handler handler = operator_handlers[operator_handler_map[ins.operation - opcode::ADD][a.type - value::vtype::NUMBER][b.type - value::vtype::NUMBER]];
 			(this->*handler)(a, b);
 			break;
 		}

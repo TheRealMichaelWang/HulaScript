@@ -49,31 +49,37 @@ std::string source_loc::to_print_string() const noexcept {
 	return ss.str();
 }
 
-void instance::value::expect_type(value::vtype expected_type, const instance& instance) const {
-	static const char* type_names[] = {
-		"NIL",
-		"NUMBER",
-		"BOOLEAN",
-		"STRING",
-		"TABLE",
-		"CLOSURE",
+static const char* type_names[] = {
+	"NIL",
+	"NUMBER",
+	"BOOLEAN",
+	"STRING",
+	"TABLE",
+	"CLOSURE",
 
-		"FOREIGN_OBJECT",
-		"FOREIGN_OBJECT_METHOD",
-		"FOREIGN_FUNCTION",
-		"INTERNAL STRING/PROPERTY-NAME HASH",
+	"FOREIGN_OBJECT",
+	"FOREIGN_OBJECT_METHOD",
+	"FOREIGN_FUNCTION",
+	"INTERNAL STRING/PROPERTY-NAME HASH",
 		
-		"BUILTIN TABLE-GET-ITERATOR",
-		"BUILTIN TABLE-FILTER",
-		"BUILTIN TABLE-APPEND",
-		"BUILTIN TABLE-APPEND-RANGE"
-	};
+	"BUILTIN TABLE-GET-ITERATOR",
+	"BUILTIN TABLE-FILTER",
+	"BUILTIN TABLE-APPEND",
+	"BUILTIN TABLE-APPEND-RANGE"
+};
+void instance::value::expect_type(value::vtype expected_type, const instance& instance) const {
 
 	if (type != expected_type) {
 		std::stringstream ss;
 		ss << "Type Error: Expected value of type " << type_names[expected_type] << " but got " << type_names[type] << " instead.";
 		instance.panic(ss.str());
 	}
+}
+
+void instance::handle_unhandled_operator(value& a, value& b) {
+	std::stringstream ss;
+	ss << "No operator handler has been defined for types " << type_names[a.type] << ", " << type_names[b.type] << '.';
+	panic(ss.str());
 }
 
 static const char* tok_names[] = {
