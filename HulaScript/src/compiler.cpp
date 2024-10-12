@@ -164,7 +164,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		context.tokenizer.scan_token();
 		break;
 	case token_type::NUMBER_CUSTOM: {
-		context.emit_load_constant(add_constant(numerical_parser(token.str())), repl_used_constants);
+		context.emit_load_constant(add_constant(numerical_parser(token.str(), *this)), repl_used_constants);
 		context.tokenizer.scan_token();
 		break;
 	}
@@ -354,6 +354,21 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 	}
 	case token_type::MINUS: {
 		context.tokenizer.scan_token();
+
+		if (context.tokenizer.match_token(token_type::NUMBER)) {
+			context.emit_load_constant(add_constant(value(-token.number())), repl_used_constants);
+			context.tokenizer.scan_token();
+			break;
+		}
+		else if (context.tokenizer.match_token(token_type::NUMBER_CUSTOM)) {
+			std::string to_parse;
+			to_parse.push_back('-');
+			to_parse.append(context.tokenizer.get_last_token().str());
+			context.emit_load_constant(add_constant(numerical_parser(to_parse, *this)), repl_used_constants);
+			context.tokenizer.scan_token();
+			break;
+		}
+
 		context.emit_load_constant(add_constant(value(0.0)), repl_used_constants);
 		compile_value(context, false, true);
 		context.emit({ .operation = opcode::SUBTRACT });

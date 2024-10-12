@@ -157,8 +157,8 @@ instance::operator_handler instance::operator_handlers[(opcode::EXPONENTIATE - o
 
 		//operand a is a foreign object
 		{
-			&instance::handle_numerical_modulo, &instance::handle_numerical_modulo, &instance::handle_numerical_modulo,
-			&instance::handle_numerical_modulo, &instance::handle_numerical_modulo, &instance::handle_numerical_modulo
+			&instance::handle_foreign_obj_modulo, &instance::handle_foreign_obj_modulo, &instance::handle_foreign_obj_modulo,
+			&instance::handle_foreign_obj_modulo, &instance::handle_foreign_obj_modulo, &instance::handle_foreign_obj_modulo
 		}
 	},
 
@@ -186,8 +186,8 @@ instance::operator_handler instance::operator_handlers[(opcode::EXPONENTIATE - o
 
 		//operand a is a foreign object
 		{
-			&instance::handle_numerical_exponentiate, &instance::handle_numerical_exponentiate, &instance::handle_numerical_exponentiate,
-			&instance::handle_numerical_exponentiate, &instance::handle_numerical_exponentiate, &instance::handle_numerical_exponentiate
+			&instance::handle_foreign_obj_exponentiate, &instance::handle_foreign_obj_exponentiate, &instance::handle_foreign_obj_exponentiate,
+			&instance::handle_foreign_obj_exponentiate, &instance::handle_foreign_obj_exponentiate, &instance::handle_foreign_obj_exponentiate
 		}
 	}
 };
