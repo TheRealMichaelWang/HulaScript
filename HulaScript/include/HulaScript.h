@@ -377,7 +377,11 @@ namespace HulaScript {
 			std::vector<uint32_t> referenced_constants;
 		};
 
-		static operator_handler operator_handlers[(opcode::EXPONENTIATE - opcode::ADD) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1];
+		static uint8_t operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1];
+		static operator_handler operator_handlers[];
+
+		void handle_unhandled_operator(value& a, value& b);
+
 		void handle_numerical_add(value& a, value& b);
 		void handle_numerical_subtract(value& a, value& b);
 		void handle_numerical_multiply(value& a, value& b);

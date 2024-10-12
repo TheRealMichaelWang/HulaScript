@@ -5,37 +5,37 @@
 
 using namespace HulaScript;
 
-instance::operator_handler instance::operator_handlers[(opcode::EXPONENTIATE - opcode::ADD) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1] = {
+uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1] = {
 	//addition
 	{
 		//operand a is a number
 		{ 
-			&instance::handle_numerical_add, //operand b is a number
-			NULL, NULL, NULL, NULL, NULL //b cannot be any other type
+			1, //operand b is a number
+			0, 0, 0, 0, 0 //b cannot be any other type
 		},
 		
 		//operand a is a boolean
-		{ NULL, NULL, NULL, NULL, NULL, NULL},
+		{ 0, 0, 0, 0, 0, 0},
 		
 		//operand a is a string
 		{ 
-			NULL, NULL, &instance::handle_string_add, 
-			NULL, NULL, NULL
+			0, 0, 5, 
+			0, 0, 0
 		},
 		
 		//operand a is a table
 		{
-			&instance::handle_table_add, &instance::handle_table_add, &instance::handle_table_add, 
-			&instance::handle_table_add, &instance::handle_table_add, &instance::handle_table_add
+			6, 6, 6, 
+			6, 6, 6
 		},
 
 		//operand a is a closure
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a foreign object
 		{ 
-			&instance::handle_foreign_obj_add, &instance::handle_foreign_obj_add, &instance::handle_foreign_obj_add, 
-			&instance::handle_foreign_obj_add, &instance::handle_foreign_obj_add, &instance::handle_foreign_obj_add 
+			14, 14, 14, 
+			14, 14, 14 
 		}
 	},
 
@@ -43,29 +43,29 @@ instance::operator_handler instance::operator_handlers[(opcode::EXPONENTIATE - o
 	{
 		//operand a is a number
 		{
-			&instance::handle_numerical_subtract, //operand b is a number
-			NULL, NULL, NULL, NULL, NULL //b cannot be any other type
+			2, //operand b is a number
+			0, 0, 0, 0, 0 //b cannot be any other type
 		},
 
 		//operand a is a boolean
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a string
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a table
 		{ 
-			&instance::handle_table_subtract, &instance::handle_table_subtract, &instance::handle_table_subtract,
-			&instance::handle_table_subtract, &instance::handle_table_subtract, &instance::handle_table_subtract 
+			8, 8, 8,
+			8, 8, 8 
 		},
 
 		//operand a is a closure
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a foreign object
 		{
-			&instance::handle_foreign_obj_subtract, &instance::handle_foreign_obj_subtract, &instance::handle_foreign_obj_subtract,
-			&instance::handle_foreign_obj_subtract, &instance::handle_foreign_obj_subtract, &instance::handle_foreign_obj_subtract
+			15, 15, 15,
+			15, 15, 15
 		}
 	},
 
@@ -73,34 +73,34 @@ instance::operator_handler instance::operator_handlers[(opcode::EXPONENTIATE - o
 	{
 		//operand a is a number
 		{
-			&instance::handle_numerical_multiply, //operand b is a number
-			NULL, NULL, 
-			&instance::handle_table_repeat, //allocate table by multiplying it by a number
-			NULL, NULL //b cannot be any other type
+			3, //operand b is a number
+			0, 0, 
+			7, //allocate table by multiplying it by a number
+			0, 0 //b cannot be any other type
 		},
 
 		//operand a is a boolean
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a string
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a table
 		{ 
-			&instance::handle_table_multiply, &instance::handle_table_multiply, &instance::handle_table_multiply, 
-			&instance::handle_table_multiply, &instance::handle_table_multiply, &instance::handle_table_multiply 
+			9, 9, 9, 
+			9, 9, 9 
 		},
 
 		//operand a is a closure
 		{ 
-			&instance::handle_closure_multiply, &instance::handle_closure_multiply, &instance::handle_closure_multiply, 
-			&instance::handle_closure_multiply, &instance::handle_closure_multiply, &instance::handle_closure_multiply 
+			13, 13, 13, 
+			13, 13, 13 
 		},
 
 		//operand a is a foreign object
 		{
-			&instance::handle_foreign_obj_multiply, &instance::handle_foreign_obj_multiply, &instance::handle_foreign_obj_multiply,
-			&instance::handle_foreign_obj_multiply, &instance::handle_foreign_obj_multiply, &instance::handle_foreign_obj_multiply
+			16, 16, 16,
+			16, 16, 16
 		}
 	},
 
@@ -108,88 +108,120 @@ instance::operator_handler instance::operator_handlers[(opcode::EXPONENTIATE - o
 	{
 		//operand a is a number
 		{
-			&instance::handle_numerical_divide, //operand b is a number too
-			NULL, NULL, NULL, NULL, NULL //b cannot be any other type
+			4, //operand b is a number too
+			0, 0, 0, 0, 0 //b cannot be any other type
 		},
 
 		//operand a is a boolean
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a string
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a table
 		{ 
-			&instance::handle_table_divide, &instance::handle_table_divide, &instance::handle_table_divide, 
-			&instance::handle_table_divide, &instance::handle_table_divide, &instance::handle_table_divide },
+			10, 10, 10, 
+			10, 10, 10
+		},
 
 		//operand a is a closure
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a foreign object
 		{
-			&instance::handle_foreign_obj_divide, &instance::handle_foreign_obj_divide, &instance::handle_foreign_obj_divide,
-			&instance::handle_foreign_obj_divide, &instance::handle_foreign_obj_divide, &instance::handle_foreign_obj_divide
+			17, 17, 17,
+			17, 17, 17
 		}
 	},
 
 	//modulo
 	{
 		{
-			&instance::handle_numerical_modulo, //operand b is a number too
-			NULL, NULL, NULL, NULL, NULL //b cannot be any other type
+			20, //operand b is a number too
+			0, 0, 0, 0, 0 //b cannot be any other type
 		},
 
 		//operand a is a boolean
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a string
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a table
 		{ 
-			&instance::handle_table_modulo, &instance::handle_table_modulo, &instance::handle_table_modulo, 
-			&instance::handle_table_modulo, &instance::handle_table_modulo, &instance::handle_table_modulo 
+			11, 11, 11, 
+			11, 11, 11 
 		},
 
 		//operand a is a closure
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a foreign object
 		{
-			&instance::handle_foreign_obj_modulo, &instance::handle_foreign_obj_modulo, &instance::handle_foreign_obj_modulo,
-			&instance::handle_foreign_obj_modulo, &instance::handle_foreign_obj_modulo, &instance::handle_foreign_obj_modulo
+			18, 18, 18,
+			18, 18, 18
 		}
 	},
 
 	//exponentiate
 	{
 		{
-			&instance::handle_numerical_exponentiate, //operand b is a number too
-			NULL, NULL, NULL, NULL, NULL //b cannot be any other type
+			21, //operand b is a number too
+			0, 0, 0, 0, 0 //b cannot be any other type
 		},
 
 		//operand a is a boolean
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a string
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a table
 		{ 
-			&instance::handle_table_exponentiate, &instance::handle_table_exponentiate, &instance::handle_table_exponentiate, 
-			&instance::handle_table_exponentiate, &instance::handle_table_exponentiate, &instance::handle_table_exponentiate 
+			21, 21, 21, 
+			21, 21, 21 
 		},
 
 		//operand a is a closure
-		{ NULL, NULL, NULL, NULL, NULL, NULL },
+		{ 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a foreign object
 		{
-			&instance::handle_foreign_obj_exponentiate, &instance::handle_foreign_obj_exponentiate, &instance::handle_foreign_obj_exponentiate,
-			&instance::handle_foreign_obj_exponentiate, &instance::handle_foreign_obj_exponentiate, &instance::handle_foreign_obj_exponentiate
+			19, 19, 19,
+			19, 19, 19
 		}
 	}
+};
+
+instance::operator_handler instance::operator_handlers[] = {
+	&instance::handle_unhandled_operator, //0
+
+	&instance::handle_numerical_add, //1
+	&instance::handle_numerical_subtract, //2
+	&instance::handle_numerical_multiply, //3
+	&instance::handle_numerical_divide, //4
+
+	&instance::handle_string_add, //5
+
+	&instance::handle_table_add, //6
+	&instance::handle_table_repeat, //7
+	&instance::handle_table_subtract, //8
+	&instance::handle_table_multiply, //9
+	&instance::handle_table_divide, //10
+	&instance::handle_table_modulo, //11
+	&instance::handle_table_exponentiate, //12
+
+	&instance::handle_closure_multiply, //13
+
+	&instance::handle_foreign_obj_add, //14
+	&instance::handle_foreign_obj_subtract, //15
+	&instance::handle_foreign_obj_multiply, //16
+	&instance::handle_foreign_obj_divide, //17
+	&instance::handle_foreign_obj_modulo, //18
+	&instance::handle_foreign_obj_exponentiate, //19
+
+	&instance::handle_numerical_modulo, //20
+	&instance::handle_numerical_exponentiate //21
 };
 
 void instance::handle_numerical_add(value& a, value& b) {
