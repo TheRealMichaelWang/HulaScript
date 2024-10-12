@@ -278,13 +278,13 @@ std::string instance::get_value_print_string(value to_print_init) {
 }
 
 const int64_t instance::value::index(int64_t min, int64_t max, instance& instance) const {
-	expect_type(HulaScript::instance::value::vtype::NUMBER, instance);
+	double num = number(instance);
 
-	if (data.number < min || data.number >= max) {
+	if (num < min || num >= max) {
 		std::stringstream ss;
-		ss << data.number << " is outside the range of [" << min << ", " << max << ").";
+		ss << num << " is outside the range of [" << min << ", " << max << ").";
 		instance.panic(ss.str());
 	}
 
-	return static_cast<int64_t>(data.number);
+	return static_cast<int64_t>(num);
 }
