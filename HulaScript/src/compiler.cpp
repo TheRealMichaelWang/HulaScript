@@ -159,8 +159,12 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		context.tokenizer.scan_token();
 		context.emit({ .operation = opcode::PUSH_FALSE });
 		break;
-	case token_type::NUMBER:
+	case token_type::DOUBLE:
 		context.emit_load_constant(add_constant(value(token.number())), repl_used_constants);
+		context.tokenizer.scan_token();
+		break;
+	case token_type::RATIONAL:
+		context.emit_load_constant(add_constant(parse_rational(token.str())), repl_used_constants);
 		context.tokenizer.scan_token();
 		break;
 	case token_type::NUMBER_CUSTOM: {
@@ -355,7 +359,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 	case token_type::MINUS: {
 		context.tokenizer.scan_token();
 
-		if (context.tokenizer.match_token(token_type::NUMBER)) {
+		if (context.tokenizer.match_token(token_type::DOUBLE)) {
 			context.emit_load_constant(add_constant(value(-token.number())), repl_used_constants);
 			context.tokenizer.scan_token();
 			break;

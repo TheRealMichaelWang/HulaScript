@@ -112,7 +112,7 @@ void instance::execute() {
 					evaluation_stack.push_back(value(static_cast<double>(table.count)));
 					break;
 				}
-				else if (flags & value::flags::TABLE_ARRAY_ITERATE) {
+				else if (flags & value::vflags::TABLE_ARRAY_ITERATE) {
 					switch (hash)
 					{
 					case Hash::dj2b("iterator"):
@@ -133,7 +133,7 @@ void instance::execute() {
 					}
 					break;
 				}
-				else if(flags & value::flags::TABLE_INHERITS_PARENT) {
+				else if(flags & value::vflags::TABLE_INHERITS_PARENT) {
 					size_t& base_table_index = table.key_hashes.at(Hash::dj2b("base"));
 					value& base_table_val = heap[table.block.start + base_table_index];
 					flags = base_table_val.flags;
@@ -166,14 +166,14 @@ void instance::execute() {
 					evaluation_stack.push_back(heap[table.block.start + it->second] = set_value);
 					break;
 				}
-				else if (flags & value::flags::TABLE_INHERITS_PARENT && ins.operand) {
+				else if (flags & value::vflags::TABLE_INHERITS_PARENT && ins.operand) {
 					size_t& base_table_index = table.key_hashes.at(Hash::dj2b("base"));
 					value& base_table_val = heap[table.block.start + base_table_index];
 					flags = base_table_val.flags;
 					table_id = base_table_val.data.id;
 				}
 				else {
-					if (flags & value::flags::TABLE_IS_FINAL) {
+					if (flags & value::vflags::TABLE_IS_FINAL) {
 						panic("Cannot add to an immutable table.");
 					}
 					if (table.count == table.block.capacity) {
@@ -192,17 +192,17 @@ void instance::execute() {
 			break;
 		}
 		case opcode::ALLOCATE_TABLE: {
-			expect_type(value::vtype::NUMBER);
+			expect_type(value::vtype::DOUBLE);
 			value length = evaluation_stack.back();
 			evaluation_stack.pop_back();
 
 			size_t table_id = allocate_table(static_cast<size_t>(length.data.number), true);
-			evaluation_stack.push_back(value(value::vtype::TABLE, value::flags::NONE, 0, table_id));
+			evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, table_id));
 			break;
 		}
 		case opcode::ALLOCATE_TABLE_LITERAL: {
 			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
-			evaluation_stack.push_back(value(value::vtype::TABLE, value::flags::TABLE_ARRAY_ITERATE, 0, table_id));
+			evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::TABLE_ARRAY_ITERATE, 0, table_id));
 			break;
 		}
 		case opcode::ALLOCATE_CLASS: {
@@ -212,12 +212,12 @@ void instance::execute() {
 		}
 		case opcode::ALLOCATE_INHERITED_CLASS: {
 			size_t table_id = allocate_table(static_cast<size_t>(ins.operand) + 1, true);
-			evaluation_stack.push_back(value(value::vtype::TABLE, 0 | value::flags::TABLE_INHERITS_PARENT, 0, table_id));
+			evaluation_stack.push_back(value(value::vtype::TABLE, 0 | value::vflags::TABLE_INHERITS_PARENT, 0, table_id));
 			break;
 		}
 		case opcode::FINALIZE_TABLE: {
 			expect_type(value::vtype::TABLE);
-			evaluation_stack.back().flags |= value::flags::TABLE_IS_FINAL;
+			evaluation_stack.back().flags |= value::vflags::TABLE_IS_FINAL;
 
 			size_t table_id = evaluation_stack.back().data.id;
 			reallocate_table(table_id, tables.at(table_id).count, true);
@@ -244,50 +244,50 @@ void instance::execute() {
 			evaluation_stack.pop_back();
 
 			if (a.type == value::vtype::NIL || b.type == value::vtype::NIL) {
-				a.expect_type(value::vtype::NUMBER, *this);
-				b.expect_type(value::vtype::NUMBER, *this);
+				a.expect_type(value::vtype::DOUBLE, *this);
+				b.expect_type(value::vtype::DOUBLE, *this);
 				break;
 			}
 			
-			operator_handler handler = operator_handlers[operator_handler_map[ins.operation - opcode::ADD][a.type - value::vtype::NUMBER][b.type - value::vtype::NUMBER]];
+			operator_handler handler = operator_handlers[operator_handler_map[ins.operation - opcode::ADD][a.type - value::vtype::DOUBLE][b.type - value::vtype::DOUBLE]];
 			(this->*handler)(a, b);
 			break;
 		}
 		case opcode::MORE: {
-			expect_type(value::vtype::NUMBER);
+			expect_type(value::vtype::DOUBLE);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			expect_type(value::vtype::NUMBER);
+			expect_type(value::vtype::DOUBLE);
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			evaluation_stack.push_back(value(a.data.number > b.data.number));
 			break;
 		}
 		case opcode::LESS: {
-			expect_type(value::vtype::NUMBER);
+			expect_type(value::vtype::DOUBLE);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			expect_type(value::vtype::NUMBER);
+			expect_type(value::vtype::DOUBLE);
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			evaluation_stack.push_back(value(a.data.number < b.data.number));
 			break;
 		}
 		case opcode::LESS_EQUAL: {
-			expect_type(value::vtype::NUMBER);
+			expect_type(value::vtype::DOUBLE);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			expect_type(value::vtype::NUMBER);
+			expect_type(value::vtype::DOUBLE);
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			evaluation_stack.push_back(value(a.data.number <= b.data.number));
 			break;
 		}
 		case opcode::MORE_EQUAL: {
-			expect_type(value::vtype::NUMBER);
+			expect_type(value::vtype::DOUBLE);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			expect_type(value::vtype::NUMBER);
+			expect_type(value::vtype::DOUBLE);
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
 			evaluation_stack.push_back(value(a.data.number >= b.data.number));
@@ -364,8 +364,8 @@ void instance::execute() {
 				return_stack.push_back(ip); //push return address
 
 				function_entry& function = functions.at(call_value.function_id);
-				if (call_value.flags & value::flags::HAS_CAPTURE_TABLE) {
-					locals.push_back(value(value::vtype::TABLE, value::flags::NONE, 0, call_value.data.id));
+				if (call_value.flags & value::vflags::HAS_CAPTURE_TABLE) {
+					locals.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, call_value.data.id));
 				}
 				if (function.parameter_count != ins.operand) {
 					std::stringstream ss;
@@ -478,10 +478,10 @@ void instance::execute() {
 				size_t capture_table_id = evaluation_stack.back().data.id;
 				evaluation_stack.pop_back();
 
-				evaluation_stack.push_back(value(value::vtype::CLOSURE, value::flags::HAS_CAPTURE_TABLE, id, capture_table_id));
+				evaluation_stack.push_back(value(value::vtype::CLOSURE, value::vflags::HAS_CAPTURE_TABLE, id, capture_table_id));
 			}
 			else {
-				evaluation_stack.push_back(value(value::vtype::CLOSURE, value::flags::NONE, id, 0));
+				evaluation_stack.push_back(value(value::vtype::CLOSURE, value::vflags::NONE, id, 0));
 			}
 
 			ip++;

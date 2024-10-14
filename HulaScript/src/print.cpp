@@ -1,3 +1,4 @@
+#include "HulaScript.h"
 #include <sstream>
 #include "error.h"
 #include "source_loc.h"
@@ -51,7 +52,8 @@ std::string source_loc::to_print_string() const noexcept {
 
 static const char* type_names[] = {
 	"NIL",
-	"NUMBER",
+	"DOUBLE",
+	"RATIONAL",
 	"BOOLEAN",
 	"STRING",
 	"TABLE",
@@ -84,7 +86,8 @@ void instance::handle_unhandled_operator(value& a, value& b) {
 
 static const char* tok_names[] = {
 	"IDENTIFIER",
-	"NUMBER",
+	"DOUBLE",
+	"RATIONAL",
 	"NUMBER(CUSTOM PARSEABLE)",
 	"STRING_LITERAL",
 
@@ -241,14 +244,17 @@ std::string instance::get_value_print_string(value to_print_init) {
 		case value::vtype::STRING:
 			ss << (current.data.str);
 			break;
-		case value::vtype::NUMBER:
+		case value::vtype::DOUBLE:
 			ss << current.data.number;
+			break;
+		case value::vtype::RATIONAL:
+			ss << rational_to_string(current, false);
 			break;
 
 		case value::vtype::CLOSURE: {
 			function_entry& function = functions.at(current.function_id);
 			ss << "[closure: func_ptr = " << function.name;
-			if (current.flags & value::flags::HAS_CAPTURE_TABLE) {
+			if (current.flags & value::vflags::HAS_CAPTURE_TABLE) {
 				ss << ", capture_table = ";
 
 				close_counts.push_back(1);
@@ -281,6 +287,85 @@ std::string instance::get_value_print_string(value to_print_init) {
 	}
 
 	return ss.str();
+}
+
+static void write_int(std::string& dest, uint64_t a) {
+	uint64_t to_print = a;
+	size_t pos = dest.size();
+	while (to_print > 0) {
+		dest.push_back('0' + (to_print % 10));
+		to_print /= 10;
+	}
+	std::reverse(dest.begin() + pos, dest.end());
+}
+
+std::string instance::rational_to_string(value& rational, bool print_as_frac) {
+	if (rational.data.id == 0) {
+		return "0";
+	}
+
+	std::string s;
+	if (rational.flags & value::vflags::RATIONAL_IS_NEGATIVE) {
+		s.push_back('-');
+	}
+
+	if (print_as_frac) {
+		write_int(s, rational.data.id);
+		if (rational.function_id != 1) {
+			s.push_back('/');
+			write_int(s, rational.function_id);
+		}
+	}
+	else {
+		uint64_t denom10 = 1;
+		size_t decimal_digits = 0;
+		for (;;) {
+			if (denom10 % rational.function_id == 0) {
+				break;
+			}
+
+			if (denom10 > UINT64_MAX / 10) {
+				return rational_to_string(rational, true);
+			}
+			denom10 *= 10;
+			decimal_digits++;
+		}
+
+		uint64_t factor = denom10 / rational.function_id;
+		if (rational.data.id > UINT64_MAX / factor) {
+			return rational_to_string(rational, true);
+		}
+
+		std::string s2;
+		write_int(s2, rational.data.id * factor);
+
+		if (decimal_digits == 0) {
+			s.append(s2);
+			return s;
+		}
+
+		if (s2.length() <= decimal_digits) {
+			s.push_back('0');
+			s.push_back('.');
+
+			for (size_t i = 0; i < decimal_digits - s2.length(); i++) {
+				s.push_back('0');
+			}
+
+			s.append(s2);
+		}
+		else {
+			for (size_t i = 0; i < s2.length() - decimal_digits; i++) {
+				s.push_back(s2.at(i));
+			}
+			s.push_back('.');
+			for (size_t i = s2.length() - decimal_digits; i < s2.length(); i++) {
+				s.push_back(s2.at(i));
+			}
+		}
+	}
+
+	return s;
 }
 
 const int64_t instance::value::index(int64_t min, int64_t max, instance& instance) const {

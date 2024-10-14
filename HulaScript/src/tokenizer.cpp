@@ -175,9 +175,13 @@ token tokenizer::scan_token() {
 		try {
 			double num = std::stod(ss.str());
 
-			if (last_char == 'n' || last_char == 'f') {
+			if (last_char == 'f') {
 				scan_char();
 				return last_token = token(num);
+			}
+			else if (last_char == 'r') {
+				scan_char();
+				return last_token = token(token_type::RATIONAL, ss.str());
 			}
 			return last_token = token(token_type::NUMBER_CUSTOM, ss.str());
 		}
