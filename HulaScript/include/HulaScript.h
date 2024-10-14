@@ -26,7 +26,8 @@ namespace HulaScript {
 		public:
 			enum vtype : uint8_t {
 				NIL,
-				NUMBER,
+				DOUBLE,
+				RATIONAL,
 				BOOLEAN,
 				STRING,
 				TABLE,
@@ -45,13 +46,15 @@ namespace HulaScript {
 		private:
 			vtype type;
 
-			enum flags {
+			enum vflags : uint16_t {
 				NONE = 0,
 				HAS_CAPTURE_TABLE = 1,
 				TABLE_IS_FINAL = 2,
 				TABLE_INHERITS_PARENT = 4,
 				TABLE_ARRAY_ITERATE = 8,
-				INVALID_CONSTANT = 16
+				INVALID_CONSTANT = 16,
+				IS_NUMERICAL = 32,
+				RATIONAL_IS_NEGATIVE = 64
 			};
 
 			uint16_t flags;
@@ -65,27 +68,27 @@ namespace HulaScript {
 				foreign_object* foreign_object;
 			} data;
 
-			value(char* str) : type(vtype::STRING), flags(flags::NONE), function_id(0), data({ .str = str }) { }
+			value(char* str) : type(vtype::STRING), flags(vflags::NONE), function_id(0), data({ .str = str }) { }
 
 			value(vtype t, uint16_t flags, uint32_t function_id, uint64_t data) : type(t), flags(flags), function_id(function_id), data({ .id = data }) { }
 
-			value(foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT), flags(flags::NONE), function_id(0), data({ .foreign_object = foreign_object }){ }
+			value(foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT), flags(vflags::NONE), function_id(0), data({ .foreign_object = foreign_object }){ }
 
 			friend class instance;
 		public:
-			value() : value(vtype::NIL, flags::NONE, 0, 0) { }
+			value() : value(vtype::NIL, vflags::NONE, 0, 0) { }
 
-			value(double number) : type(vtype::NUMBER), flags(flags::NONE), function_id(0), data({ .number = number }) { }
-			value(bool boolean) : type(vtype::BOOLEAN), flags(flags::NONE), function_id(0), data({ .boolean = boolean }) { }
+			value(double number) : type(vtype::DOUBLE), flags(vflags::IS_NUMERICAL), function_id(0), data({ .number = number }) { }
+			value(bool boolean) : type(vtype::BOOLEAN), flags(vflags::NONE), function_id(0), data({ .boolean = boolean }) { }
 
-			value(uint32_t method_id, foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT_METHOD), flags(flags::NONE), function_id(method_id), data({ .foreign_object = foreign_object }) { }
+			value(uint32_t method_id, foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT_METHOD), flags(vflags::NONE), function_id(method_id), data({ .foreign_object = foreign_object }) { }
 
 			double number(instance& instance) const {
 				if (check_type(vtype::FOREIGN_OBJECT)) {
 					return data.foreign_object->to_number();
 				}
 
-				expect_type(vtype::NUMBER, instance);
+				expect_type(vtype::DOUBLE, instance);
 				return data.number;
 			}
 
@@ -117,7 +120,7 @@ namespace HulaScript {
 					[[fallthrough]];
 				case vtype::INTERNAL_TABLE_GET_ITERATOR:
 					[[fallthrough]];
-				case vtype::NUMBER:
+				case vtype::DOUBLE:
 					payload = data.id;
 					break;
 				case vtype::FOREIGN_OBJECT:
@@ -188,6 +191,7 @@ namespace HulaScript {
 		std::optional<value> run_loaded();
 
 		std::string get_value_print_string(value to_print);
+		std::string rational_to_string(value& rational, bool print_as_frac);
 
 		value add_foreign_object(std::unique_ptr<foreign_object>&& foreign_obj) {
 			value to_ret = value(foreign_obj.get());
@@ -205,7 +209,7 @@ namespace HulaScript {
 				availible_foreign_function_ids.pop_back();
 			}
 			foreign_functions.insert({ id, function });
-			return value(value::vtype::FOREIGN_FUNCTION, value::flags::NONE, id, 0);
+			return value(value::vtype::FOREIGN_FUNCTION, value::vflags::NONE, id, 0);
 		}
 
 		value make_string(std::string str) {
@@ -223,7 +227,7 @@ namespace HulaScript {
 			}
 			table.count = elems.size();
 
-			return value(value::vtype::TABLE, is_final ? value::flags::NONE : value::flags::TABLE_IS_FINAL, 0, table_id);
+			return value(value::vtype::TABLE, is_final ? value::vflags::NONE : value::vflags::TABLE_IS_FINAL, 0, table_id);
 		}
 
 		value make_array(const std::vector<value>& elems, bool is_final = false) {
@@ -236,8 +240,10 @@ namespace HulaScript {
 			}
 			table.count = elems.size();
 
-			return value(value::vtype::TABLE, is_final ? value::flags::NONE : value::flags::TABLE_IS_FINAL, 0, table_id);
+			return value(value::vtype::TABLE, is_final ? value::vflags::NONE : value::vflags::TABLE_IS_FINAL, 0, table_id);
 		}
+
+		value parse_rational(std::string src);
 
 		value invoke_value(value to_call, std::vector<value> arguments);
 		value invoke_method(value object, std::string method_name, std::vector<value> arguments);
@@ -377,17 +383,24 @@ namespace HulaScript {
 			std::vector<uint32_t> referenced_constants;
 		};
 
-		static uint8_t operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1];
+		static uint8_t operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::DOUBLE) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::DOUBLE) + 1];
 		static operator_handler operator_handlers[];
 
 		void handle_unhandled_operator(value& a, value& b);
 
-		void handle_numerical_add(value& a, value& b);
-		void handle_numerical_subtract(value& a, value& b);
-		void handle_numerical_multiply(value& a, value& b);
-		void handle_numerical_divide(value& a, value& b);
-		void handle_numerical_modulo(value& a, value& b);
-		void handle_numerical_exponentiate(value& a, value& b);
+		void handle_double_add(value& a, value& b);
+		void handle_double_subtract(value& a, value& b);
+		void handle_double_multiply(value& a, value& b);
+		void handle_double_divide(value& a, value& b);
+		void handle_double_modulo(value& a, value& b);
+		void handle_double_exponentiate(value& a, value& b);
+
+		void handle_rational_add(value& a, value& b);
+		void handle_rational_subtract(value& a, value& b);
+		void handle_rational_multiply(value& a, value& b);
+		void handle_rational_divide(value& a, value& b);
+		void handle_rational_modulo(value& a, value& b);
+		void handle_rational_exponentiate(value& a, value& b);
 
 		void handle_string_add(value& a, value& b);
 
@@ -669,7 +682,7 @@ namespace HulaScript {
 		void emit_load_variable(std::string name, compilation_context& context);
 
 		void emit_load_property(size_t hash, compilation_context& context) {
-			context.emit_load_constant(add_constant(value(value::vtype::INTERNAL_STRHASH, value::flags::NONE, 0, hash)), repl_used_constants);
+			context.emit_load_constant(add_constant(value(value::vtype::INTERNAL_STRHASH, value::vflags::NONE, 0, hash)), repl_used_constants);
 		}
 
 		uint32_t emit_finalize_function(compilation_context& context);

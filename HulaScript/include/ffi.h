@@ -68,7 +68,7 @@ namespace HulaScript {
 		}
 
 		const bool is_array() const noexcept {
-			return flags & instance::value::flags::TABLE_ARRAY_ITERATE;
+			return flags & instance::value::vflags::TABLE_ARRAY_ITERATE;
 		}
 
 		const size_t size() const noexcept {

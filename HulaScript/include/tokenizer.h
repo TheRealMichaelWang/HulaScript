@@ -10,7 +10,8 @@
 namespace HulaScript {
 	enum token_type {
 		IDENTIFIER,
-		NUMBER,
+		DOUBLE,
+		RATIONAL,
 		NUMBER_CUSTOM,
 		STRING_LITERAL,
 
@@ -78,7 +79,7 @@ namespace HulaScript {
 		token(token_type type, std::string str) : _type(type), payload(str) { }
 
 		token(std::string identifier) : _type(token_type::IDENTIFIER), payload(identifier) { }
-		token(double number) : _type(token_type::NUMBER), payload(number) { }
+		token(double number) : _type(token_type::DOUBLE), payload(number) { }
 
 		const token_type type() const noexcept {
 			return _type;

@@ -1,3 +1,4 @@
+#include "HulaScript.h"
 #include <cstring>
 #include <cmath>
 #include <memory>
@@ -5,36 +6,42 @@
 
 using namespace HulaScript;
 
-uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::NUMBER) + 1] = {
+uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::DOUBLE) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::DOUBLE) + 1] = {
 	//addition
 	{
 		//operand a is a number
 		{ 
 			1, //operand b is a number
-			0, 0, 0, 0, 0 //b cannot be any other type
+			0, 0, 0, 0, 0, 0 //b cannot be any other type
 		},
 		
+		//operand b is a rational
+		{
+			0, 22,
+			0, 0, 0, 0, 0
+		},
+
 		//operand a is a boolean
-		{ 0, 0, 0, 0, 0, 0},
+		{ 0, 0, 0, 0, 0, 0, 0},
 		
 		//operand a is a string
 		{ 
-			0, 0, 5, 
+			0, 0, 0, 5, 
 			0, 0, 0
 		},
 		
 		//operand a is a table
 		{
-			6, 6, 6, 
+			6, 6, 6, 6, 
 			6, 6, 6
 		},
 
 		//operand a is a closure
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a foreign object
 		{ 
-			14, 14, 14, 
+			14, 14, 14, 14, 
 			14, 14, 14 
 		}
 	},
@@ -44,27 +51,33 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 		//operand a is a number
 		{
 			2, //operand b is a number
-			0, 0, 0, 0, 0 //b cannot be any other type
+			0, 0, 0, 0, 0, 0 //b cannot be any other type
+		},
+
+		//operand b is a rational
+		{
+			0, 23,
+			0, 0, 0, 0, 0
 		},
 
 		//operand a is a boolean
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a string
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a table
 		{ 
-			8, 8, 8,
+			8, 8, 8, 8,
 			8, 8, 8 
 		},
 
 		//operand a is a closure
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a foreign object
 		{
-			15, 15, 15,
+			15, 15, 15, 15,
 			15, 15, 15
 		}
 	},
@@ -74,32 +87,42 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 		//operand a is a number
 		{
 			3, //operand b is a number
+			0, 
 			0, 0, 
 			7, //allocate table by multiplying it by a number
 			0, 0 //b cannot be any other type
 		},
 
+		//operand a is a rational
+		{
+			0, 
+			24,
+			0, 0,
+			7,
+			0, 0
+		},
+
 		//operand a is a boolean
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a string
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a table
 		{ 
-			9, 9, 9, 
+			9, 9, 9, 9, 
 			9, 9, 9 
 		},
 
 		//operand a is a closure
 		{ 
-			13, 13, 13, 
+			13, 13, 13, 13,
 			13, 13, 13 
 		},
 
 		//operand a is a foreign object
 		{
-			16, 16, 16,
+			16, 16, 16, 16,
 			16, 16, 16
 		}
 	},
@@ -109,27 +132,32 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 		//operand a is a number
 		{
 			4, //operand b is a number too
-			0, 0, 0, 0, 0 //b cannot be any other type
+			0, 0, 0, 0, 0, 0 //b cannot be any other type
+		},
+
+		{
+			0, 25,
+			0, 0, 0, 0, 0
 		},
 
 		//operand a is a boolean
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a string
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a table
 		{ 
-			10, 10, 10, 
+			10, 10, 10, 10, 
 			10, 10, 10
 		},
 
 		//operand a is a closure
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a foreign object
 		{
-			17, 17, 17,
+			17, 17, 17, 17,
 			17, 17, 17
 		}
 	},
@@ -138,27 +166,30 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 	{
 		{
 			20, //operand b is a number too
-			0, 0, 0, 0, 0 //b cannot be any other type
+			0, 0, 0, 0, 0, 0 //b cannot be any other type
 		},
 
+		//operand a is a rational
+		{ 0, 0, 0, 0, 0, 0, 0},
+
 		//operand a is a boolean
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a string
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a table
 		{ 
-			11, 11, 11, 
+			11, 11, 11, 11,
 			11, 11, 11 
 		},
 
 		//operand a is a closure
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a foreign object
 		{
-			18, 18, 18,
+			18, 18, 18, 18,
 			18, 18, 18
 		}
 	},
@@ -167,27 +198,30 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 	{
 		{
 			21, //operand b is a number too
-			0, 0, 0, 0, 0 //b cannot be any other type
+			0, 0, 0, 0, 0, 0 //b cannot be any other type
 		},
 
+		//operand a is a rational
+		{ 0, 0, 0, 0, 0, 0, 0},
+
 		//operand a is a boolean
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a string
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a table
 		{ 
-			21, 21, 21, 
+			21, 21, 21, 21,
 			21, 21, 21 
 		},
 
 		//operand a is a closure
-		{ 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 
 		//operand a is a foreign object
 		{
-			19, 19, 19,
+			19, 19, 19, 19,
 			19, 19, 19
 		}
 	}
@@ -196,10 +230,10 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 instance::operator_handler instance::operator_handlers[] = {
 	&instance::handle_unhandled_operator, //0
 
-	&instance::handle_numerical_add, //1
-	&instance::handle_numerical_subtract, //2
-	&instance::handle_numerical_multiply, //3
-	&instance::handle_numerical_divide, //4
+	&instance::handle_double_add, //1
+	&instance::handle_double_subtract, //2
+	&instance::handle_double_multiply, //3
+	&instance::handle_double_divide, //4
 
 	&instance::handle_string_add, //5
 
@@ -220,31 +254,36 @@ instance::operator_handler instance::operator_handlers[] = {
 	&instance::handle_foreign_obj_modulo, //18
 	&instance::handle_foreign_obj_exponentiate, //19
 
-	&instance::handle_numerical_modulo, //20
-	&instance::handle_numerical_exponentiate //21
+	&instance::handle_double_modulo, //20
+	&instance::handle_double_exponentiate, //21
+
+	&instance::handle_rational_add, //22
+	&instance::handle_rational_subtract, //23 
+	&instance::handle_rational_multiply, //24
+	&instance::handle_rational_divide, //25
 };
 
-void instance::handle_numerical_add(value& a, value& b) {
+void instance::handle_double_add(value& a, value& b) {
 	evaluation_stack.push_back(value(a.data.number + b.data.number));
 }
 
-void instance::handle_numerical_subtract(value& a, value& b) {
+void instance::handle_double_subtract(value& a, value& b) {
 	evaluation_stack.push_back(value(a.data.number - b.data.number));
 }
 
-void instance::handle_numerical_multiply(value& a, value& b) {
+void instance::handle_double_multiply(value& a, value& b) {
 	evaluation_stack.push_back(value(a.data.number * b.data.number));
 }
 
-void instance::handle_numerical_divide(value& a, value& b) {
+void instance::handle_double_divide(value& a, value& b) {
 	evaluation_stack.push_back(value(a.data.number / b.data.number));
 }
 
-void instance::handle_numerical_modulo(value& a, value& b) {
+void instance::handle_double_modulo(value& a, value& b) {
 	evaluation_stack.push_back(value(fmod(a.data.number, b.data.number)));
 }
 
-void instance::handle_numerical_exponentiate(value& a, value& b) {
+void instance::handle_double_exponentiate(value& a, value& b) {
 	evaluation_stack.push_back(value(pow(a.data.number, b.data.number)));
 }
 
@@ -261,7 +300,7 @@ void instance::handle_string_add(value& a, value& b) {
 }
 
 void instance::handle_table_add(value& a, value& b) {
-	if (!(a.flags & value::flags::TABLE_ARRAY_ITERATE && b.flags & value::flags::TABLE_ARRAY_ITERATE)) {
+	if (!(a.flags & value::vflags::TABLE_ARRAY_ITERATE && b.flags & value::vflags::TABLE_ARRAY_ITERATE)) {
 		evaluation_stack.push_back(invoke_method(a, "add", { b }));
 		return;
 	}
@@ -284,7 +323,7 @@ void instance::handle_table_add(value& a, value& b) {
 
 	temp_gc_exempt.clear();
 
-	evaluation_stack.push_back(value(value::vtype::TABLE, 0, 0, table_id));
+	evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, table_id));
 }
 
 void instance::handle_table_repeat(value& a, value& b) {
@@ -293,7 +332,7 @@ void instance::handle_table_repeat(value& a, value& b) {
 	if (a.data.number < 0) {
 		panic("Cannot allocate array-table with negative length.");
 	}
-	size_t len = static_cast<size_t>(a.data.number);
+	size_t len = a.index(0, INT64_MAX, *this);
 
 	size_t table_id = allocate_table(len * tables.at(b.data.id).count, true);
 	table& existing = tables.at(b.data.id);
@@ -308,7 +347,7 @@ void instance::handle_table_repeat(value& a, value& b) {
 
 	temp_gc_exempt.pop_back();
 
-	evaluation_stack.push_back(value(value::vtype::TABLE, 0, 0, table_id));
+	evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, table_id));
 }
 
 void instance::handle_table_subtract(value& a, value& b) {
@@ -316,7 +355,7 @@ void instance::handle_table_subtract(value& a, value& b) {
 }
 
 void instance::handle_table_multiply(value& a, value& b) {
-	if (a.flags & value::flags::TABLE_ARRAY_ITERATE) {
+	if (a.flags & value::vflags::TABLE_ARRAY_ITERATE) {
 		handle_table_repeat(b, a);
 	}
 	else {

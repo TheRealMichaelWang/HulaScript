@@ -82,7 +82,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 			{
 			case value::vtype::CLOSURE:
 				functions_to_trace.push_back(to_trace.function_id);
-				if (!(to_trace.flags & value::flags::HAS_CAPTURE_TABLE)) {
+				if (!(to_trace.flags & value::vflags::HAS_CAPTURE_TABLE)) {
 					break;
 				}
 				[[fallthrough]];
@@ -145,7 +145,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	//remove unused constants
 	for (uint_fast32_t i = 0; i < constants.size(); i++) {
 		if (!marked_constants.contains(i)) {
-			if (constants[i].flags & value::flags::INVALID_CONSTANT) {
+			if (constants[i].flags & value::vflags::INVALID_CONSTANT) {
 				continue;
 			}
 
@@ -153,7 +153,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 			constant_hashses.erase(hash);
 			availible_constant_ids.push_back(i);
 
-			constants[i].flags |= value::flags::INVALID_CONSTANT;
+			constants[i].flags |= value::vflags::INVALID_CONSTANT;
 		}
 	}
 
