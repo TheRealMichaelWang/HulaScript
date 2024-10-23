@@ -1,4 +1,5 @@
 #include <tuple>
+#include <stdexcept>
 #include "HulaScript.h"
 
 using namespace HulaScript;
@@ -83,12 +84,12 @@ void instance::handle_rational_multiply(value& a, value& b) {
 }
 
 void instance::handle_rational_divide(value& a, value& b) {
-	size_t anum_bdenom_gcd = gcd(a.data.id, b.function_id);
-	size_t bnum_adenom_gcd = gcd(b.data.id, a.function_id);
+	size_t anum_bdenom_gcd = gcd(a.data.id, b.data.id);
+	size_t bnum_adenom_gcd = gcd(a.function_id, b.function_id);
 	size_t anum = a.data.id / anum_bdenom_gcd;
-	size_t bnum = b.data.id / bnum_adenom_gcd;
+	size_t bnum = b.data.id / anum_bdenom_gcd;
 	size_t adenom = a.function_id / bnum_adenom_gcd;
-	size_t bdenom = b.function_id / anum_bdenom_gcd;
+	size_t bdenom = b.function_id / bnum_adenom_gcd;
 
 	if (anum > UINT32_MAX / bnum) {
 		panic("Overflow: Numerator in rational multiplication is too large.");
@@ -99,7 +100,7 @@ void instance::handle_rational_divide(value& a, value& b) {
 
 	value::vflags flags = ((a.flags & value::vflags::RATIONAL_IS_NEGATIVE) == (b.flags & value::vflags::RATIONAL_IS_NEGATIVE)) ? value::vflags::NONE : value::vflags::RATIONAL_IS_NEGATIVE;
 
-	evaluation_stack.push_back(value(value::vtype::RATIONAL, flags, anum * bnum, adenom * bdenom));
+	evaluation_stack.push_back(value(value::vtype::RATIONAL, flags, adenom * bnum, anum * bdenom));
 }
 
 instance::value instance::parse_rational(std::string str) {
@@ -112,7 +113,7 @@ instance::value instance::parse_rational(std::string str) {
 		char c = str.at(i);
 		if (c >= '0' && c <= '9') {
 			if (numerator > UINT64_MAX / 10) {
-				panic("Overflow: Numerator is too large.");
+				throw std::runtime_error("Overflow: Numerator is too large.");
 			}
 
 			numerator *= 10;
@@ -120,26 +121,26 @@ instance::value instance::parse_rational(std::string str) {
 
 			if (decimal_detected) {
 				if (denominator > UINT32_MAX / 10) {
-					panic("Overflow: Denominator is too large.");
+					throw std::runtime_error("Overflow: Denominator is too large.");
 				}
 				denominator *= 10;
 			}
 		}
 		else if (c == '.') {
 			if (decimal_detected) {
-				panic("Format: Two decimals detected.");
+				throw std::runtime_error("Format: Two decimals detected.");
 			}
 
 			decimal_detected = true;
 		}
 		else if (c == '-') {
 			if (is_negate) {
-				panic("Format: Two negates detected.");
+				throw std::runtime_error("Format: Two negates detected.");
 			}
 			is_negate = true;
 		}
 		else {
-			panic("Format: Must be digit (0-9).");
+			throw std::runtime_error("Format: Must be digit (0-9).");
 		}
 	}
 
