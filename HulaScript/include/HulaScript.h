@@ -85,7 +85,10 @@ namespace HulaScript {
 
 			double number(instance& instance) const {
 				if (check_type(vtype::FOREIGN_OBJECT)) {
-					return data.foreign_object->to_number();
+					return data.foreign_object->to_number(instance);
+				}
+				else if (check_type(vtype::RATIONAL)) {
+					return static_cast<double>(data.id) / static_cast<double>(function_id);
 				}
 
 				expect_type(vtype::DOUBLE, instance);
@@ -174,7 +177,7 @@ namespace HulaScript {
 
 			virtual void trace(std::vector<value>& to_trace) { }
 			virtual std::string to_string() { return "Untitled Foreign Object"; }
-			virtual double to_number() { return NAN; }
+			virtual double to_number(instance& instance) { instance.panic("Expected number got foreign object."); return NAN; }
 
 			virtual size_t compute_hash() {
 				return (size_t)this;
