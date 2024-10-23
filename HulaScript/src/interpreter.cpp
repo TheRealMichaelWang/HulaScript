@@ -254,43 +254,35 @@ void instance::execute() {
 			break;
 		}
 		case opcode::MORE: {
-			expect_type(value::vtype::DOUBLE);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			expect_type(value::vtype::DOUBLE);
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			evaluation_stack.push_back(value(a.data.number > b.data.number));
+			evaluation_stack.push_back(value(a.number(*this) > b.number(*this)));
 			break;
 		}
 		case opcode::LESS: {
-			expect_type(value::vtype::DOUBLE);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			expect_type(value::vtype::DOUBLE);
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			evaluation_stack.push_back(value(a.data.number < b.data.number));
+			evaluation_stack.push_back(value(a.number(*this) < b.number(*this)));
 			break;
 		}
 		case opcode::LESS_EQUAL: {
-			expect_type(value::vtype::DOUBLE);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			expect_type(value::vtype::DOUBLE);
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			evaluation_stack.push_back(value(a.data.number <= b.data.number));
+			evaluation_stack.push_back(value(a.number(*this) <= b.number(*this)));
 			break;
 		}
 		case opcode::MORE_EQUAL: {
-			expect_type(value::vtype::DOUBLE);
 			value b = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			expect_type(value::vtype::DOUBLE);
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			evaluation_stack.push_back(value(a.data.number >= b.data.number));
+			evaluation_stack.push_back(value(a.number(*this) >= b.number(*this)));
 			break;
 		}
 		case opcode::EQUALS: {
