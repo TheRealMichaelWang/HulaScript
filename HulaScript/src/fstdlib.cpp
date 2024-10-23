@@ -230,7 +230,12 @@ instance::value HulaScript::append_range(instance::value table_value, instance::
 }
 
 static instance::value standard_number_parser(std::string str, instance& instance) {
-	return instance::value(std::stod(str));
+	try {
+		return instance.parse_rational(str);
+	}
+	catch(const std::runtime_error& err) {
+		return instance::value(std::stod(str));
+	}
 }
 
 instance::instance(custom_numerical_parser numerical_parser) : numerical_parser(numerical_parser) {
