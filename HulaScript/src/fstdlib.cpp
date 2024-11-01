@@ -21,7 +21,7 @@ private:
 	}
 
 	instance::value next(instance& instance) override {
-		instance::value toret(static_cast<double>(i));
+		instance::value toret = instance.rational_integer(i);
 		i += step;
 		return toret;
 	}
