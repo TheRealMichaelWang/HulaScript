@@ -69,7 +69,7 @@ namespace HulaScript {
 				case token_type::FOR: {
 					expected_toks.push_back(token_type::END_BLOCK);
 					expected_toks.push_back(token_type::DO);
-					expected_toks.push_back(token_type::IN);
+					expected_toks.push_back(token_type::IN_TOK);
 					break;
 				}
 				}

@@ -11,7 +11,7 @@ void instance::compile_for_loop(compilation_context& context) {
 	std::string identifier = context.tokenizer.get_last_token().str();
 	context.tokenizer.scan_token();
 
-	context.tokenizer.expect_token(token_type::IN);
+	context.tokenizer.expect_token(token_type::IN_TOK);
 	context.tokenizer.scan_token();
 	
 	make_lexical_scope(context, true);
@@ -86,7 +86,7 @@ void instance::compile_for_loop_value(compilation_context& context) {
 	std::string identifier = context.tokenizer.get_last_token().str();
 	context.tokenizer.scan_token();
 
-	context.tokenizer.expect_token(token_type::IN);
+	context.tokenizer.expect_token(token_type::IN_TOK);
 	context.tokenizer.scan_token();
 
 	make_lexical_scope(context, true);

@@ -9,6 +9,7 @@
 using namespace std;
 
 static bool should_quit = false;
+static bool no_warn = false;
 
 static HulaScript::instance::value quit(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
 	should_quit = true;
@@ -19,8 +20,30 @@ static HulaScript::instance::value print(std::vector<HulaScript::instance::value
 	for (auto argument : arguments) {
 		std::cout << instance.get_value_print_string(argument);
 	}
-	std::cout << endl;
+	cout << endl;
 	return HulaScript::instance::value(static_cast<double>(arguments.size()));
+}
+
+static HulaScript::instance::value set_warnings(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
+	if (arguments.size() == 0) {
+		instance.panic("Expected 1 argument, a boolean to indicate whether you want warnings or not.");
+	}
+
+	bool see_warnings = arguments[0].boolean(instance);
+	if (see_warnings == !no_warn) {
+		cout << "No changes applied to warning settings." << endl;
+		return HulaScript::instance::value(false);
+	}
+	else {
+		no_warn = !see_warnings;
+		if (see_warnings) {
+			cout << "Warnings are now enabled." << endl;
+		}
+		else {
+			cout << "Warnings are now disabled." << endl;
+		}
+		return HulaScript::instance::value(true);
+	}
 }
 
 int main()
@@ -32,6 +55,7 @@ int main()
 
 	instance.declare_global("quit", instance.make_foreign_function(quit));
 	instance.declare_global("print", instance.make_foreign_function(print));
+	instance.declare_global("warnings", instance.make_foreign_function(set_warnings));
 
 	while (!should_quit) {
 		cout << ">>> ";
@@ -57,24 +81,32 @@ int main()
 		}
 
 		try {
-			auto res = instance.run(repl_completer.get_source(), "REPL");
-			if (holds_alternative<HulaScript::instance::value>(res)) {
-				cout << instance.get_value_print_string(std::get<HulaScript::instance::value>(res));
-			}
-			else if (holds_alternative<std::vector<HulaScript::compilation_error>>(res)) {
-				auto warnings = std::get<std::vector<HulaScript::compilation_error>>(res);
-
-				cout << warnings.size() << " warning(s): " << std::endl;
-				for (auto warning : warnings) {
-					cout << warning.to_print_string() << std::endl;
+			if (no_warn) {
+				auto res = instance.run_no_warnings(repl_completer.get_source(), std::nullopt);
+				if (res.has_value()) {
+					cout << instance.get_value_print_string(res.value());
 				}
+			}
+			else {
+				auto res = instance.run(repl_completer.get_source(), std::nullopt);
+				if (holds_alternative<HulaScript::instance::value>(res)) {
+					cout << instance.get_value_print_string(std::get<HulaScript::instance::value>(res));
+				}
+				else if (holds_alternative<std::vector<HulaScript::compilation_error>>(res)) {
+					auto warnings = std::get<std::vector<HulaScript::compilation_error>>(res);
 
-				cout << "Press ENTER to aknowledge and continue execution..." << std::endl;
-				while(cin.get() != '\n') { }
+					cout << warnings.size() << " warning(s): " << std::endl;
+					for (auto warning : warnings) {
+						cout << warning.to_print_string() << std::endl;
+					}
 
-				auto run_res = instance.run_loaded();
-				if (run_res.has_value()) {
-					cout << instance.get_value_print_string(run_res.value());
+					cout << "Press ENTER to aknowledge and continue execution..." << std::endl;
+					while (cin.get() != '\n') {}
+
+					auto run_res = instance.run_loaded();
+					if (run_res.has_value()) {
+						cout << instance.get_value_print_string(run_res.value());
+					}
 				}
 			}
 		}

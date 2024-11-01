@@ -151,11 +151,11 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		context.tokenizer.scan_token();
 		context.emit({ .operation = opcode::PUSH_NIL });
 		break;
-	case token_type::TRUE:
+	case token_type::TRUE_TOK:
 		context.tokenizer.scan_token();
 		context.emit({ .operation = opcode::PUSH_TRUE });
 		break;
-	case token_type::FALSE:
+	case token_type::FALSE_TOK:
 		context.tokenizer.scan_token();
 		context.emit({ .operation = opcode::PUSH_FALSE });
 		break;

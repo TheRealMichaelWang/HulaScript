@@ -190,7 +190,8 @@ namespace HulaScript {
 
 		typedef value(*custom_numerical_parser)(std::string numerical_str, instance& instance);
 
-		std::variant<value, std::vector<compilation_error>, std::monostate> run(std::string source, std::optional<std::string> file_name, bool repl_mode = true, bool ignore_warnings=false);
+		std::variant<value, std::vector<compilation_error>, std::monostate> run(std::string source, std::optional<std::string> file_name, bool repl_mode = true);
+		std::optional<value> run_no_warnings(std::string source, std::optional<std::string> file_name, bool repl_mode = true);
 		std::optional<value> run_loaded();
 
 		std::string get_value_print_string(value to_print);
@@ -200,6 +201,10 @@ namespace HulaScript {
 			value to_ret = value(foreign_obj.get());
 			foreign_objs.insert(std::move(foreign_obj));
 			return to_ret;
+		}
+
+		value add_permanent_foreign_object(foreign_object* foreign_obj) {
+			return value(foreign_obj);
 		}
 
 		value make_foreign_function(std::function<value(std::vector<value>& arguments, instance& instance)> function) {
@@ -540,7 +545,7 @@ namespace HulaScript {
 					instructions.insert(instructions.end(), scope.instructions.begin(), scope.instructions.end());
 					
 					ip_src_map.reserve(ip_src_map.size() + scope.ip_src_map.size());
-					for (auto ip_src : scope.ip_src_map) {
+					for (auto& ip_src : scope.ip_src_map) {
 						ip_src_map.push_back(std::make_pair(scope.final_ins_offset + ip_src.first, ip_src.second));
 					}
 

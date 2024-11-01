@@ -17,7 +17,7 @@ void instance::finalize() {
 	local_offset = 0;
 }
 
-std::variant<instance::value, std::vector<compilation_error>, std::monostate> instance::run(std::string source, std::optional<std::string> file_name, bool repl_mode, bool ignore_warnings) {
+std::variant<instance::value, std::vector<compilation_error>, std::monostate> instance::run(std::string source, std::optional<std::string> file_name, bool repl_mode) {
 	tokenizer tokenizer(source, file_name);
 
 	compilation_context context = {
@@ -32,7 +32,7 @@ std::variant<instance::value, std::vector<compilation_error>, std::monostate> in
 		throw;
 	}
 
-	if (!context.warnings.empty() && !ignore_warnings) {
+	if (!context.warnings.empty()) {
 		return context.warnings;
 	}
 
@@ -41,6 +41,24 @@ std::variant<instance::value, std::vector<compilation_error>, std::monostate> in
 		return res.value();
 	}
 	return std::monostate{};
+}
+
+std::optional<instance::value> instance::run_no_warnings(std::string source, std::optional<std::string> file_name, bool repl_mode) {
+	tokenizer tokenizer(source, file_name);
+
+	compilation_context context = {
+		.tokenizer = tokenizer
+	};
+
+	try {
+		compile(context, repl_mode);
+	}
+	catch (...) {
+		garbage_collect(true);
+		throw;
+	}
+
+	return run_loaded();
 }
 
 std::optional<instance::value> instance::run_loaded() {
