@@ -71,6 +71,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	phmap::flat_hash_set<uint32_t> marked_foreign_functions;
 
 	functions_to_trace.insert(functions_to_trace.end(), repl_used_functions.begin(), repl_used_functions.end());
+	marked_constants.insert(repl_used_constants.begin(), repl_used_constants.end());
 
 	while (!values_to_trace.empty() || !functions_to_trace.empty()) //trace values 
 	{

@@ -356,13 +356,27 @@ void instance::execute() {
 				return_stack.push_back(ip); //push return address
 
 				function_entry& function = functions.at(call_value.function_id);
-				if (call_value.flags & value::vflags::HAS_CAPTURE_TABLE) {
-					locals.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, call_value.data.id));
+				if (call_value.flags & value::vflags::FUNCTION_IS_VARIADIC) {
+					temp_gc_exempt.push_back(call_value);
+					size_t arg_table_id = allocate_table(ins.operand, true);
+					temp_gc_exempt.pop_back();
+					table& arg_table_entry = tables.at(arg_table_id);
+
+					for (size_t i = 0; i < ins.operand; i++) {
+						heap[arg_table_entry.block.start + i] = locals.back();
+						locals.pop_back();
+						arg_table_entry.key_hashes.insert({ rational_integer(i).hash(), i });
+					}
+
+					locals.push_back(value(value::vtype::TABLE, value::vflags::TABLE_IS_FINAL, 0, arg_table_id));
 				}
-				if (function.parameter_count != ins.operand) {
+				else if (function.parameter_count != ins.operand) {
 					std::stringstream ss;
 					ss << "Argument Error: Function " << function.name << " expected " << static_cast<size_t>(function.parameter_count) << " argument(s), but got " << static_cast<size_t>(ins.operand) << " instead.";
 					panic(ss.str());
+				}
+				if (call_value.flags & value::vflags::HAS_CAPTURE_TABLE) {
+					locals.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, call_value.data.id));
 				}
 				ip = function.start_address;
 				continue;
@@ -402,7 +416,7 @@ void instance::execute() {
 			}
 			case value::vtype::INTERNAL_TABLE_APPEND: {
 				if (ins.operand != 1) {
-					panic("Array append expects 1 argument, filter function.");
+					panic("Array append expects 1 argument, append function.");
 				}
 
 				value arguments = locals.back();
@@ -414,7 +428,7 @@ void instance::execute() {
 			}
 			case value::vtype::INTERNAL_TABLE_APPEND_RANGE: {
 				if (ins.operand != 1) {
-					panic("Array append expects 1 argument, filter function.");
+					panic("Array append range expects 1 argument, append range function.");
 				}
 
 				value arguments = locals.back();

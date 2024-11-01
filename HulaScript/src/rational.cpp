@@ -103,7 +103,7 @@ void instance::handle_rational_divide(value& a, value& b) {
 	evaluation_stack.push_back(value(value::vtype::RATIONAL, flags, adenom * bnum, anum * bdenom));
 }
 
-instance::value instance::parse_rational(std::string str) {
+instance::value instance::parse_rational(std::string str) const {
 	uint64_t numerator = 0;
 	uint32_t denominator = 1;
 

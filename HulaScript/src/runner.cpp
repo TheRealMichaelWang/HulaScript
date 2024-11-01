@@ -77,6 +77,8 @@ std::optional<instance::value> instance::run_loaded() {
 	catch (...) {
 		global_vars.erase(global_vars.begin() + global_vars.size(), global_vars.end());
 		top_level_local_vars.erase(top_level_local_vars.begin() + declared_top_level_locals, top_level_local_vars.end());
+		repl_used_constants.clear();
+		repl_used_functions.clear();
 
 		finalize();
 		throw;

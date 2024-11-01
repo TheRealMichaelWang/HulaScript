@@ -54,7 +54,8 @@ namespace HulaScript {
 				TABLE_ARRAY_ITERATE = 8,
 				INVALID_CONSTANT = 16,
 				IS_NUMERICAL = 32,
-				RATIONAL_IS_NEGATIVE = 64
+				RATIONAL_IS_NEGATIVE = 64,
+				FUNCTION_IS_VARIADIC = 128,
 			};
 
 			uint16_t flags;
@@ -133,20 +134,23 @@ namespace HulaScript {
 					payload = Hash::dj2b(data.str);
 					break;
 				}
+				case vtype::RATIONAL:
+					[[fallthrough]];
 				case vtype::FOREIGN_OBJECT_METHOD:
 					[[fallthrough]];
 				case vtype::CLOSURE: {
-					size_t payload2 = flags;
-					payload2 <<= 32;
-					payload2 += function_id;
-					payload = HulaScript::Hash::combine(payload2, data.id);
+					payload = HulaScript::Hash::combine(data.id, function_id);
 					break;
 				}
 				case vtype::FOREIGN_FUNCTION:
 					payload = function_id;
 					break;
 				}
-				return HulaScript::Hash::combine(static_cast<size_t>(type), payload);
+
+				size_t final_mask = static_cast<size_t>(type);
+				final_mask <<= sizeof(vflags);
+				final_mask += static_cast<size_t>(flags);
+				return HulaScript::Hash::combine(final_mask, payload);
 			}
 
 			void expect_type(vtype expected_type, const instance& instance) const;
@@ -251,7 +255,11 @@ namespace HulaScript {
 			return value(value::vtype::TABLE, is_final ? value::vflags::NONE : value::vflags::TABLE_IS_FINAL, 0, table_id);
 		}
 
-		value parse_rational(std::string src);
+		value parse_rational(std::string src) const;
+
+		value rational_integer(int64_t integer) const noexcept {
+			return value(value::vtype::RATIONAL, integer < 0 ? value::vflags::RATIONAL_IS_NEGATIVE : value::vflags::NONE, 1, integer < 0 ? (- integer) : integer);
+		}
 
 		value invoke_value(value to_call, std::vector<value> arguments);
 		value invoke_method(value object, std::string method_name, std::vector<value> arguments);
@@ -407,8 +415,6 @@ namespace HulaScript {
 		void handle_rational_subtract(value& a, value& b);
 		void handle_rational_multiply(value& a, value& b);
 		void handle_rational_divide(value& a, value& b);
-		void handle_rational_modulo(value& a, value& b);
-		void handle_rational_exponentiate(value& a, value& b);
 
 		void handle_string_add(value& a, value& b);
 
@@ -508,6 +514,7 @@ namespace HulaScript {
 					panic("Cannot add constant; constant limit reached.");
 				}
 
+				constant_hashses.insert({ hash, static_cast<uint32_t>(constants.size()) });
 				constants.push_back(constant);
 				return static_cast<uint32_t>(constants.size() - 1);
 			}
@@ -515,6 +522,7 @@ namespace HulaScript {
 				uint32_t index = availible_constant_ids.back();
 				availible_constant_ids.pop_back();
 				constants[index] = constant;
+				constant_hashses.insert({ hash, index });
 				return index;
 			}
 		}
