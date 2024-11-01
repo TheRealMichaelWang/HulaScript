@@ -106,9 +106,9 @@ token tokenizer::scan_token() {
 		switch (hash)
 		{
 		case Hash::dj2b("true"):
-			return last_token = token(token_type::TRUE);
+			return last_token = token(token_type::TRUE_TOK);
 		case Hash::dj2b("false"):
-			return last_token = token(token_type::FALSE);
+			return last_token = token(token_type::FALSE_TOK);
 		case Hash::dj2b("nil"):
 			return last_token = token(token_type::NIL);
 		case Hash::dj2b("function"):
@@ -128,7 +128,7 @@ token tokenizer::scan_token() {
 		case Hash::dj2b("for"):
 			return last_token = token(token_type::FOR);
 		case Hash::dj2b("in"):
-			return last_token = token(token_type::IN);
+			return last_token = token(token_type::IN_TOK);
 		case Hash::dj2b("do"):
 			return last_token = token(token_type::DO);
 		case Hash::dj2b("return"):

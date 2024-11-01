@@ -15,8 +15,8 @@ namespace HulaScript {
 		NUMBER_CUSTOM,
 		STRING_LITERAL,
 
-		TRUE,
-		FALSE,
+		TRUE_TOK,
+		FALSE_TOK,
 		NIL,
 
 		FUNCTION,
@@ -29,7 +29,7 @@ namespace HulaScript {
 		ELSE,
 		WHILE,
 		FOR,
-		IN,
+		IN_TOK,
 		DO,
 		RETURN,
 		LOOP_BREAK,
