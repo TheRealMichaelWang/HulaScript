@@ -109,7 +109,7 @@ void instance::execute() {
 					break;
 				}
 				else if (hash == Hash::dj2b("@length")) {
-					evaluation_stack.push_back(value(static_cast<double>(table.count)));
+					evaluation_stack.push_back(rational_integer(table.count));
 					break;
 				}
 				else if (flags & value::vflags::TABLE_ARRAY_ITERATE) {
