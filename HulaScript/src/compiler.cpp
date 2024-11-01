@@ -245,7 +245,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			}
 
 			context.emit({ .operation = opcode::DUPLICATE_TOP });
-			context.emit_load_constant(add_constant(value(static_cast<double>(count))), repl_used_constants);
+			context.emit_load_constant(add_constant(rational_integer(count)), repl_used_constants);
 			compile_expression(context);
 			context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
 			context.emit({ .operation = opcode::DISCARD_TOP });
