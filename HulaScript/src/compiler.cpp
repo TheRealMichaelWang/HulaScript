@@ -56,7 +56,7 @@ bool instance::compilation_context::alloc_and_store(std::string name, bool must_
 	}
 }
 
-instance::operand instance::compilation_context::alloc_and_store_global(std::string name) {
+instance::operand instance::compilation_context::alloc_global(std::string name) {
 	size_t hash = Hash::dj2b(name.c_str());
 	if (active_variables.contains(hash)) {
 		std::stringstream ss;
@@ -77,7 +77,11 @@ instance::operand instance::compilation_context::alloc_and_store_global(std::str
 		.func_id = 0
 	} });
 	declared_globals.push_back(hash);
+	return var_offset;
+}
 
+instance::operand instance::compilation_context::alloc_and_store_global(std::string name) {
+	operand var_offset = alloc_global(name);
 	emit({ .operation = opcode::DECL_GLOBAL, .operand = var_offset });
 	return var_offset;
 }
@@ -604,22 +608,38 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 		context.lexical_scopes.back().all_code_paths_return = true;
 		break;
 	}
-	case token_type::LOOP_BREAK:
+	case token_type::LOOP_BREAK: {
 		context.tokenizer.scan_token();
-		if (!context.lexical_scopes.back().is_loop_block) {
+		bool found = false;
+		for (auto it = context.lexical_scopes.rbegin(); it != context.lexical_scopes.rend(); it++) {
+			if (it->is_loop_block) {
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
 			context.panic("Loop Error: Unexpected break statement outside of loop.");
 		}
 		context.emit_unwind_loop_vars();
 		context.lexical_scopes.back().break_requests.push_back(context.emit({ .operation = opcode::JUMP_AHEAD }));
 		break;
-	case token_type::LOOP_CONTINUE:
+	}
+	case token_type::LOOP_CONTINUE: {
 		context.tokenizer.scan_token();
-		if (!context.lexical_scopes.back().is_loop_block) {
+		bool found = false;
+		for (auto it = context.lexical_scopes.rbegin(); it != context.lexical_scopes.rend(); it++) {
+			if (it->is_loop_block) {
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
 			context.panic("Loop Error: Unexpected continue statement outside of loop.");
 		}
 		context.emit_unwind_loop_vars();
 		context.lexical_scopes.back().continue_requests.push_back(context.emit({ }));
 		break;
+	}
 	default: {
 		if (expects_statement) {
 			compile_value(context, true, false);
@@ -637,8 +657,7 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 }
 
 instance::compilation_context::lexical_scope instance::compile_block(compilation_context& context, std::vector<token_type> end_toks, bool is_loop) {
-	auto prev_scope = context.lexical_scopes.back();
-	make_lexical_scope(context, is_loop || prev_scope.is_loop_block);
+	make_lexical_scope(context, is_loop);
 
 	while (!context.tokenizer.match_tokens(end_toks, true))
 	{
@@ -667,7 +686,7 @@ instance::compilation_context::lexical_scope instance::unwind_lexical_scope(inst
 	compilation_context::lexical_scope scope = context.lexical_scopes.back();
 	context.lexical_scopes.pop_back();
 
-	if (context.lexical_scopes.back().declared_locals.size() > 0) {
+	if (scope.declared_locals.size() > 0) {
 		context.emit({ .operation = opcode::PROBE_LOCALS, .operand = static_cast<operand>(context.lexical_scopes.back().declared_locals.size()) });
 	}
 
@@ -700,16 +719,21 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 		context.panic("Function Error: Parameter count cannot exceed 255.");
 	}
 
-	bool no_capture = context.tokenizer.match_token(token_type::NO_CAPTURE);
-	if (no_capture) { 
+	phmap::flat_hash_set<token_type> qualifiers;
+	while (!context.tokenizer.match_token(token_type::DO, true)) {
+		qualifiers.insert(context.tokenizer.get_last_token().type());
+		context.tokenizer.scan_token();
+	}
+	context.tokenizer.scan_token();
+
+	if (qualifiers.contains(token_type::NO_CAPTURE)) { 
 		if (is_class_method) {
 			context.panic("Class Error: The no_capture annotation is invalid in a class method.");
 		}
-		context.tokenizer.scan_token(); 
 	}
 
 	context.lexical_scopes.push_back({ .next_local_id = 0, .is_loop_block = false });
-	context.function_decls.push_back({ .name = name, .id = context.function_decls.size(), .param_count = static_cast<operand>(param_names.size()), .no_capture = no_capture, .is_class_method = is_class_method });
+	context.function_decls.push_back({ .name = name, .id = context.function_decls.size(), .param_count = static_cast<operand>(param_names.size()), .no_capture = qualifiers.contains(token_type::NO_CAPTURE), .is_class_method = is_class_method });
 
 	if (!is_constructor) {
 		for (std::string param_name : param_names) {
@@ -717,7 +741,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 		}
 	}
 
-	if (!no_capture) {
+	if (!qualifiers.contains(token_type::NO_CAPTURE)) {
 		if (is_constructor) {
 			if (requires_super_call) {
 				context.alloc_and_store("super", true);
@@ -762,7 +786,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 	}
 
 	auto captured_vars = context.function_decls.back().captured_variables;
-	if (captured_vars.empty() && !no_capture && !is_class_method) {
+	if (captured_vars.empty() && !qualifiers.contains(token_type::NO_CAPTURE) && !is_class_method) {
 		std::stringstream ss;
 		ss << "Function Warning: Function " << name << " doesn't capture any variables. Consider adding the no_capture annotation for enhanced performance.";
 		context.make_warning(ss.str());
@@ -776,8 +800,22 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 	//add instructions to instance
 	uint32_t id = emit_finalize_function(context);
 
-	opcode operation = no_capture ? opcode::CAPTURE_FUNCPTR : opcode::CAPTURE_CLOSURE;
-	if (operation == opcode::CAPTURE_CLOSURE && !is_class_method) {
+	static opcode operations[] = {
+		opcode::CAPTURE_FUNCPTR,
+		opcode::CAPTURE_CLOSURE,
+		opcode::CAPTURE_VARIADIC_FUNCPTR,
+		opcode::CAPTURE_VARIADIC_CLOSURE
+	};
+	int op_no = 0;
+	if (!qualifiers.contains(token_type::NO_CAPTURE)) {
+		op_no += 1;
+	}
+	if (qualifiers.contains(token_type::VARIADIC)) {
+		op_no += 2;
+	}
+
+	opcode operation = operations[op_no];
+	if (!qualifiers.contains(token_type::NO_CAPTURE) && !is_class_method) {
 		context.emit({.operation = opcode::ALLOCATE_TABLE_LITERAL, .operand = static_cast<operand>(captured_vars.size())});
 		for (auto captured_variable : captured_vars) {
 			context.emit({ .operation = opcode::DUPLICATE_TOP });
@@ -1075,8 +1113,9 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 			context.tokenizer.expect_token(token_type::IDENTIFIER);
 			std::string identifier = context.tokenizer.get_last_token().str();
 
+			operand func_var_offset = context.alloc_global(identifier);
 			compile_function(context, identifier);
-			operand func_var_offset = context.alloc_and_store_global(identifier);
+			context.emit({ .operation = opcode::DECL_GLOBAL, .operand = func_var_offset });
 
 			if (repl_mode) {
 				context.emit({ .operation = opcode::LOAD_GLOBAL, .operand = func_var_offset });

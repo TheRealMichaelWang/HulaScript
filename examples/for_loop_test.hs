@@ -3,11 +3,11 @@ class counterIterator
 	stop
 	step
 
-	function hasNext()
+	function hasNext() do
 		return self.i != self.stop
 	end
 
-	function next()
+	function next() do
 		current = self.i
 		self.i = self.i + self.step
 		return current
@@ -19,12 +19,10 @@ class range
 	stop
 	step
 
-	function iterator()
+	function iterator() do
 		return counterIterator(self.start, self.stop, self.step)
 	end
 end
-
-k = for i in range(0, 10, 1) do i end
 
 a = []
 for i in range(0, 10, 1) do
@@ -35,6 +33,8 @@ for i in range(0, 10, 1) do
 else
 	a.broken = true
 end
+
+k = for i in range(0, 10, 1) do i end
 
 b = []
 for i in range(0, 10, 1) do
@@ -48,11 +48,11 @@ class arrayIterator
 	arr
 	i = 0
 
-	function hasNext()
+	function hasNext() do
 		return self.i != self.arr.@length
 	end
 
-	function next()
+	function next() do
 		toret = self.arr[self.i]
 		self.i = self.i + 1
 		return toret
@@ -60,7 +60,7 @@ class arrayIterator
 end
 
 a = [1,2,3,5,7,8]
-a.iterator = function()
+a.iterator = function() do
 	return arrayIterator(a)
 end
 

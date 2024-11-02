@@ -361,8 +361,9 @@ void instance::execute() {
 					size_t arg_table_id = allocate_table(ins.operand, true);
 					temp_gc_exempt.pop_back();
 					table& arg_table_entry = tables.at(arg_table_id);
+					arg_table_entry.count = ins.operand;
 
-					for (size_t i = 0; i < ins.operand; i++) {
+					for (int i = ins.operand - 1; i >= 0; i--) {
 						heap[arg_table_entry.block.start + i] = locals.back();
 						locals.pop_back();
 						arg_table_entry.key_hashes.insert({ rational_integer(i).hash(), i });
@@ -470,6 +471,10 @@ void instance::execute() {
 			return_stack.pop_back();
 			continue;
 
+		case opcode::CAPTURE_VARIADIC_FUNCPTR:
+			[[fallthrough]];
+		case opcode::CAPTURE_VARIADIC_CLOSURE:
+			[[fallthrough]];
 		case opcode::CAPTURE_FUNCPTR:
 			[[fallthrough]];
 		case opcode::CAPTURE_CLOSURE: {
@@ -479,7 +484,9 @@ void instance::execute() {
 			id = (id << 8) + static_cast<uint8_t>(payload.operation);
 			id = (id << 8) + payload.operand;
 
-			if (ins.operation == CAPTURE_CLOSURE) {
+			int op_no = ins.operation - opcode::CAPTURE_FUNCPTR;
+
+			if (op_no & 1) {
 				expect_type(value::vtype::TABLE);
 				size_t capture_table_id = evaluation_stack.back().data.id;
 				evaluation_stack.pop_back();
@@ -488,6 +495,10 @@ void instance::execute() {
 			}
 			else {
 				evaluation_stack.push_back(value(value::vtype::CLOSURE, value::vflags::NONE, id, 0));
+			}
+
+			if (op_no >= 2) {
+				evaluation_stack.back().flags |= value::vflags::FUNCTION_IS_VARIADIC;
 			}
 
 			ip++;

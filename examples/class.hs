@@ -10,17 +10,17 @@ class person2
     age
     year
 
-    function construct(name, age) 
+    function construct(name, age) do
         self.name = name
         self.age = age
         self.year = age - 18
     end
 
-    function say_hi()
+    function say_hi() do
         return "Hello there"
     end
 
-    function say_bi()
+    function say_bi() do
         return "You are a bold one"
     end
 end
