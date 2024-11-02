@@ -97,8 +97,9 @@ static const char* tok_names[] = {
 
 	"FUNCTION",
 	"TABLE",
-	"NO_CAPTURE",
 	"CLASS",
+	"NO_CAPTURE",
+	"VARIADIC",
 
 	"IF",
 	"ELIF",

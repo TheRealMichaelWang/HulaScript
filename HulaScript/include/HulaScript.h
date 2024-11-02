@@ -135,6 +135,12 @@ namespace HulaScript {
 					break;
 				}
 				case vtype::RATIONAL:
+					if (data.id == 0) {
+						size_t final_mask = static_cast<size_t>(type);
+						final_mask <<= sizeof(vflags);
+						final_mask += static_cast<size_t>(flags | value::vflags::RATIONAL_IS_NEGATIVE);
+						return HulaScript::Hash::combine(final_mask, 0);
+					}
 					[[fallthrough]];
 				case vtype::FOREIGN_OBJECT_METHOD:
 					[[fallthrough]];
@@ -361,7 +367,9 @@ namespace HulaScript {
 			RETURN,
 
 			CAPTURE_FUNCPTR, //captures a closure without a capture table
-			CAPTURE_CLOSURE
+			CAPTURE_CLOSURE,
+			CAPTURE_VARIADIC_FUNCPTR,
+			CAPTURE_VARIADIC_CLOSURE
 		};
 
 		struct instruction
@@ -557,7 +565,7 @@ namespace HulaScript {
 						ip_src_map.push_back(std::make_pair(scope.final_ins_offset + ip_src.first, ip_src.second));
 					}
 
-					if (!(!is_loop_block && scope.is_loop_block)) { //demorgans law...holy shit 2050
+					if (!(!is_loop_block && scope.is_loop_block)) { //demorgan's law...holy shit 2050
 						continue_requests.reserve(continue_requests.size() + scope.continue_requests.size());
 						for (size_t ip : scope.continue_requests) {
 							continue_requests.push_back(scope.final_ins_offset + ip);
@@ -604,6 +612,7 @@ namespace HulaScript {
 
 			std::pair<variable, bool> alloc_local(std::string name, bool must_declare=false);
 			bool alloc_and_store(std::string name, bool must_declare = false);
+			operand alloc_global(std::string name);
 			operand alloc_and_store_global(std::string name);
 
 			size_t emit(instruction ins) noexcept {
@@ -670,9 +679,10 @@ namespace HulaScript {
 				for (auto it = lexical_scopes.rbegin(); it != lexical_scopes.rend(); it++) {
 					if (it->is_loop_block) {
 						count += it->declared_locals.size();
+						break;
 					}
 					else {
-						break;
+						count += it->declared_locals.size();
 					}
 				}
 				if (count > 0) {

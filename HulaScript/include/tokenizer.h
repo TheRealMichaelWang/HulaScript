@@ -23,6 +23,7 @@ namespace HulaScript {
 		TABLE,
 		CLASS,
 		NO_CAPTURE,
+		VARIADIC,
 
 		IF,
 		ELIF,
