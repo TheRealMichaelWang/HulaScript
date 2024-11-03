@@ -7,3 +7,5 @@ function test2(a, b, c) no_capture do
 end
 
 test2 variadic ([1, 2, 3])
+
+test variadic (for i in irange(10) do i end)

@@ -343,16 +343,25 @@ void instance::execute() {
 
 		case opcode::VARIADIC_CALL: {
 			expect_type(value::vtype::TABLE);
-			table& table = tables.at(evaluation_stack.back().data.id);
+			value table_value = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			for (size_t i = 0; i < table.count; i++) {
-				evaluation_stack.push_back(heap[table.block.start + i]);
-			}
 
-			if (table.count >= UINT8_MAX) {
-				panic("Too many arguments in variadic call.");
+			if (evaluation_stack.back().flags & value::vflags::FUNCTION_IS_VARIADIC) {
+				evaluation_stack.back().flags -= value::vflags::FUNCTION_IS_VARIADIC;
+				evaluation_stack.push_back(table_value);
+				ins.operand = 1;
 			}
-			ins.operand = table.count;
+			else {
+				table& table = tables.at(evaluation_stack.back().data.id);
+				for (size_t i = 0; i < table.count; i++) {
+					evaluation_stack.push_back(heap[table.block.start + i]);
+				}
+
+				if (table.count >= UINT8_MAX) {
+					panic("Too many arguments in variadic call.");
+				}
+				ins.operand = table.count;
+			}
 		}
 			[[fallthrough]];
 		case opcode::CALL: {
@@ -413,7 +422,7 @@ void instance::execute() {
 			}
 			case value::vtype::INTERNAL_TABLE_GET_ITERATOR: {
 				if (ins.operand != 0) {
-					panic("Array table iterator expects precisley 0 arguments.");
+					panic("Array table iterator expects exactly 0 arguments.");
 				}
 				
 				evaluation_stack.push_back(add_foreign_object(std::make_unique<table_iterator>(table_iterator(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), *this))));
