@@ -340,6 +340,21 @@ void instance::execute() {
 			ip -= ins.operand;
 			continue;
 
+
+		case opcode::VARIADIC_CALL: {
+			expect_type(value::vtype::TABLE);
+			table& table = tables.at(evaluation_stack.back().data.id);
+			evaluation_stack.pop_back();
+			for (size_t i = 0; i < table.count; i++) {
+				evaluation_stack.push_back(heap[table.block.start + i]);
+			}
+
+			if (table.count >= UINT8_MAX) {
+				panic("Too many arguments in variadic call.");
+			}
+			ins.operand = table.count;
+		}
+			[[fallthrough]];
 		case opcode::CALL: {
 			//push arguments into local variable stack
 			size_t local_count = locals.size();

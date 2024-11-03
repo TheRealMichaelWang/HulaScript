@@ -135,7 +135,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	//remove unused table entries
 	for (auto it = tables.begin(); it != tables.end(); ) {
 		if (!marked_tables.contains(it->first)) {
-			availible_table_ids.push_back(it->first);
+			available_table_ids.push_back(it->first);
 			it = tables.erase(it);
 		}
 		else {
@@ -151,8 +151,8 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 			}
 
 			size_t hash = constants[i].hash();
-			constant_hashses.erase(hash);
-			availible_constant_ids.push_back(i);
+			constant_hashes.erase(hash);
+			available_constant_ids.push_back(i);
 
 			constants[i].flags |= value::vflags::INVALID_CONSTANT;
 		}
@@ -179,7 +179,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 
 	for (auto it = foreign_functions.begin(); it != foreign_functions.end();) {
 		if (!marked_foreign_functions.contains(it->first)) {
-			availible_foreign_function_ids.push_back(it->first);
+			available_foreign_function_ids.push_back(it->first);
 			it = foreign_functions.erase(it);
 		}
 		else {
@@ -219,8 +219,8 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 			//erase src locations within the ip range of the function entry
 			for (auto it2 = ip_src_map.lower_bound(it->second.start_address); it2 != ip_src_map.lower_bound(it->second.start_address + it->second.length); it2 = ip_src_map.erase(it2)) { }
 
-			//erase function entry and make id availible
-			availible_function_ids.push_back(it->first);
+			//erase function entry and make id available
+			available_function_ids.push_back(it->first);
 			it = functions.erase(it);
 		}
 		else {
