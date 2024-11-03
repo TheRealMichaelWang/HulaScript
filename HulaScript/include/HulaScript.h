@@ -219,12 +219,12 @@ namespace HulaScript {
 
 		value make_foreign_function(std::function<value(std::vector<value>& arguments, instance& instance)> function) {
 			uint32_t id;
-			if (availible_foreign_function_ids.empty()) {
+			if (available_foreign_function_ids.empty()) {
 				id = static_cast<uint32_t>(foreign_functions.size());
 			}
 			else {
-				id = availible_foreign_function_ids.back();
-				availible_foreign_function_ids.pop_back();
+				id = available_foreign_function_ids.back();
+				available_foreign_function_ids.pop_back();
 			}
 			foreign_functions.insert({ id, function });
 			return value(value::vtype::FOREIGN_FUNCTION, value::vflags::NONE, id, 0);
@@ -364,12 +364,13 @@ namespace HulaScript {
 
 			CALL,
 			CALL_LABEL,
+			VARIADIC_CALL,
 			RETURN,
 
 			CAPTURE_FUNCPTR, //captures a closure without a capture table
 			CAPTURE_CLOSURE,
 			CAPTURE_VARIADIC_FUNCPTR,
-			CAPTURE_VARIADIC_CLOSURE
+			CAPTURE_VARIADIC_CLOSURE,
 		};
 
 		struct instruction
@@ -444,17 +445,17 @@ namespace HulaScript {
 		void handle_foreign_obj_exponentiate(value& a, value& b);
 
 		std::vector<value> constants;
-		std::vector<uint32_t> availible_constant_ids;
-		phmap::flat_hash_map<size_t, uint32_t> constant_hashses;
+		std::vector<uint32_t> available_constant_ids;
+		phmap::flat_hash_map<size_t, uint32_t> constant_hashes;
 		phmap::flat_hash_set<std::unique_ptr<char[]>> active_strs;
 		phmap::flat_hash_set<std::unique_ptr<foreign_object>> foreign_objs;
 
 		phmap::flat_hash_map<uint32_t, std::function<value(std::vector<value>& arguments, instance& instance)>> foreign_functions;
-		std::vector<uint32_t> availible_foreign_function_ids;
+		std::vector<uint32_t> available_foreign_function_ids;
 
 		phmap::btree_multimap<size_t, gc_block> free_blocks;
 		phmap::flat_hash_map<size_t, table> tables;
-		std::vector<size_t> availible_table_ids;
+		std::vector<size_t> available_table_ids;
 		size_t next_table_id = 0;
 
 		std::vector<value> evaluation_stack;
@@ -472,7 +473,7 @@ namespace HulaScript {
 		phmap::btree_map<size_t, source_loc> ip_src_map;
 
 		phmap::flat_hash_map<uint32_t, function_entry> functions;
-		std::vector<uint32_t> availible_function_ids;
+		std::vector<uint32_t> available_function_ids;
 
 		std::vector<uint32_t> repl_used_functions;
 		std::vector<uint32_t> repl_used_constants;
@@ -512,25 +513,25 @@ namespace HulaScript {
 
 		uint32_t add_constant(value constant) {
 			size_t hash = constant.hash();
-			auto it = constant_hashses.find(hash);
-			if (it != constant_hashses.end()) {
+			auto it = constant_hashes.find(hash);
+			if (it != constant_hashes.end()) {
 				return it->second;
 			}
 
-			if (availible_constant_ids.empty()) {
+			if (available_constant_ids.empty()) {
 				if (constants.size() == (1 << 24)) {
 					panic("Cannot add constant; constant limit reached.");
 				}
 
-				constant_hashses.insert({ hash, static_cast<uint32_t>(constants.size()) });
+				constant_hashes.insert({ hash, static_cast<uint32_t>(constants.size()) });
 				constants.push_back(constant);
 				return static_cast<uint32_t>(constants.size() - 1);
 			}
 			else {
-				uint32_t index = availible_constant_ids.back();
-				availible_constant_ids.pop_back();
+				uint32_t index = available_constant_ids.back();
+				available_constant_ids.pop_back();
 				constants[index] = constant;
-				constant_hashses.insert({ hash, index });
+				constant_hashes.insert({ hash, index });
 				return index;
 			}
 		}

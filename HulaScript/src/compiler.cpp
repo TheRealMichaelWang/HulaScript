@@ -132,7 +132,7 @@ void instance::compile_args_and_call(compilation_context& context) {
 			context.tokenizer.expect_token(token_type::COMMA);
 			context.tokenizer.scan_token();
 		}
-		compile_expression(context);
+		compile_expression(context, true);
 		arguments++;
 	}
 	context.tokenizer.scan_token();
@@ -441,6 +441,17 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		}
 		case token_type::OPEN_PAREN: {
 			compile_args_and_call(context);
+			is_statement = true;
+			break;
+		}
+		case token_type::VARIADIC: {
+			context.tokenizer.scan_token();
+			context.tokenizer.match_token(token_type::OPEN_PAREN);
+			context.tokenizer.scan_token();
+			compile_expression(context);
+			context.tokenizer.match_token(token_type::CLOSE_PAREN);
+			context.tokenizer.scan_token();
+			context.emit({ .operation = opcode::VARIADIC_CALL });
 			is_statement = true;
 			break;
 		}
@@ -857,12 +868,12 @@ uint32_t instance::emit_finalize_function(compilation_context& context) {
 	context.function_decls.pop_back();
 
 	uint32_t id;
-	if (availible_function_ids.empty()) {
+	if (available_function_ids.empty()) {
 		id = next_function_id++;
 	}
 	else {
-		id = availible_function_ids.back();
-		availible_function_ids.pop_back();
+		id = available_function_ids.back();
+		available_function_ids.pop_back();
 	}
 	functions.insert({ id, function });
 
