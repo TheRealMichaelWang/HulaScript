@@ -1,4 +1,5 @@
 #include "HulaScript.h"
+#include "HulaScript.h"
 #include <cstring>
 #include <cmath>
 #include <memory>
@@ -12,32 +13,32 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 		//operand a is a number
 		{ 
 			1, //operand b is a number
-			0, 0, 0, 0, 0, 0 //b cannot be any other type
+			0, 0, 26, 0, 0, 0 //b cannot be any other type
 		},
 		
 		//operand b is a rational
 		{
 			0, 22,
-			0, 0, 0, 0, 0
+			0, 26, 0, 0, 0
 		},
 
 		//operand a is a boolean
-		{ 0, 0, 0, 0, 0, 0, 0},
+		{ 0, 0, 0, 26, 0, 0, 0},
 		
 		//operand a is a string
 		{ 
-			0, 0, 0, 5, 
-			0, 0, 0
+			5, 5, 5, 5, 
+			5, 5, 5
 		},
 		
 		//operand a is a table
 		{
-			6, 6, 6, 6, 
-			6, 6, 6
+			0, 0, 0, 26, 
+			6, 0, 0
 		},
 
 		//operand a is a closure
-		{ 0, 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 26, 0, 0, 0 },
 
 		//operand a is a foreign object
 		{ 
@@ -261,6 +262,8 @@ instance::operator_handler instance::operator_handlers[] = {
 	&instance::handle_rational_subtract, //23 
 	&instance::handle_rational_multiply, //24
 	&instance::handle_rational_divide, //25
+
+	&instance::handle_string_add2, //26
 };
 
 void instance::handle_double_add(value& a, value& b) {
@@ -289,11 +292,25 @@ void instance::handle_double_exponentiate(value& a, value& b) {
 
 void instance::handle_string_add(value& a, value& b) {
 	size_t a_len = strlen(a.data.str);
+
+	std::string b_str = get_value_print_string(b);
+
+	auto alloc = std::unique_ptr<char[]>(new char[a_len + b_str.size() + 1]);
+	strcpy(alloc.get(), a.data.str);
+	strcpy(alloc.get() + a_len, b_str.data());
+
+	evaluation_stack.push_back(value(alloc.get()));
+	active_strs.insert(std::move(alloc));
+}
+
+void instance::handle_string_add2(value& a, value& b) {
 	size_t b_len = strlen(b.data.str);
 
-	auto alloc = std::unique_ptr<char[]>(new char[a_len + b_len + 1]);
-	strcpy(alloc.get(), a.data.str);
-	strcpy(alloc.get() + a_len, b.data.str);
+	std::string a_str = get_value_print_string(a);
+
+	auto alloc = std::unique_ptr<char[]>(new char[b_len + a_str.size() + 1]);
+	strcpy(alloc.get(), a_str.data());
+	strcpy(alloc.get() + a_str.size(), b.data.str);
 
 	evaluation_stack.push_back(value(alloc.get()));
 	active_strs.insert(std::move(alloc));
