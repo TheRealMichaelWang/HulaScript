@@ -426,6 +426,7 @@ namespace HulaScript {
 		void handle_rational_divide(value& a, value& b);
 
 		void handle_string_add(value& a, value& b);
+		void handle_string_add2(value& a, value& b);
 
 		void handle_table_add(value& a, value& b);
 		void handle_table_repeat(value& a, value& b);

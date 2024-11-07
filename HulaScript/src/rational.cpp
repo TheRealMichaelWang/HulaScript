@@ -70,6 +70,10 @@ void instance::handle_rational_multiply(value& a, value& b) {
 	size_t adenom = a.function_id / bnum_adenom_gcd;
 	size_t bdenom = b.function_id / anum_bdenom_gcd;
 
+	if (anum == 0 || bnum == 0) {
+		evaluation_stack.push_back(value(value::vtype::RATIONAL, value::vflags::NONE, 1, 0));
+		return;
+	}
 	if (anum > SIZE_MAX / bnum) {
 		panic("Overflow: Numerator in rational multiplication is too large.");
 	}
@@ -91,10 +95,13 @@ void instance::handle_rational_divide(value& a, value& b) {
 	size_t adenom = a.function_id / bnum_adenom_gcd;
 	size_t bdenom = b.function_id / bnum_adenom_gcd;
 
-	if (anum > UINT32_MAX / bnum) {
+	if (bnum == 0) {
+		panic("Rational: Divide by Zero.");
+	}
+	if (anum > SIZE_MAX / bdenom) {
 		panic("Overflow: Numerator in rational multiplication is too large.");
 	}
-	if (adenom > SIZE_MAX / bdenom) {
+	if (adenom > UINT32_MAX / bnum) {
 		panic("Overflow: Denominator in rational multiplication is too large.");
 	}
 
