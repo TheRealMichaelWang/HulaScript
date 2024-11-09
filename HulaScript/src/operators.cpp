@@ -171,7 +171,7 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 		},
 
 		//operand a is a rational
-		{ 0, 0, 0, 0, 0, 0, 0},
+		{ 0, 27, 0, 0, 0, 0, 0},
 
 		//operand a is a boolean
 		{ 0, 0, 0, 0, 0, 0, 0 },
@@ -203,7 +203,7 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 		},
 
 		//operand a is a rational
-		{ 0, 0, 0, 0, 0, 0, 0},
+		{ 0, 28, 0, 0, 0, 0, 0},
 
 		//operand a is a boolean
 		{ 0, 0, 0, 0, 0, 0, 0 },
@@ -264,6 +264,8 @@ instance::operator_handler instance::operator_handlers[] = {
 	&instance::handle_rational_divide, //25
 
 	&instance::handle_string_add2, //26
+	&instance::handle_rational_modulo, //27
+	&instance::handle_rational_exponentiate //28
 };
 
 void instance::handle_double_add(value& a, value& b) {

@@ -71,7 +71,7 @@ namespace HulaScript {
 
 			value(char* str) : type(vtype::STRING), flags(vflags::NONE), function_id(0), data({ .str = str }) { }
 
-			value(vtype t, uint16_t flags, uint32_t function_id, uint64_t data) : type(t), flags(flags), function_id(function_id), data({ .id = data }) { }
+			value(vtype t, uint16_t flags, uint32_t function_id, size_t data) : type(t), flags(flags), function_id(function_id), data({ .id = data }) { }
 
 			value(foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT), flags(vflags::NONE), function_id(0), data({ .foreign_object = foreign_object }){ }
 
@@ -424,6 +424,8 @@ namespace HulaScript {
 		void handle_rational_subtract(value& a, value& b);
 		void handle_rational_multiply(value& a, value& b);
 		void handle_rational_divide(value& a, value& b);
+		void handle_rational_exponentiate(value& a, value& b);
+		void handle_rational_modulo(value& a, value& b);
 
 		void handle_string_add(value& a, value& b);
 		void handle_string_add2(value& a, value& b);
