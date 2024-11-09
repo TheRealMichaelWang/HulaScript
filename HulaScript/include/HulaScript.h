@@ -427,6 +427,13 @@ namespace HulaScript {
 		void handle_rational_exponentiate(value& a, value& b);
 		void handle_rational_modulo(value& a, value& b);
 
+		void handle_mixed_number_add(value& a, value& b);
+		void handle_mixed_number_subtract(value& a, value& b);
+		void handle_mixed_number_multiply(value& a, value& b);
+		void handle_mixed_number_divide(value& a, value& b);
+		void handle_mixed_number_exponentiate(value& a, value& b);
+		void handle_mixed_number_modulo(value& a, value& b);
+
 		void handle_string_add(value& a, value& b);
 		void handle_string_add2(value& a, value& b);
 
