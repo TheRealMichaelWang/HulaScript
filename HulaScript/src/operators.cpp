@@ -1,5 +1,6 @@
 #include "HulaScript.h"
 #include "HulaScript.h"
+#include "HulaScript.h"
 #include <cstring>
 #include <cmath>
 #include <memory>
@@ -13,12 +14,12 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 		//operand a is a number
 		{ 
 			1, //operand b is a number
-			0, 0, 26, 0, 0, 0 //b cannot be any other type
+			29, 0, 26, 0, 0, 0 //b cannot be any other type
 		},
 		
 		//operand b is a rational
 		{
-			0, 22,
+			29, 22,
 			0, 26, 0, 0, 0
 		},
 
@@ -52,12 +53,12 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 		//operand a is a number
 		{
 			2, //operand b is a number
-			0, 0, 0, 0, 0, 0 //b cannot be any other type
+			30, 0, 0, 0, 0, 0 //b cannot be any other type
 		},
 
 		//operand b is a rational
 		{
-			0, 23,
+			30, 23,
 			0, 0, 0, 0, 0
 		},
 
@@ -88,7 +89,7 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 		//operand a is a number
 		{
 			3, //operand b is a number
-			0, 
+			31, //operand b is a rational 
 			0, 0, 
 			7, //allocate table by multiplying it by a number
 			0, 0 //b cannot be any other type
@@ -96,8 +97,8 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 
 		//operand a is a rational
 		{
-			0, 
-			24,
+			31, //operand b is a double 
+			24, //operand b is a rational
 			0, 0,
 			7,
 			0, 0
@@ -133,11 +134,11 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 		//operand a is a number
 		{
 			4, //operand b is a number too
-			0, 0, 0, 0, 0, 0 //b cannot be any other type
+			32, 0, 0, 0, 0, 0 //b cannot be any other type
 		},
 
 		{
-			0, 25,
+			32, 25,
 			0, 0, 0, 0, 0
 		},
 
@@ -167,11 +168,11 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 	{
 		{
 			20, //operand b is a number too
-			0, 0, 0, 0, 0, 0 //b cannot be any other type
+			34, 0, 0, 0, 0, 0 //b cannot be any other type
 		},
 
 		//operand a is a rational
-		{ 0, 27, 0, 0, 0, 0, 0},
+		{ 34, 27, 0, 0, 0, 0, 0},
 
 		//operand a is a boolean
 		{ 0, 0, 0, 0, 0, 0, 0 },
@@ -199,11 +200,11 @@ uint8_t instance::operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1]
 	{
 		{
 			21, //operand b is a number too
-			0, 0, 0, 0, 0, 0 //b cannot be any other type
+			33, 0, 0, 0, 0, 0 //b cannot be any other type
 		},
 
 		//operand a is a rational
-		{ 0, 28, 0, 0, 0, 0, 0},
+		{ 33, 28, 0, 0, 0, 0, 0},
 
 		//operand a is a boolean
 		{ 0, 0, 0, 0, 0, 0, 0 },
@@ -265,7 +266,14 @@ instance::operator_handler instance::operator_handlers[] = {
 
 	&instance::handle_string_add2, //26
 	&instance::handle_rational_modulo, //27
-	&instance::handle_rational_exponentiate //28
+	&instance::handle_rational_exponentiate, //28
+
+	&instance::handle_mixed_number_add, //29
+	&instance::handle_mixed_number_subtract, //30
+	&instance::handle_mixed_number_multiply, //31
+	&instance::handle_mixed_number_divide, //32
+	&instance::handle_mixed_number_exponentiate, //33
+	&instance::handle_mixed_number_modulo //34
 };
 
 void instance::handle_double_add(value& a, value& b) {
@@ -420,4 +428,28 @@ void instance::handle_foreign_obj_modulo(value& a, value& b) {
 
 void instance::handle_foreign_obj_exponentiate(value& a, value& b) {
 	evaluation_stack.push_back(a.data.foreign_object->exponentiate_operator(b, *this));
+}
+
+void instance::handle_mixed_number_add(value& a, value& b) {
+	evaluation_stack.push_back(value(a.number(*this) + b.number(*this)));
+}
+
+void instance::handle_mixed_number_subtract(value& a, value& b) {
+	evaluation_stack.push_back(value(a.number(*this) - b.number(*this)));
+}
+
+void instance::handle_mixed_number_multiply(value& a, value& b) {
+	evaluation_stack.push_back(value(a.number(*this) * b.number(*this)));
+}
+
+void instance::handle_mixed_number_divide(value& a, value& b) {
+	evaluation_stack.push_back(value(a.number(*this) / b.number(*this)));
+}
+
+void instance::handle_mixed_number_exponentiate(value& a, value& b) {
+	evaluation_stack.push_back(value(pow(a.number(*this), b.number(*this))));
+}
+
+void instance::handle_mixed_number_modulo(value& a, value& b) {
+	evaluation_stack.push_back(value(fmod(a.number(*this), b.number(*this))));
 }
