@@ -69,7 +69,9 @@ void HulaScript::ffi_table_helper::append(instance::value value, bool allow_coll
 			owner_instance.temp_gc_exempt.push_back(value);
 		}
 		owner_instance.reallocate_table(table_id, table_entry.block.capacity == 0 ? 4 : table_entry.block.capacity * 2, allow_collect);
-		owner_instance.temp_gc_exempt.pop_back();
+		if (allow_collect) {
+			owner_instance.temp_gc_exempt.pop_back();
+		}
 	}
 
 	instance::value index_val(static_cast<double>(table_entry.count));

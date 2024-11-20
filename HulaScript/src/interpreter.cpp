@@ -180,7 +180,8 @@ void instance::execute() {
 						temp_gc_exempt.push_back(table_value);
 						temp_gc_exempt.push_back(set_value);
 						reallocate_table(table_id, table.block.capacity == 0 ? 4 : table.block.capacity * 2, true);
-						temp_gc_exempt.clear();
+						temp_gc_exempt.pop_back();
+						temp_gc_exempt.pop_back();
 					}
 
 					table.key_hashes.insert({ hash, table.count });
@@ -352,7 +353,7 @@ void instance::execute() {
 				ins.operand = 1;
 			}
 			else {
-				table& table = tables.at(evaluation_stack.back().data.id);
+				table& table = tables.at(table_value.data.id);
 				for (size_t i = 0; i < table.count; i++) {
 					evaluation_stack.push_back(heap[table.block.start + i]);
 				}

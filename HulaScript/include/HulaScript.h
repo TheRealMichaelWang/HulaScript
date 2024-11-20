@@ -73,8 +73,6 @@ namespace HulaScript {
 
 			value(vtype t, uint16_t flags, uint32_t function_id, size_t data) : type(t), flags(flags), function_id(function_id), data({ .id = data }) { }
 
-			value(foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT), flags(vflags::NONE), function_id(0), data({ .foreign_object = foreign_object }){ }
-
 			friend class instance;
 		public:
 			value() : value(vtype::NIL, vflags::NONE, 0, 0) { }
@@ -83,6 +81,8 @@ namespace HulaScript {
 			value(bool boolean) : type(vtype::BOOLEAN), flags(vflags::NONE), function_id(0), data({ .boolean = boolean }) { }
 
 			value(uint32_t method_id, foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT_METHOD), flags(vflags::NONE), function_id(method_id), data({ .foreign_object = foreign_object }) { }
+
+			value(foreign_object* foreign_object) : type(vtype::FOREIGN_OBJECT), flags(vflags::NONE), function_id(0), data({ .foreign_object = foreign_object }){ }
 
 			double number(instance& instance) const {
 				if (check_type(vtype::FOREIGN_OBJECT)) {
@@ -104,6 +104,11 @@ namespace HulaScript {
 			foreign_object* foreign_obj(instance& instance) const {
 				expect_type(vtype::FOREIGN_OBJECT, instance);
 				return data.foreign_object;
+			}
+
+			std::string str(instance& instance) const {
+				expect_type(vtype::STRING, instance);
+				return std::string(data.str);
 			}
 
 			const int64_t index(int64_t min, int64_t max, instance& instance) const;
@@ -213,8 +218,21 @@ namespace HulaScript {
 			return to_ret;
 		}
 
+		value add_permanent_foreign_object(std::unique_ptr<foreign_object>&& foreign_obj) {
+			value to_ret = value(foreign_obj.get());
+			permanent_foreign_objs.insert(foreign_obj.get());
+			foreign_objs.insert(std::move(foreign_obj));
+			return to_ret;
+		}
+
 		value add_permanent_foreign_object(foreign_object* foreign_obj) {
-			return value(foreign_obj);
+			value to_ret = value(foreign_obj);
+			permanent_foreign_objs.insert(foreign_obj);
+			return to_ret;
+		}
+
+		void remove_permanent_foreign_object(foreign_object* foreign_obj) {
+			permanent_foreign_objs.erase(foreign_obj);
 		}
 
 		value make_foreign_function(std::function<value(std::vector<value>& arguments, instance& instance)> function) {
@@ -252,8 +270,7 @@ namespace HulaScript {
 			size_t table_id = allocate_table(elems.size(), false);
 			table& table = tables.at(table_id);
 			for (size_t i = 0; i < elems.size(); i++) {
-				value index_val(static_cast<double>(i));
-				table.key_hashes.insert({ index_val.hash(), i });
+				table.key_hashes.insert({ rational_integer(i).hash(), i });
 				heap[table.block.start + i] = elems[i];
 			}
 			table.count = elems.size();
@@ -264,7 +281,7 @@ namespace HulaScript {
 		value parse_rational(std::string src) const;
 
 		value rational_integer(int64_t integer) const noexcept {
-			return value(value::vtype::RATIONAL, integer < 0 ? value::vflags::RATIONAL_IS_NEGATIVE : value::vflags::NONE, 1, integer < 0 ? (- integer) : integer);
+			return value(value::vtype::RATIONAL, integer < 0 ? value::vflags::RATIONAL_IS_NEGATIVE : value::vflags::NONE, 1, integer < 0 ? (-integer) : integer);
 		}
 
 		value invoke_value(value to_call, std::vector<value> arguments);
@@ -459,6 +476,7 @@ namespace HulaScript {
 		phmap::flat_hash_map<size_t, uint32_t> constant_hashes;
 		phmap::flat_hash_set<std::unique_ptr<char[]>> active_strs;
 		phmap::flat_hash_set<std::unique_ptr<foreign_object>> foreign_objs;
+		phmap::flat_hash_set<foreign_object*> permanent_foreign_objs;
 
 		phmap::flat_hash_map<uint32_t, std::function<value(std::vector<value>& arguments, instance& instance)>> foreign_functions;
 		std::vector<uint32_t> available_foreign_function_ids;
