@@ -61,8 +61,6 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 		values_to_trace.push_back(constants[id]);
 	}
 
-	//temp_gc_exempt.clear();
-
 	phmap::flat_hash_set<size_t> marked_tables;
 	phmap::flat_hash_set<uint32_t> marked_functions;
 	phmap::flat_hash_set<char*> marked_strs;
@@ -72,6 +70,10 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 
 	functions_to_trace.insert(functions_to_trace.end(), repl_used_functions.begin(), repl_used_functions.end());
 	marked_constants.insert(repl_used_constants.begin(), repl_used_constants.end());
+	for (foreign_object* permanent_foreign_object : permanent_foreign_objs) {
+		marked_foreign_objects.insert(permanent_foreign_object);
+		permanent_foreign_object->trace(values_to_trace);
+	}
 
 	while (!values_to_trace.empty() || !functions_to_trace.empty()) //trace values 
 	{
@@ -168,6 +170,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 		}
 	}
 
+	//removed unused foreign objects
 	for (auto it = foreign_objs.begin(); it != foreign_objs.end();) {
 		if (!marked_foreign_objects.contains(it->get())) {
 			it = foreign_objs.erase(it);

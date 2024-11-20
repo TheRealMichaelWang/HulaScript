@@ -348,7 +348,8 @@ void instance::handle_table_add(value& a, value& b) {
 		heap[allocated.block.start + a_table.count + i] = heap[b_table.block.start + i];
 	}
 
-	temp_gc_exempt.clear();
+	temp_gc_exempt.pop_back();
+	temp_gc_exempt.pop_back();
 
 	evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, table_id));
 }

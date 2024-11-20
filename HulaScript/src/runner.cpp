@@ -69,6 +69,7 @@ std::optional<instance::value> instance::run_loaded() {
 			value to_return = evaluation_stack.back();
 			temp_gc_exempt.push_back(to_return);
 			finalize();
+			temp_gc_exempt.pop_back();
 			return to_return;
 		}
 		finalize();
