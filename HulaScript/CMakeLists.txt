@@ -18,7 +18,7 @@ target_sources(${PROJECT_NAME}
 		"src/runner.cpp"
 		"src/tokenizer.cpp"
 		"src/operators.cpp"
- "src/rational.cpp")
+ "src/rational.cpp"  )
 
 target_include_directories(${PROJECT_NAME}
 	PUBLIC

@@ -80,6 +80,7 @@ std::optional<instance::value> instance::run_loaded() {
 		top_level_local_vars.erase(top_level_local_vars.begin() + declared_top_level_locals, top_level_local_vars.end());
 		repl_used_constants.clear();
 		repl_used_functions.clear();
+		temp_gc_exempt.clear();
 
 		finalize();
 		throw;
