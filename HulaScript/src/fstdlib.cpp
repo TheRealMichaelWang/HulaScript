@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <memory>
 #include <random>
+#include <iostream>
+#include <fstream>
 
 using namespace HulaScript;
 
@@ -229,6 +231,27 @@ instance::value HulaScript::append_range(instance::value table_value, instance::
 	return instance::value();
 }
 
+instance::value HulaScript::instance::import_module(std::vector<instance::value>& arguments, instance& instance)
+{
+	if (arguments.size() < 1) {
+		instance.panic("FFI Error: Import module requires module identifier argument.");
+	}
+
+	std::ifstream infile(arguments.at(0).str(instance));
+	if (infile.fail()) { //file probably not found
+		return instance::value();
+	}
+	
+	std::string s;
+	std::string line;
+	while (std::getline(infile, line)) {
+		s.append(line);
+		s.push_back('\n');
+	}
+
+	return instance.load_module_from_source(s, arguments.at(0).str(instance));
+}
+
 static instance::value standard_number_parser(std::string str, instance& instance) {
 	try {
 		return instance.parse_rational(str);
@@ -245,6 +268,8 @@ instance::instance(custom_numerical_parser numerical_parser) : numerical_parser(
 	declare_global("sort", make_foreign_function(sort_table));
 	declare_global("binarySearch", make_foreign_function(binary_search_table));
 	declare_global("iteratorToArray", make_foreign_function(iterator_to_array));
+
+	declare_global("import", make_foreign_function(import_module));
 }
 
 instance::instance() : instance(standard_number_parser) {

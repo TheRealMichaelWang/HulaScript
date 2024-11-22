@@ -213,13 +213,17 @@ std::string instance::get_value_print_string(value to_print_init) {
 		switch (current.type)
 		{
 		case value::vtype::TABLE: {
+			if (current.flags & value::vflags::TABLE_IS_MODULE) {
+				ss << "Imported Module";
+				break;
+			}
+
 			auto it = printed_tables.find(current.data.id);
 			if (it != printed_tables.end()) {
-				ss << "Table beggining at col " << (it->second);
+				ss << "Table beginning at col " << (it->second);
 				break;
 			}
 			printed_tables.insert({ current.data.id, ss.tellp()});
-				
 			table& table = tables.at(current.data.id);
 
 			ss << '[';

@@ -70,10 +70,10 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 
 	functions_to_trace.insert(functions_to_trace.end(), repl_used_functions.begin(), repl_used_functions.end());
 	marked_constants.insert(repl_used_constants.begin(), repl_used_constants.end());
-	for (foreign_object* permanent_foreign_object : permanent_foreign_objs) {
+	/*for (foreign_object* permanent_foreign_object : permanent_foreign_objs) {
 		marked_foreign_objects.insert(permanent_foreign_object);
 		permanent_foreign_object->trace(values_to_trace);
-	}
+	}*/
 
 	while (!values_to_trace.empty() || !functions_to_trace.empty()) //trace values 
 	{
@@ -139,6 +139,14 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 		if (!marked_tables.contains(it->first)) {
 			available_table_ids.push_back(it->first);
 			it = tables.erase(it);
+		}
+		else {
+			it++;
+		}
+	}
+	for (auto it = loaded_modules.begin(); it != loaded_modules.end(); ) {
+		if (!marked_tables.contains(it->second)) {
+			it = loaded_modules.erase(it);
 		}
 		else {
 			it++;
