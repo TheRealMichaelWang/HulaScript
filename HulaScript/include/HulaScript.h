@@ -52,10 +52,11 @@ namespace HulaScript {
 				TABLE_IS_FINAL = 2,
 				TABLE_INHERITS_PARENT = 4,
 				TABLE_ARRAY_ITERATE = 8,
-				INVALID_CONSTANT = 16,
-				IS_NUMERICAL = 32,
-				RATIONAL_IS_NEGATIVE = 64,
-				FUNCTION_IS_VARIADIC = 128,
+				TABLE_IS_MODULE = 16,
+				INVALID_CONSTANT = 32,
+				IS_NUMERICAL = 64,
+				RATIONAL_IS_NEGATIVE = 128,
+				FUNCTION_IS_VARIADIC = 256,
 			};
 
 			uint16_t flags;
@@ -209,6 +210,8 @@ namespace HulaScript {
 		std::optional<value> run_no_warnings(std::string source, std::optional<std::string> file_name, bool repl_mode = true);
 		std::optional<value> run_loaded();
 
+		value load_module_from_source(std::string source, std::string file_name);
+
 		std::string get_value_print_string(value to_print);
 		std::string rational_to_string(value& rational, bool print_as_frac);
 
@@ -220,19 +223,27 @@ namespace HulaScript {
 
 		value add_permanent_foreign_object(std::unique_ptr<foreign_object>&& foreign_obj) {
 			value to_ret = value(foreign_obj.get());
-			permanent_foreign_objs.insert(foreign_obj.get());
+			//permanent_foreign_objs.insert(foreign_obj.get());
+			temp_gc_exempt.push_back(to_ret);
 			foreign_objs.insert(std::move(foreign_obj));
 			return to_ret;
 		}
 
 		value add_permanent_foreign_object(foreign_object* foreign_obj) {
 			value to_ret = value(foreign_obj);
-			permanent_foreign_objs.insert(foreign_obj);
+			//permanent_foreign_objs.insert(foreign_obj);
+			temp_gc_exempt.push_back(to_ret);
 			return to_ret;
 		}
 
-		void remove_permanent_foreign_object(foreign_object* foreign_obj) {
-			permanent_foreign_objs.erase(foreign_obj);
+		bool remove_permanent_foreign_object(foreign_object* foreign_obj) {
+			for (auto it = temp_gc_exempt.begin(); it != temp_gc_exempt.end(); it++) {
+				if (it->check_type(value::vtype::FOREIGN_OBJECT) && it->data.foreign_object == foreign_obj) {
+					it = temp_gc_exempt.erase(it);
+					return true;
+				}
+			}
+			return false;
 		}
 
 		value make_foreign_function(std::function<value(std::vector<value>& arguments, instance& instance)> function) {
@@ -326,12 +337,15 @@ namespace HulaScript {
 		typedef void (instance::*operator_handler)(value& a, value& b);
 		
 		enum opcode : uint8_t {
+			STOP,
+
 			DECL_LOCAL,
 			DECL_TOPLVL_LOCAL,
 			PROBE_LOCALS,
 			UNWIND_LOCALS,
 
 			DUPLICATE_TOP,
+			REVERSE_TOP,
 			DISCARD_TOP,
 			BRING_TO_TOP,
 
@@ -354,7 +368,10 @@ namespace HulaScript {
 			ALLOCATE_TABLE_LITERAL,
 			ALLOCATE_CLASS,
 			ALLOCATE_INHERITED_CLASS,
+			ALLOCATE_MODULE,
 			FINALIZE_TABLE,
+			LOAD_MODULE,
+			STORE_MODULE,
 
 			ADD,
 			SUBTRACT,
@@ -474,9 +491,9 @@ namespace HulaScript {
 		std::vector<value> constants;
 		std::vector<uint32_t> available_constant_ids;
 		phmap::flat_hash_map<size_t, uint32_t> constant_hashes;
-		phmap::flat_hash_set<std::unique_ptr<char[]>> active_strs;
-		phmap::flat_hash_set<std::unique_ptr<foreign_object>> foreign_objs;
-		phmap::flat_hash_set<foreign_object*> permanent_foreign_objs;
+		phmap::btree_set<std::unique_ptr<char[]>> active_strs;
+		phmap::btree_set<std::unique_ptr<foreign_object>> foreign_objs;
+		phmap::btree_map<size_t, size_t> loaded_modules;
 
 		phmap::flat_hash_map<uint32_t, std::function<value(std::vector<value>& arguments, instance& instance)>> foreign_functions;
 		std::vector<uint32_t> available_foreign_function_ids;
@@ -567,6 +584,12 @@ namespace HulaScript {
 		friend class ffi_table_helper;
 
 		//COMPILER
+		enum compile_mode {
+			COMPILE_MODE_NORMAL,
+			COMPILE_MODE_REPL,
+			COMPILE_MODE_LIBRARY
+		};
+
 		struct compilation_context {
 			struct lexical_scope {
 				size_t final_ins_offset = 0;
@@ -594,7 +617,7 @@ namespace HulaScript {
 						ip_src_map.push_back(std::make_pair(scope.final_ins_offset + ip_src.first, ip_src.second));
 					}
 
-					if (!(!is_loop_block && scope.is_loop_block)) { //demorgan's law...holy shit 2050
+					if (!(!is_loop_block && scope.is_loop_block)) {
 						continue_requests.reserve(continue_requests.size() + scope.continue_requests.size());
 						for (size_t ip : scope.continue_requests) {
 							continue_requests.push_back(scope.final_ins_offset + ip);
@@ -623,15 +646,17 @@ namespace HulaScript {
 				bool no_capture;
 				bool is_class_method;
 
-				phmap::flat_hash_set<std::string> captured_variables;
-				phmap::flat_hash_set<uint32_t> refed_constants;
-				phmap::flat_hash_set<uint32_t> refed_functions;
+				phmap::btree_set<std::string> captured_variables;
+				phmap::btree_set<uint32_t> refed_constants;
+				phmap::btree_set<uint32_t> refed_functions;
 			};
 
 			std::vector<function_declaration> function_decls;
 			std::vector<lexical_scope> lexical_scopes;
+			compile_mode mode = compile_mode::COMPILE_MODE_NORMAL;
+			std::optional<size_t> parent_module = std::nullopt;
 
-			phmap::flat_hash_map<size_t, variable> active_variables;
+			phmap::btree_map<size_t, variable> active_variables;
 
 			tokenizer& tokenizer;
 			std::vector<source_loc> current_src_pos;
@@ -642,7 +667,6 @@ namespace HulaScript {
 			std::pair<variable, bool> alloc_local(std::string name, bool must_declare=false);
 			bool alloc_and_store(std::string name, bool must_declare = false);
 			operand alloc_global(std::string name);
-			operand alloc_and_store_global(std::string name);
 
 			size_t emit(instruction ins) noexcept {
 				size_t i = lexical_scopes.back().instructions.size();
@@ -734,6 +758,7 @@ namespace HulaScript {
 		std::vector<size_t> global_vars;
 		custom_numerical_parser numerical_parser;
 
+		void alloc_and_store_global(std::string name, compilation_context& context, bool already_allocated = false);
 		void emit_load_variable(std::string name, compilation_context& context);
 
 		void emit_load_property(size_t hash, compilation_context& context) {
@@ -752,8 +777,8 @@ namespace HulaScript {
 		compilation_context::lexical_scope compile_block(compilation_context& context, std::vector<token_type> end_toks, bool is_loop=false);
 		
 		compilation_context::lexical_scope compile_block(compilation_context& context) {
-			std::vector<token_type> end_toks = { token_type::END_BLOCK };
-			return compile_block(context, end_toks);
+			std::vector<token_type> end_tokens = { token_type::END_BLOCK };
+			return compile_block(context, end_tokens);
 		}
 
 		void make_lexical_scope(compilation_context& context, bool is_loop);
@@ -766,6 +791,8 @@ namespace HulaScript {
 		uint32_t compile_function(compilation_context& context, std::string name, bool is_class_method=false, bool is_constructor = false, bool requires_super_call = false);
 		void compile_class(compilation_context& context);
 
-		void compile(compilation_context& context, bool repl_mode=false);
+		void compile(compilation_context& context);
+
+		static instance::value import_module(std::vector<instance::value>& arguments, instance& instance);
 	};
 }

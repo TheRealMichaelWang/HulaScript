@@ -13,6 +13,12 @@ void instance::execute() {
 
 		switch (ins.operation)
 		{
+		case opcode::STOP: 
+			return;
+		case opcode::REVERSE_TOP: {
+			std::reverse(evaluation_stack.end() - ins.operand, evaluation_stack.end());
+			break;
+		}
 		case opcode::DUPLICATE_TOP:
 			evaluation_stack.push_back(evaluation_stack.back());
 			break;
@@ -216,13 +222,48 @@ void instance::execute() {
 			evaluation_stack.push_back(value(value::vtype::TABLE, 0 | value::vflags::TABLE_INHERITS_PARENT, 0, table_id));
 			break;
 		}
+		case opcode::ALLOCATE_MODULE: {
+			size_t table_id = allocate_table(static_cast<size_t>(16), true);
+			evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::TABLE_IS_MODULE, 0, table_id));
+			temp_gc_exempt.push_back(evaluation_stack.back());
+			break;
+		}
 		case opcode::FINALIZE_TABLE: {
 			expect_type(value::vtype::TABLE);
+			size_t table_id = evaluation_stack.back().data.id;
+
+			if (evaluation_stack.back().flags & value::vflags::TABLE_IS_MODULE) {
+				for (auto it = temp_gc_exempt.begin(); it != temp_gc_exempt.end(); it++) {
+					if (it->check_type(value::vtype::TABLE) && it->data.id == table_id) {
+						it = temp_gc_exempt.erase(it);
+						break;
+					}
+				}
+			}
 			evaluation_stack.back().flags |= value::vflags::TABLE_IS_FINAL;
 
-			size_t table_id = evaluation_stack.back().data.id;
 			reallocate_table(table_id, tables.at(table_id).count, true);
 
+			break;
+		}
+		case opcode::LOAD_MODULE: {
+			value key = evaluation_stack.back();
+			size_t hash = key.hash();
+			evaluation_stack.pop_back();
+
+			evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::TABLE_IS_MODULE, 0, loaded_modules.at(hash)));
+			break;
+		}
+		case opcode::STORE_MODULE: {
+			expect_type(value::vtype::TABLE);
+			size_t table_id = evaluation_stack.back().data.id;
+			evaluation_stack.pop_back();
+
+			value key = evaluation_stack.back();
+			size_t hash = key.hash();
+			evaluation_stack.pop_back();
+
+			loaded_modules.insert({ hash, table_id });
 			break;
 		}
 

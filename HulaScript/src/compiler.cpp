@@ -1,3 +1,4 @@
+#include "HulaScript.h"
 #include <sstream>
 #include "hash.h"
 #include "HulaScript.h"
@@ -37,7 +38,7 @@ std::pair<instance::compilation_context::variable, bool> instance::compilation_c
 bool instance::compilation_context::alloc_and_store(std::string name, bool must_declare) {
 	auto res = alloc_local(name, must_declare);
 	if (res.second) {
-		emit({ .operation = (lexical_scopes.size() == 1 ? opcode::DECL_TOPLVL_LOCAL : opcode::DECL_LOCAL), .operand = res.first.offset});
+		emit({ .operation = ((lexical_scopes.size() == 1 && mode != compile_mode::COMPILE_MODE_LIBRARY) ? opcode::DECL_TOPLVL_LOCAL : opcode::DECL_LOCAL), .operand = res.first.offset });
 		return true;
 	}
 	else if (res.first.is_global) {
@@ -80,10 +81,26 @@ instance::operand instance::compilation_context::alloc_global(std::string name) 
 	return var_offset;
 }
 
-instance::operand instance::compilation_context::alloc_and_store_global(std::string name) {
-	operand var_offset = alloc_global(name);
-	emit({ .operation = opcode::DECL_GLOBAL, .operand = var_offset });
-	return var_offset;
+void HulaScript::instance::alloc_and_store_global(std::string name, compilation_context& context, bool already_allocated) {
+	operand var_offset;
+	if (already_allocated) {
+		var_offset = context.active_variables.at(Hash::dj2b(name.c_str())).offset;
+	}
+	else {
+		var_offset = context.alloc_global(name);
+	}
+
+	if (context.mode == compile_mode::COMPILE_MODE_LIBRARY) {
+		emit_load_property(Hash::dj2b(name.c_str()), context);
+		emit_load_property(context.parent_module.value(), context);
+		context.emit({ .operation = opcode::LOAD_MODULE });
+		context.emit({ .operation = opcode::REVERSE_TOP, .operand = 3 });
+		context.emit({ .operation = opcode::STORE_TABLE, .operand = 0 });
+		context.emit({ .operation = opcode::DISCARD_TOP });
+	}
+	else {
+		context.emit({ .operation = opcode::DECL_GLOBAL, .operand = var_offset });
+	}
 }
 
 void instance::emit_load_variable(std::string name, compilation_context& context) {
@@ -96,7 +113,15 @@ void instance::emit_load_variable(std::string name, compilation_context& context
 	}
 
 	if (it->second.is_global) {
-		context.emit({ .operation = opcode::LOAD_GLOBAL, .operand = it->second.offset });
+		if (context.mode == compile_mode::COMPILE_MODE_LIBRARY) {
+			emit_load_property(context.parent_module.value(), context);
+			context.emit({ .operation = opcode::LOAD_MODULE });
+			emit_load_property(Hash::dj2b(name.c_str()), context);
+			context.emit({ .operation = opcode::LOAD_TABLE, .operand = 0 });
+		}
+		else {
+			context.emit({ .operation = opcode::LOAD_GLOBAL, .operand = it->second.offset });
+		}
 	}
 	else {
 		if (it->second.func_id != context.function_decls.size()) {
@@ -691,7 +716,7 @@ instance::compilation_context::lexical_scope instance::unwind_lexical_scope(inst
 	}
 	//remove declared locals from active variables
 	for (auto hash : context.lexical_scopes.back().declared_locals) {
-		context.active_variables.erase(hash);
+		context.active_variables.erase(context.active_variables.find(hash));
 	}
 
 	compilation_context::lexical_scope scope = context.lexical_scopes.back();
@@ -805,7 +830,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 
 	//remove declared locals from active variables
 	for (auto hash : context.lexical_scopes.back().declared_locals) {
-		context.active_variables.erase(hash);
+		context.active_variables.erase(context.active_variables.find(hash));
 	}
 
 	//add instructions to instance
@@ -1064,7 +1089,7 @@ void instance::compile_class(compilation_context& context) {
 		}
 
 		context.emit_function_operation(opcode::CAPTURE_CLOSURE, func_id);
-		context.alloc_and_store_global(class_name);
+		alloc_and_store_global(class_name, context);
 
 		for (size_t i = 0; i < to_pop; i++) {
 			context.emit({ .operation = opcode::DISCARD_TOP });
@@ -1072,32 +1097,43 @@ void instance::compile_class(compilation_context& context) {
 	}
 	else {
 		context.emit_function_operation(opcode::CAPTURE_FUNCPTR, func_id);
-		context.alloc_and_store_global(class_name);
+		alloc_and_store_global(class_name, context);
 	}
 }
 
-void instance::compile(compilation_context& context, bool repl_mode) {
-	context.lexical_scopes.push_back({ .next_local_id = top_level_local_vars.size(), .declared_locals = top_level_local_vars, .all_code_paths_return = false, .is_loop_block = false});
-	
-	operand local_offset = 0;
-	for (auto name_hash : top_level_local_vars) {
-		context.active_variables.insert({ name_hash, {
-			.name_hash = name_hash,
-			.is_global = false,
-			.offset = local_offset,
-			.func_id = 0
-		} });
-		local_offset++;
+void instance::compile(compilation_context& context) {
+	if (context.mode == compile_mode::COMPILE_MODE_LIBRARY) {
+		context.lexical_scopes.push_back({ .next_local_id = 0, .all_code_paths_return = false, .is_loop_block = false });
+		context.global_offset = global_vars.size();
+
+		emit_load_property(context.parent_module.value(), context);
+		context.emit({ .operation = opcode::ALLOCATE_MODULE, .operand = 16 });
+		context.emit({ .operation = opcode::STORE_MODULE });
 	}
-	context.global_offset = 0;
-	for (auto name_hash : global_vars) {
-		context.active_variables.insert({ name_hash, {
-			.name_hash = name_hash,
-			.is_global = true,
-			.offset = static_cast<operand>(context.global_offset),
-			.func_id = 0
-		} });
-		context.global_offset++;
+	else {
+		context.lexical_scopes.push_back({ .next_local_id = top_level_local_vars.size(), .declared_locals = top_level_local_vars, .all_code_paths_return = false, .is_loop_block = false });
+
+		operand local_offset = 0;
+		for (auto name_hash : top_level_local_vars) {
+			context.active_variables.insert({ name_hash, {
+				.name_hash = name_hash,
+				.is_global = false,
+				.offset = local_offset,
+				.func_id = 0
+			} });
+			local_offset++;
+		}
+
+		context.global_offset = 0;
+		for (auto name_hash : global_vars) {
+			context.active_variables.insert({ name_hash, {
+				.name_hash = name_hash,
+				.is_global = true,
+				.offset = static_cast<operand>(context.global_offset),
+				.func_id = 0
+			} });
+			context.global_offset++;
+		}
 	}
 
 	while (!context.tokenizer.match_token(token_type::END_OF_SOURCE, true))
@@ -1115,7 +1151,7 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 			context.tokenizer.scan_token();
 			compile_expression(context);
 
-			context.alloc_and_store_global(identifier);
+			alloc_and_store_global(identifier, context);
 			break;
 		}
 		case token_type::FUNCTION: {
@@ -1126,9 +1162,10 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 
 			operand func_var_offset = context.alloc_global(identifier);
 			compile_function(context, identifier);
-			context.emit({ .operation = opcode::DECL_GLOBAL, .operand = func_var_offset });
+			//context.emit({ .operation = opcode::DECL_GLOBAL, .operand = func_var_offset });
+			alloc_and_store_global(identifier, context, true);
 
-			if (repl_mode) {
+			if (context.mode == compile_mode::COMPILE_MODE_REPL) {
 				context.emit({ .operation = opcode::LOAD_GLOBAL, .operand = func_var_offset });
 			}
 
@@ -1139,23 +1176,33 @@ void instance::compile(compilation_context& context, bool repl_mode) {
 			break;
 		}
 		default:
-			compile_statement(context, !repl_mode);
+			compile_statement(context, context.mode != compile_mode::COMPILE_MODE_REPL);
 			break;
 		}
 
-		if (repl_mode) {
+		if (context.mode == compile_mode::COMPILE_MODE_REPL) {
 			context.tokenizer.expect_token(token_type::END_OF_SOURCE);
 		}
 	}
 
-	top_level_local_vars = context.lexical_scopes.back().declared_locals;
-	global_vars.insert(global_vars.end(), context.declared_globals.begin(), context.declared_globals.end());
+	if (context.mode == compile_mode::COMPILE_MODE_LIBRARY) {
+		context.emit({ .operation = opcode::UNWIND_LOCALS, .operand = static_cast<operand>(context.lexical_scopes.back().declared_locals.size()) });
+		emit_load_property(context.parent_module.value(), context);
+		context.emit({ .operation = opcode::LOAD_MODULE });
+		context.emit({ .operation = opcode::FINALIZE_TABLE });
+		//context.emit({ .operation = opcode::UNWIND_GLOBALS, .operand = 1 });
+	}
+	else {
+		context.emit({ .operation = opcode::STOP });
+		top_level_local_vars = context.lexical_scopes.back().declared_locals;
+		global_vars.insert(global_vars.end(), context.declared_globals.begin(), context.declared_globals.end());
+	}
 
 	ip = instructions.size();
 	instructions.insert(instructions.end(), context.lexical_scopes.back().instructions.begin(), context.lexical_scopes.back().instructions.end());
+
 	for (auto src_loc : context.lexical_scopes.back().ip_src_map) {
 		this->ip_src_map.insert(std::make_pair(src_loc.first + ip, src_loc.second));
 	}
-
 	context.lexical_scopes.pop_back();
 }

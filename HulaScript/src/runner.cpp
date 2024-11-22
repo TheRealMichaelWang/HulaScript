@@ -1,4 +1,5 @@
 #include "HulaScript.h"
+#include "HulaScript.h"
 
 using namespace HulaScript;
 
@@ -21,11 +22,12 @@ std::variant<instance::value, std::vector<compilation_error>, std::monostate> in
 	tokenizer tokenizer(source, file_name);
 
 	compilation_context context = {
+		.mode = (repl_mode ? compile_mode::COMPILE_MODE_REPL : compile_mode::COMPILE_MODE_NORMAL),
 		.tokenizer = tokenizer
 	};
 	
 	try {
-		compile(context, repl_mode);
+		compile(context);
 	}
 	catch (...) {
 		garbage_collect(true);
@@ -47,11 +49,12 @@ std::optional<instance::value> instance::run_no_warnings(std::string source, std
 	tokenizer tokenizer(source, file_name);
 
 	compilation_context context = {
+		.mode = (repl_mode ? compile_mode::COMPILE_MODE_REPL : compile_mode::COMPILE_MODE_NORMAL),
 		.tokenizer = tokenizer
 	};
 
 	try {
-		compile(context, repl_mode);
+		compile(context);
 	}
 	catch (...) {
 		garbage_collect(true);
@@ -62,6 +65,7 @@ std::optional<instance::value> instance::run_no_warnings(std::string source, std
 }
 
 std::optional<instance::value> instance::run_loaded() {
+	size_t exempt_count = temp_gc_exempt.size();
 	try {
 		execute();
 
@@ -76,14 +80,64 @@ std::optional<instance::value> instance::run_loaded() {
 		return std::nullopt;
 	}
 	catch (...) {
-		global_vars.erase(global_vars.begin() + global_vars.size(), global_vars.end());
-		top_level_local_vars.erase(top_level_local_vars.begin() + declared_top_level_locals, top_level_local_vars.end());
-		repl_used_constants.clear();
-		repl_used_functions.clear();
-		temp_gc_exempt.clear();
+		//global_vars.erase(global_vars.begin() + globals.size(), global_vars.end());
+		//top_level_local_vars.erase(top_level_local_vars.begin() + declared_top_level_locals, top_level_local_vars.end());
+		temp_gc_exempt.erase(temp_gc_exempt.begin() + exempt_count, temp_gc_exempt.end());
 
 		finalize();
 		throw;
+	}
+}
+
+instance::value instance::load_module_from_source(std::string source, std::string file_name)
+{
+	size_t hash = Hash::dj2b(file_name.c_str());
+	if (loaded_modules.contains(hash)) {
+		return value(value::vtype::TABLE, value::vflags::TABLE_IS_MODULE, 0, loaded_modules.at(hash));
+	}
+
+	tokenizer tokenizer(source, file_name);
+	compilation_context context = {
+		.mode = compile_mode::COMPILE_MODE_LIBRARY,
+		.parent_module = hash,
+		.tokenizer = tokenizer
+	};
+
+	size_t old_ip = ip;
+	size_t old_global_size = globals.size();
+	size_t old_top_level_size = top_level_local_vars.size();
+
+	try {
+		compile(context);
+	}
+	catch (...) {
+		global_vars.erase(global_vars.begin() + old_global_size, global_vars.end());
+		top_level_local_vars.erase(top_level_local_vars.begin() + old_top_level_size, top_level_local_vars.end());
+		garbage_collect(false);
+		return instance::value();
+	}
+
+	try {
+		execute();
+		
+		instance::value toret = evaluation_stack.back();
+		evaluation_stack.pop_back();
+		temp_gc_exempt.push_back(toret);
+
+		global_vars.erase(global_vars.begin() + old_global_size, global_vars.end());
+		top_level_local_vars.erase(top_level_local_vars.begin() + old_top_level_size, top_level_local_vars.end());
+		garbage_collect(false);
+
+		temp_gc_exempt.pop_back();
+
+		ip = old_ip;
+		return toret;
+	}
+	catch (...) {
+		global_vars.erase(global_vars.begin() + old_global_size, global_vars.end());
+		top_level_local_vars.erase(top_level_local_vars.begin() + old_top_level_size, top_level_local_vars.end());
+		garbage_collect(false);
+		return instance::value();
 	}
 }
 
