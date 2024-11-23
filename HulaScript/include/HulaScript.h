@@ -308,25 +308,6 @@ namespace HulaScript {
 			return true;
 		}
 
-		void panic(std::string msg) const {
-			std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;
-			call_stack.reserve(return_stack.size() + 1);
-
-			std::vector<size_t> ip_stack(return_stack);
-			ip_stack.push_back(ip);
-			for (auto it = ip_stack.begin(); it != ip_stack.end(); ) {
-				size_t ip = *it;
-				size_t count = 0;
-				do {
-					count++;
-					it++;
-				} while (it != ip_stack.end() && *it == ip);
-				call_stack.push_back(std::make_pair(src_from_ip(ip), count));
-			}
-
-			throw runtime_error(msg, call_stack);
-		}
-
 		instance(custom_numerical_parser numerical_parser);
 		instance();
 	private:
@@ -503,17 +484,72 @@ namespace HulaScript {
 		std::vector<size_t> available_table_ids;
 		size_t next_table_id = 0;
 
-		std::vector<value> evaluation_stack;
-
 		std::vector<value> heap; //where elements of tables are stored
-		std::vector<value> locals; //where local variables are stores
 		std::vector<value> globals; //where global variables are stored; max capacity of 256
 
-		size_t local_offset = 0;
-		std::vector<operand> extended_offsets; 
+		struct thread {
+		private:
+			instance& instance;
 
-		std::vector<size_t> return_stack;
-		size_t ip = 0;
+			std::vector<value> evaluation_stack;
+			std::vector<value> locals; //where local variables are stores
+
+			size_t local_offset = 0;
+			std::vector<operand> extended_offsets;
+
+			std::vector<size_t> return_stack;
+			size_t ip = 0;
+
+			bool active = true;
+			std::optional<thread&> parent;
+
+			void expect_type(value::vtype expected_type) const {
+				evaluation_stack.back().expect_type(expected_type, instance);
+			}
+		public:
+			thread(HulaScript::instance& instance, std::optional<thread&> parent) : instance(instance), parent(parent) { }
+
+			void suspend() noexcept {
+				active = false;
+			}
+
+			void resume() noexcept {
+				active = true;
+			}
+
+			const bool is_active() const noexcept {
+				return active;
+			}
+
+			const bool is_suspended() const noexcept {
+				return !active;
+			}
+
+			void execute();
+
+			void panic(std::string msg) const {
+				std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;
+				call_stack.reserve(return_stack.size() + 1);
+
+				std::vector<size_t> ip_stack(return_stack);
+				ip_stack.push_back(ip);
+				for (auto it = ip_stack.begin(); it != ip_stack.end(); ) {
+					size_t ip = *it;
+					size_t count = 0;
+					do {
+						count++;
+						it++;
+					} while (it != ip_stack.end() && *it == ip);
+					call_stack.push_back(std::make_pair(instance.src_from_ip(ip), count));
+				}
+
+				throw runtime_error(msg, call_stack);
+			}
+		};
+
+		thread primary_thread;
+		std::vector<thread> auxiliary_threads;
+
 		std::vector<instruction> instructions;
 		phmap::btree_map<size_t, source_loc> ip_src_map;
 
@@ -542,10 +578,6 @@ namespace HulaScript {
 
 		void garbage_collect(bool compact_instructions) noexcept;
 		void finalize();
-
-		void expect_type(value::vtype expected_type) const {
-			evaluation_stack.back().expect_type(expected_type, *this);
-		}
 
 		std::optional<source_loc> src_from_ip(size_t ip) const noexcept {
 			auto it = ip_src_map.upper_bound(ip);
