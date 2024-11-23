@@ -1136,6 +1136,23 @@ void instance::compile(compilation_context& context) {
 		}
 	}
 
+	static const char* mode_strs[] = {
+		"normal",
+		"repl",
+		"library"
+	};
+	evaluation_stack.push_back(value(const_cast<char*>(mode_strs[context.mode])));
+	if (context.active_variables.contains(Hash::dj2b("@hulamode"))) {
+		if (context.active_variables.at(Hash::dj2b("@hulamode")).is_global) {
+			operand offset = context.active_variables.at(Hash::dj2b("@hulamode")).offset;
+			context.emit({ .operation = opcode::STORE_GLOBAL, .operand = offset });
+			context.emit({ .operation = opcode::DISCARD_TOP });
+		}
+	}
+	else {
+		alloc_and_store_global("@hulamode", context);
+	}
+
 	while (!context.tokenizer.match_token(token_type::END_OF_SOURCE, true))
 	{
 		auto last_token = context.tokenizer.get_last_token();
