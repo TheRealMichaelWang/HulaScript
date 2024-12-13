@@ -1,10 +1,10 @@
-#include "HulaScript.h"
-#include "HulaScript.h"
-#include "HulaScript.h"
+#include "HulaScript.hpp"
+#include "HulaScript.hpp"
+#include "HulaScript.hpp"
 #include <cstring>
 #include <cmath>
 #include <memory>
-#include "HulaScript.h"
+#include "HulaScript.hpp"
 
 using namespace HulaScript;
 

@@ -1,5 +1,5 @@
-#include "HulaScript.h"
-#include "HulaScript.h"
+#include "HulaScript.hpp"
+#include "HulaScript.hpp"
 
 using namespace HulaScript;
 

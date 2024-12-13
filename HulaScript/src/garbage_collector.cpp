@@ -1,6 +1,6 @@
 #include <algorithm>
 #include <cstdlib>
-#include "HulaScript.h"
+#include "HulaScript.hpp"
 
 using namespace HulaScript;
 

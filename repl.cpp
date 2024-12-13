@@ -3,8 +3,8 @@
 
 #include <optional>
 #include <iostream>
-#include "HulaScript.h"
-#include "repl_completer.h"
+#include "HulaScript.hpp"
+#include "repl_completer.hpp"
 
 using namespace std;
 

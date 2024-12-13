@@ -2,7 +2,7 @@
 
 #include <vector>
 #include <stdexcept>
-#include "HulaScript.h"
+#include "HulaScript.hpp"
 #include "phmap.h"
 
 namespace HulaScript {

@@ -1,6 +1,7 @@
-#include "HulaScript.h"
-#include "ffi.h"
-#include "table_iterator.h"
+#include "HulaScript.hpp"
+#include "ffi.hpp"
+#include "table_iterator.hpp"
+#include "dynalo.hpp"
 #include <cstdint>
 #include <memory>
 #include <random>
@@ -56,6 +57,30 @@ private:
 public:
 	random_generator(double lower_bound, double upper_bound) : unif_real(lower_bound, upper_bound) {
 		declare_method("next", &random_generator::next_real);
+	}
+};
+
+class foreign_imported_library : public instance::foreign_object {
+private:
+	dynalo::native::handle library_handle;
+
+	phmap::flat_hash_map<size_t, uint32_t> method_id_lookup;
+	std::vector<instance::value(*)(std::vector<instance::value>&, instance&)> methods;
+public:
+	foreign_imported_library(dynalo::native::handle library_handle) : library_handle(library_handle) {
+		assert(library_handle != dynalo::native::invalid_handle());
+
+		auto manifest_func = dynalo::get_function<std::vector<std::string>()>(library_handle, "manifest");
+		auto manifest = manifest_func();
+
+		for (auto function_name : manifest) {
+			method_id_lookup.insert({ Hash::dj2b(function_name.c_str()), methods.size() });
+			methods.push_back(dynalo::get_function<instance::value(std::vector<instance::value>&, instance&)>(library_handle, function_name));
+		}
+	}
+
+	~foreign_imported_library() {
+		dynalo::close(library_handle);
 	}
 };
 
@@ -231,7 +256,7 @@ instance::value HulaScript::append_range(instance::value table_value, instance::
 	return instance::value();
 }
 
-instance::value HulaScript::instance::import_module(std::vector<instance::value>& arguments, instance& instance)
+static instance::value import_module(std::vector<instance::value>& arguments, instance& instance)
 {
 	if (arguments.size() < 1) {
 		instance.panic("FFI Error: Import module requires module identifier argument.");
@@ -252,6 +277,22 @@ instance::value HulaScript::instance::import_module(std::vector<instance::value>
 	return instance.load_module_from_source(s, arguments.at(0).str(instance));
 }
 
+
+static instance::value import_foreign_module(std::vector<instance::value>& arguments, instance& instance)
+{
+	if (arguments.size() < 1) {
+		instance.panic("FFI Error: Import module requires module identifier argument.");
+	}
+
+	try {
+		dynalo::native::handle library_handle = dynalo::open(arguments[0].str(instance));
+		return instance.add_foreign_object(std::make_unique<foreign_imported_library>(library_handle));
+	}
+	catch (...) {
+		return instance::value(); //return nil if error
+	}
+}
+
 static instance::value standard_number_parser(std::string str, instance& instance) {
 	try {
 		return instance.parse_rational(str);
@@ -270,6 +311,7 @@ instance::instance(custom_numerical_parser numerical_parser) : numerical_parser(
 	declare_global("iteratorToArray", make_foreign_function(iterator_to_array));
 
 	declare_global("import", make_foreign_function(import_module));
+	declare_global("fimport", make_foreign_function(import_foreign_module));
 }
 
 instance::instance() : instance(standard_number_parser) {

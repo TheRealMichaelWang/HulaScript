@@ -1,5 +1,5 @@
-#include "ffi.h"
-#include "hash.h"
+#include "ffi.hpp"
+#include "hash.hpp"
 
 using namespace HulaScript;
 

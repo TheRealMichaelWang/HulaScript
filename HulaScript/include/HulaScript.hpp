@@ -12,10 +12,10 @@
 #include <optional>
 #include "btree.h"
 #include "phmap.h"
-#include "source_loc.h"
-#include "tokenizer.h"
-#include "error.h"
-#include "hash.h"
+#include "source_loc.hpp"
+#include "tokenizer.hpp"
+#include "error.hpp"
+#include "hash.hpp"
 
 namespace HulaScript {
 	class instance {
@@ -792,7 +792,5 @@ namespace HulaScript {
 		void compile_class(compilation_context& context);
 
 		void compile(compilation_context& context);
-
-		static instance::value import_module(std::vector<instance::value>& arguments, instance& instance);
 	};
 }

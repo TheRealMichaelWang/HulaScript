@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 #include <optional>
-#include "tokenizer.h"
+#include "tokenizer.hpp"
 
 namespace HulaScript {
 	class repl_completer {
