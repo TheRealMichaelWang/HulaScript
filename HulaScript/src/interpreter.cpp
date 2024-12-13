@@ -1,8 +1,8 @@
 #include <cmath>
 #include <cassert>
 #include <sstream>
-#include "table_iterator.h"
-#include "HulaScript.h"
+#include "table_iterator.hpp"
+#include "HulaScript.hpp"
 
 using namespace HulaScript;
 

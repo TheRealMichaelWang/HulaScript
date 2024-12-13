@@ -1,13 +1,13 @@
-#include "HulaScript.h"
-#include "HulaScript.h"
-#include "HulaScript.h"
-#include "HulaScript.h"
-#include "HulaScript.h"
-#include "HulaScript.h"
-#include "HulaScript.h"
+#include "HulaScript.hpp"
+#include "HulaScript.hpp"
+#include "HulaScript.hpp"
+#include "HulaScript.hpp"
+#include "HulaScript.hpp"
+#include "HulaScript.hpp"
+#include "HulaScript.hpp"
 #include <tuple>
 #include <stdexcept>
-#include "HulaScript.h"
+#include "HulaScript.hpp"
 
 using namespace HulaScript;
 

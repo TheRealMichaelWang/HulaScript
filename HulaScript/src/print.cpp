@@ -1,9 +1,9 @@
-#include "HulaScript.h"
+#include "HulaScript.hpp"
 #include <sstream>
-#include "error.h"
-#include "source_loc.h"
-#include "tokenizer.h"
-#include "HulaScript.h"
+#include "error.hpp"
+#include "source_loc.hpp"
+#include "tokenizer.hpp"
+#include "HulaScript.hpp"
 
 using namespace HulaScript;
 

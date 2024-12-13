@@ -1,7 +1,7 @@
-#include "HulaScript.h"
+#include "HulaScript.hpp"
 #include <sstream>
-#include "hash.h"
-#include "HulaScript.h"
+#include "hash.hpp"
+#include "HulaScript.hpp"
 
 using namespace HulaScript;
 

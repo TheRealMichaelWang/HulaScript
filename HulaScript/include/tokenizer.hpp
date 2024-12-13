@@ -4,8 +4,8 @@
 #include <string>
 #include <optional>
 #include <vector>
-#include "error.h"
-#include "source_loc.h"
+#include "error.hpp"
+#include "source_loc.hpp"
 
 namespace HulaScript {
 	enum token_type {

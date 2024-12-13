@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ffi.h"
+#include "ffi.hpp"
 
 namespace HulaScript {
 	class table_iterator : public foreign_iterator {

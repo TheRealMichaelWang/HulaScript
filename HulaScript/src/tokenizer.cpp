@@ -1,7 +1,7 @@
 #include <ctype.h>
 #include <sstream>
-#include "hash.h"
-#include "tokenizer.h"
+#include "hash.hpp"
+#include "tokenizer.hpp"
 
 using namespace HulaScript;
 

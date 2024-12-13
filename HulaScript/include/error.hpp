@@ -4,7 +4,7 @@
 #include <string>
 #include <optional>
 #include <vector>
-#include "source_loc.h"
+#include "source_loc.hpp"
 
 namespace HulaScript {
 	class compilation_error : public std::exception {
