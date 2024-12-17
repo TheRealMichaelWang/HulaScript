@@ -10,12 +10,13 @@ void instance::finalize() {
 	evaluation_stack.clear();
 	return_stack.clear();
 	extended_offsets.clear();
-	garbage_collect(true);
 
 	locals.erase(locals.begin() + declared_top_level_locals, locals.end());
 	top_level_local_vars.erase(top_level_local_vars.begin() + declared_top_level_locals, top_level_local_vars.end());
 	global_vars.erase(global_vars.begin() + globals.size(), global_vars.end());
 	local_offset = 0;
+	
+	garbage_collect(true);
 }
 
 std::variant<instance::value, std::vector<compilation_error>, std::monostate> instance::run(std::string source, std::optional<std::string> file_name, bool repl_mode) {

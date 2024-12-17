@@ -3,6 +3,8 @@
 
 #pragma once
 
+#define HULASCRIPT_USE_SHARED_LIBRARY //turns on support for using shared libraries (.dll and .so)
+
 #include <vector>
 #include <cstdint>
 #include <variant>
@@ -16,6 +18,12 @@
 #include "tokenizer.hpp"
 #include "error.hpp"
 #include "hash.hpp"
+
+#ifdef HULASCRIPT_USE_SHARED_LIBRARY
+#define HULASCRIPT_FUNCTION virtual
+#else
+#define HULASCRIPT_FUNCTION
+#endif // HULASCRIPT_USE_SHARED_LIBRARY
 
 namespace HulaScript {
 	class instance {
@@ -212,16 +220,16 @@ namespace HulaScript {
 
 		value load_module_from_source(std::string source, std::string file_name);
 
-		std::string get_value_print_string(value to_print);
-		std::string rational_to_string(value& rational, bool print_as_frac);
+		HULASCRIPT_FUNCTION std::string get_value_print_string(value to_print);
+		HULASCRIPT_FUNCTION std::string rational_to_string(value& rational, bool print_as_frac);
 
-		value add_foreign_object(std::unique_ptr<foreign_object>&& foreign_obj) {
+		HULASCRIPT_FUNCTION value add_foreign_object(std::unique_ptr<foreign_object>&& foreign_obj) {
 			value to_ret = value(foreign_obj.get());
 			foreign_objs.insert(std::move(foreign_obj));
 			return to_ret;
 		}
 
-		value add_permanent_foreign_object(std::unique_ptr<foreign_object>&& foreign_obj) {
+		HULASCRIPT_FUNCTION value add_permanent_foreign_object(std::unique_ptr<foreign_object>&& foreign_obj) {
 			value to_ret = value(foreign_obj.get());
 			//permanent_foreign_objs.insert(foreign_obj.get());
 			temp_gc_exempt.push_back(to_ret);
@@ -229,14 +237,14 @@ namespace HulaScript {
 			return to_ret;
 		}
 
-		value add_permanent_foreign_object(foreign_object* foreign_obj) {
+		HULASCRIPT_FUNCTION value add_permanent_foreign_object(foreign_object* foreign_obj) {
 			value to_ret = value(foreign_obj);
 			//permanent_foreign_objs.insert(foreign_obj);
 			temp_gc_exempt.push_back(to_ret);
 			return to_ret;
 		}
 
-		bool remove_permanent_foreign_object(foreign_object* foreign_obj) {
+		HULASCRIPT_FUNCTION bool remove_permanent_foreign_object(foreign_object* foreign_obj) {
 			for (auto it = temp_gc_exempt.begin(); it != temp_gc_exempt.end(); it++) {
 				if (it->check_type(value::vtype::FOREIGN_OBJECT) && it->data.foreign_object == foreign_obj) {
 					it = temp_gc_exempt.erase(it);
@@ -246,7 +254,7 @@ namespace HulaScript {
 			return false;
 		}
 
-		value make_foreign_function(std::function<value(std::vector<value>& arguments, instance& instance)> function) {
+		HULASCRIPT_FUNCTION value make_foreign_function(std::function<value(std::vector<value>& arguments, instance& instance)> function) {
 			uint32_t id;
 			if (available_foreign_function_ids.empty()) {
 				id = static_cast<uint32_t>(foreign_functions.size());
@@ -259,13 +267,13 @@ namespace HulaScript {
 			return value(value::vtype::FOREIGN_FUNCTION, value::vflags::NONE, id, 0);
 		}
 
-		value make_string(std::string str) {
+		HULASCRIPT_FUNCTION value make_string(std::string str) {
 			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size() + 1]));
 			std::strcpy(res.first->get(), str.c_str());
 			return value(res.first->get());
 		}
 
-		value make_table_obj(const std::vector<std::pair<std::string, value>>& elems, bool is_final=false) {
+		HULASCRIPT_FUNCTION value make_table_obj(const std::vector<std::pair<std::string, value>>& elems, bool is_final=false) {
 			size_t table_id = allocate_table(elems.size(), false);
 			table& table = tables.at(table_id);
 			for (size_t i = 0; i < elems.size(); i++) {
@@ -277,7 +285,7 @@ namespace HulaScript {
 			return value(value::vtype::TABLE, is_final ? value::vflags::NONE : value::vflags::TABLE_IS_FINAL, 0, table_id);
 		}
 
-		value make_array(const std::vector<value>& elems, bool is_final = false) {
+		HULASCRIPT_FUNCTION value make_array(const std::vector<value>& elems, bool is_final = false) {
 			size_t table_id = allocate_table(elems.size(), false);
 			table& table = tables.at(table_id);
 			for (size_t i = 0; i < elems.size(); i++) {
@@ -289,16 +297,16 @@ namespace HulaScript {
 			return value(value::vtype::TABLE, is_final ? value::vflags::NONE : value::vflags::TABLE_IS_FINAL, 0, table_id);
 		}
 
-		value parse_rational(std::string src) const;
+		HULASCRIPT_FUNCTION value parse_rational(std::string src) const;
 
-		value rational_integer(int64_t integer) const noexcept {
+		HULASCRIPT_FUNCTION value rational_integer(int64_t integer) const noexcept {
 			return value(value::vtype::RATIONAL, integer < 0 ? value::vflags::RATIONAL_IS_NEGATIVE : value::vflags::NONE, 1, integer < 0 ? (-integer) : integer);
 		}
 
-		value invoke_value(value to_call, std::vector<value> arguments);
-		value invoke_method(value object, std::string method_name, std::vector<value> arguments);
+		HULASCRIPT_FUNCTION value invoke_value(value to_call, std::vector<value> arguments);
+		HULASCRIPT_FUNCTION value invoke_method(value object, std::string method_name, std::vector<value> arguments);
 
-		bool declare_global(std::string name, value val) {
+		HULASCRIPT_FUNCTION bool declare_global(std::string name, value val) {
 			size_t hash = Hash::dj2b(name.c_str());
 			if (global_vars.size() > UINT8_MAX) {
 				return false;
@@ -308,7 +316,7 @@ namespace HulaScript {
 			return true;
 		}
 
-		void panic(std::string msg) const {
+		HULASCRIPT_FUNCTION void panic(std::string msg) const {
 			std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;
 			call_stack.reserve(return_stack.size() + 1);
 
@@ -532,6 +540,10 @@ namespace HulaScript {
 
 		//executes arbitrary_ins
 		void execute_arbitrary(const std::vector<instruction>& arbitrary_ins);
+
+#ifdef HULASCRIPT_USE_SHARED_LIBRARY
+		virtual std::optional<value> execute_arbitrary(const std::vector<instruction>& arbitrary_ins, const std::vector<value>& operands, bool return_value=false);
+#endif // HULASCRIPT_USE_SHARED_LIBRARY
 
 		//allocates a zone in heap, represented by gc_block
 		gc_block allocate_block(size_t capacity, bool allow_collect);

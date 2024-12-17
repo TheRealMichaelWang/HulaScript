@@ -21,6 +21,7 @@
             "name": "x64-debug",
             "displayName": "x64 Debug",
             "inherits": "windows-base",
+
             "architecture": {
                 "value": "x64",
                 "strategy": "external"

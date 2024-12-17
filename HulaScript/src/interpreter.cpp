@@ -1,3 +1,4 @@
+#include "HulaScript.hpp"
 #include <cmath>
 #include <cassert>
 #include <sstream>
@@ -593,3 +594,18 @@ void HulaScript::instance::execute_arbitrary(const std::vector<instruction>& arb
 	instructions.erase(instructions.begin() + start_ip, instructions.end());
 	ip = old_ip;
 }
+
+#ifdef HULASCRIPT_USE_SHARED_LIBRARY
+std::optional<instance::value> instance::execute_arbitrary(const std::vector<instruction>& arbitrary_ins, const std::vector<value>& operands, bool return_value)
+{
+	evaluation_stack.insert(evaluation_stack.end(), operands.begin(), operands.end());
+	execute_arbitrary(arbitrary_ins);
+	
+	if (return_value) {
+		auto to_return = evaluation_stack.back();
+		evaluation_stack.pop_back();
+		return to_return;
+	}
+	return std::nullopt;
+}
+#endif
