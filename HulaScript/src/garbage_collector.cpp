@@ -180,7 +180,9 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 
 	//removed unused foreign objects
 	for (auto it = foreign_objs.begin(); it != foreign_objs.end();) {
-		if (!marked_foreign_objects.contains(it->get())) {
+		auto ptr = it->get();
+		if (!marked_foreign_objects.contains(ptr)) {
+			
 			it = foreign_objs.erase(it);
 		}
 		else {

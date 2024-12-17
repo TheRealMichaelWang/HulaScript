@@ -70,7 +70,6 @@ static const char* type_names[] = {
 	"BUILTIN TABLE-APPEND-RANGE"
 };
 void instance::value::expect_type(value::vtype expected_type, const instance& instance) const {
-
 	if (type != expected_type) {
 		std::stringstream ss;
 		ss << "Type Error: Expected value of type " << type_names[expected_type] << " but got " << type_names[type] << " instead.";
