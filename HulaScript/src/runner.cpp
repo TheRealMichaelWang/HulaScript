@@ -59,6 +59,7 @@ std::optional<instance::value> instance::run_no_warnings(std::string source, std
 	}
 	catch (...) {
 		garbage_collect(true);
+		//finalize();
 		throw;
 	}
 

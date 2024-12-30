@@ -262,10 +262,19 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			break;
 		}
 	}
+	case token_type::TABLE:
+		context.tokenizer.scan_token();
+		context.tokenizer.expect_token(token_type::OPEN_BRACKET);
+		context.tokenizer.scan_token();
+		compile_expression(context);
+		context.emit({ .operation = opcode::ALLOCATE_TABLE });
+		context.tokenizer.expect_token(token_type::CLOSE_BRACKET);
+		context.tokenizer.scan_token();
+		break;
 	case token_type::OPEN_BRACKET: {
 		context.tokenizer.scan_token();
 
-		size_t addr = context.emit({ .operation = opcode::ALLOCATE_TABLE_LITERAL });
+		size_t addr = context.emit({ .operation = opcode::ALLOCATE_ARRAY_LITERAL });
 		size_t count = 0;
 		while (!context.tokenizer.match_token(token_type::CLOSE_BRACKET, true)) {
 			if (count > 0) {
@@ -1141,7 +1150,8 @@ void instance::compile(compilation_context& context) {
 		"repl",
 		"library"
 	};
-	evaluation_stack.push_back(value(const_cast<char*>(mode_strs[context.mode])));
+
+	context.emit_load_constant(add_constant(value(value(const_cast<char*>(mode_strs[context.mode])))), repl_used_constants);
 	if (context.active_variables.contains(Hash::dj2b("@hulamode"))) {
 		if (context.active_variables.at(Hash::dj2b("@hulamode")).is_global) {
 			operand offset = context.active_variables.at(Hash::dj2b("@hulamode")).offset;

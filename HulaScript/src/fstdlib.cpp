@@ -1,9 +1,6 @@
 #include "HulaScript.hpp"
 #include "ffi.hpp"
 #include "table_iterator.hpp"
-#ifdef HULASCRIPT_USE_SHARED_LIBRARY
-#include "dynalo.hpp"
-#endif
 #include <cstdint>
 #include <memory>
 #include <random>
@@ -61,48 +58,6 @@ public:
 		declare_method("next", &random_generator::next_real);
 	}
 };
-
-#ifdef HULASCRIPT_USE_SHARED_LIBRARY
-class foreign_imported_library : public instance::foreign_object {
-private:
-	dynalo::native::handle library_handle;
-
-	phmap::flat_hash_map<size_t, uint32_t> method_id_lookup;
-	std::vector<instance::value(*)(std::vector<instance::value>&, instance&)> methods;
-public:
-	foreign_imported_library(dynalo::native::handle library_handle) : library_handle(library_handle) {
-		assert(library_handle != dynalo::native::invalid_handle());
-
-		auto manifest_func = dynalo::get_function<const char**()>(library_handle, "manifest");
-		auto manifest = manifest_func();
-
-		for (int i = 0; manifest[i] != NULL; i++)
-		{
-			method_id_lookup.insert({ Hash::dj2b(manifest[i]), methods.size()});
-			methods.push_back(dynalo::get_function<instance::value(std::vector<instance::value>&, instance&)>(library_handle, manifest[i]));
-		}
-	}
-
-	~foreign_imported_library() {
-		dynalo::close(library_handle);
-	}
-
-	instance::value load_property(size_t name_hash, instance& instance) override {
-		auto it = method_id_lookup.find(name_hash);
-		if (it != method_id_lookup.end()) {
-			return instance::value(it->second, static_cast<foreign_object*>(this));
-		}
-		return instance::value();
-	}
-
-	instance::value call_method(uint32_t method_id, std::vector<instance::value>& arguments, instance& instance) override {
-		if (method_id >= methods.size()) {
-			return instance::value();
-		}
-		return this->methods[method_id](arguments, instance);
-	}
-};
-#endif // HULASCRIPT_USE_SHARED_LIBRARY
 
 static instance::value new_int_range(std::vector<instance::value> arguments, instance& instance) {
 	int64_t start = 0;

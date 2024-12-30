@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cassert>
 #include <string>
 #include <vector>
 #include <memory>
@@ -11,7 +12,7 @@
 #include <optional>
 #include <unordered_map>
 
-#define HULASCRIPT_EXPECT_ARGS(ARG_COUNT) if(argv != (ARG_COUNT)) { instance.panic("FFI Error: Function received wrong number of arguments.");}
+#define HULASCRIPT_EXPECT_ARGS(ARG_COUNT) if(args.size() != (ARG_COUNT)) { instance.panic("FFI Error: Function received wrong number of arguments.");}
 
 namespace HulaScript {
 	namespace Hash {
@@ -262,6 +263,7 @@ namespace HulaScript {
 			LOAD_TABLE,
 			STORE_TABLE,
 			ALLOCATE_TABLE,
+			ALLOCATE_ARRAY_LITERAL,
 			ALLOCATE_TABLE_LITERAL,
 			ALLOCATE_CLASS,
 			ALLOCATE_INHERITED_CLASS,
@@ -321,6 +323,8 @@ namespace HulaScript {
 			table_value.expect_type(instance::value::vtype::TABLE, owner_instance);
 		}
 
+		ffi_table_helper(size_t capacity, instance& owner_instance);
+
 		instance::value get(instance::value key) const;
 		instance::value get(std::string key) const;
 		void emplace(instance::value key, instance::value set_val);
@@ -331,11 +335,17 @@ namespace HulaScript {
 		}
 
 		const size_t get_size() const;
+
+		instance::value get_table() const noexcept {
+			return instance::value(instance::value::vtype::TABLE, flags, 0, table_id);
+		}
 	private:
 		size_t table_id;
 		instance& owner_instance;
 		uint16_t flags;
 	};
+
+	extern instance::foreign_object* library_owner;
 
 	template<typename child_type>
 	class foreign_method_object : public instance::foreign_object {
@@ -353,6 +363,10 @@ namespace HulaScript {
 				return instance::value();
 			}
 			return (dynamic_cast<child_type*>(this)->*methods[method_id])(arguments, instance);
+		}
+
+		void trace(std::vector<instance::value>& to_trace) override {
+			to_trace.push_back(instance::value(library_owner));
 		}
 	protected:
 		bool declare_method(std::string name, instance::value(child_type::* method)(std::vector<instance::value>& arguments, instance& instance)) {

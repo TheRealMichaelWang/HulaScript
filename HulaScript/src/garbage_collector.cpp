@@ -1,6 +1,10 @@
 #include <algorithm>
 #include <cstdlib>
 #include "HulaScript.hpp"
+#ifdef HULASCRIPT_USE_SHARED_LIBRARY
+#include "table_iterator.hpp"
+#endif // HULASCRIPT_USE_SHARED_LIBRARY
+
 
 using namespace HulaScript;
 
@@ -179,16 +183,31 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	}
 
 	//removed unused foreign objects
+#ifdef HULASCRIPT_USE_SHARED_LIBRARY
+	std::vector<phmap::btree_set<std::unique_ptr<foreign_object>>::iterator> libraries_to_remove;
+#endif // HULASCRIPT_USE_SHARED_LIBRARY
 	for (auto it = foreign_objs.begin(); it != foreign_objs.end();) {
 		auto ptr = it->get();
 		if (!marked_foreign_objects.contains(ptr)) {
-			
+#ifdef HULASCRIPT_USE_SHARED_LIBRARY
+			foreign_imported_library* library_obj = dynamic_cast<foreign_imported_library*>(ptr);
+			if (library_obj != nullptr) {
+				libraries_to_remove.push_back(it);
+				it++;
+				continue;
+			}
+#endif
 			it = foreign_objs.erase(it);
 		}
 		else {
 			it++;
 		}
 	}
+#ifdef HULASCRIPT_USE_SHARED_LIBRARY
+	for (auto it : libraries_to_remove) {
+		foreign_objs.erase(it);
+	}
+#endif // HULASCRIPT_USE_SHARED_LIBRARY
 
 	for (auto it = foreign_functions.begin(); it != foreign_functions.end();) {
 		if (!marked_foreign_functions.contains(it->first)) {
@@ -277,3 +296,23 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 		ip = instructions.size();
 	}
 }
+
+#ifdef HULASCRIPT_USE_SHARED_LIBRARY
+instance::~instance() {//removed unused foreign objects
+	std::vector<phmap::btree_set<std::unique_ptr<foreign_object>>::iterator> libraries_to_remove;
+	for (auto it = foreign_objs.begin(); it != foreign_objs.end();) {
+		auto ptr = it->get();
+		foreign_imported_library* library_obj = dynamic_cast<foreign_imported_library*>(ptr);
+		if (library_obj != nullptr) {
+			libraries_to_remove.push_back(it);
+			it++;
+		}
+		else {
+			it = foreign_objs.erase(it);
+		}
+	}
+	for (auto it : libraries_to_remove) {
+		foreign_objs.erase(it);
+	}
+}
+#endif // HULASCRIPT_USE_SHARED_LIBRARY
