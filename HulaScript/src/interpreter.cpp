@@ -200,22 +200,26 @@ void instance::execute() {
 			break;
 		}
 		case opcode::ALLOCATE_TABLE: {
-			expect_type(value::vtype::DOUBLE);
 			value length = evaluation_stack.back();
 			evaluation_stack.pop_back();
 
-			size_t table_id = allocate_table(static_cast<size_t>(length.data.number), true);
+			size_t table_id = allocate_table(static_cast<size_t>(length.number(*this)), true);
 			evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, table_id));
 			break;
 		}
-		case opcode::ALLOCATE_TABLE_LITERAL: {
+		case opcode::ALLOCATE_ARRAY_LITERAL: {
 			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
 			evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::TABLE_ARRAY_ITERATE, 0, table_id));
 			break;
 		}
+		case opcode::ALLOCATE_TABLE_LITERAL: {
+			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
+			evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, table_id));
+			break;
+		}
 		case opcode::ALLOCATE_CLASS: {
 			size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
-			evaluation_stack.push_back(value(value::vtype::TABLE, 0, 0, table_id));
+			evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, table_id));
 			break;
 		}
 		case opcode::ALLOCATE_INHERITED_CLASS: {

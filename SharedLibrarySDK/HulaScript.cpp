@@ -3,6 +3,8 @@
 
 using namespace HulaScript;
 
+instance::foreign_object* HulaScript::library_owner = nullptr;
+
 const int64_t instance::value::index(int64_t min, int64_t max, instance& instance) const {
 	double num = number(instance);
 
@@ -42,20 +44,28 @@ void instance::value::expect_type(value::vtype expected_type, const instance& in
 	}
 }
 
+HulaScript::ffi_table_helper::ffi_table_helper(size_t capacity, instance& owner_instance) : owner_instance(owner_instance) {
+	std::vector<instance::instruction> ins;
+	ins.push_back({ .operation = instance::opcode::ALLOCATE_TABLE_LITERAL, .operand = static_cast<instance::operand>(std::min(size_t(256), capacity)) });
+	auto table = owner_instance.execute_arbitrary(ins, {}, true);
+	table_id = table.value().data.id;
+	flags = table.value().flags;
+}
+
 instance::value ffi_table_helper::get(instance::value key) const {
 	std::vector<instance::instruction> ins;
 	ins.push_back({ .operation = instance::opcode::LOAD_TABLE });
-	return owner_instance.execute_arbitrary(ins, { instance::value(instance::value::vtype::TABLE, flags, 0, table_id) , key}, true).value();
+	return owner_instance.execute_arbitrary(ins, { instance::value(instance::value::vtype::TABLE, flags, 0, table_id) , key }, true).value();
 }
 
 instance::value HulaScript::ffi_table_helper::get(std::string key) const {
 	std::vector<instance::instruction> ins;
 	ins.push_back({ .operation = instance::opcode::LOAD_TABLE });
-	return owner_instance.execute_arbitrary(ins, 
-	{
-		instance::value(instance::value::vtype::TABLE, flags, 0, table_id),
-		instance::value(instance::value::value::INTERNAL_STRHASH, 0, 0, Hash::dj2b(key.c_str()))
-	}, true).value();
+	return owner_instance.execute_arbitrary(ins,
+		{
+			instance::value(instance::value::vtype::TABLE, flags, 0, table_id),
+			instance::value(instance::value::value::INTERNAL_STRHASH, 0, 0, Hash::dj2b(key.c_str()))
+		}, true).value();
 }
 
 void ffi_table_helper::emplace(instance::value key, instance::value set_val) {
@@ -65,7 +75,7 @@ void ffi_table_helper::emplace(instance::value key, instance::value set_val) {
 		instance::value(instance::value::vtype::TABLE, flags, 0, table_id),
 		key,
 		set_val
-	}, true);
+		}, true);
 }
 
 void HulaScript::ffi_table_helper::emplace(std::string key, instance::value set_val) {
@@ -75,7 +85,7 @@ void HulaScript::ffi_table_helper::emplace(std::string key, instance::value set_
 		instance::value(instance::value::vtype::TABLE, flags, 0, table_id),
 		instance::value(instance::value::value::INTERNAL_STRHASH, 0, 0, Hash::dj2b(key.c_str())),
 		set_val
-	}, true);
+		}, true);
 }
 
 const size_t HulaScript::ffi_table_helper::get_size() const

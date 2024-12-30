@@ -294,7 +294,7 @@ namespace HulaScript {
 			}
 			table.count = elems.size();
 
-			return value(value::vtype::TABLE, is_final ? value::vflags::NONE : value::vflags::TABLE_IS_FINAL, 0, table_id);
+			return value(value::vtype::TABLE, is_final ? value::vflags::TABLE_ARRAY_ITERATE : value::vflags::TABLE_IS_FINAL | value::vflags::TABLE_ARRAY_ITERATE, 0, table_id);
 		}
 
 		HULASCRIPT_FUNCTION value parse_rational(std::string src) const;
@@ -337,6 +337,13 @@ namespace HulaScript {
 
 		instance(custom_numerical_parser numerical_parser);
 		instance();
+
+#ifdef HULASCRIPT_USE_SHARED_LIBRARY
+		~instance();
+#endif // HULASCRIPT_USE_SHARED_LIBRARY
+
+		instance(const instance& other) = delete;
+		instance& operator=(const instance& other) = delete;
 	private:
 
 		//VIRTUAL MACHINE
@@ -373,6 +380,7 @@ namespace HulaScript {
 			LOAD_TABLE,
 			STORE_TABLE,
 			ALLOCATE_TABLE,
+			ALLOCATE_ARRAY_LITERAL,
 			ALLOCATE_TABLE_LITERAL,
 			ALLOCATE_CLASS,
 			ALLOCATE_INHERITED_CLASS,
