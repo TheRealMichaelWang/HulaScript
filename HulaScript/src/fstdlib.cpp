@@ -226,7 +226,7 @@ instance::value HulaScript::append_range(instance::value table_value, instance::
 	for (size_t i = 0; i < toappend_helper.size(); i++) {
 		helper.append(toappend_helper.at_index(i));
 	}
-	toappend_helper.temp_gc_unprotect();
+	instance.temp_gc_unprotect();
 
 	return instance::value();
 }

@@ -335,6 +335,13 @@ namespace HulaScript {
 			throw runtime_error(msg, call_stack);
 		}
 
+		HULASCRIPT_FUNCTION void temp_gc_protect(value val) {
+			temp_gc_exempt.push_back(val);
+		}
+		HULASCRIPT_FUNCTION void temp_gc_unprotect() {
+			temp_gc_exempt.pop_back();
+		}
+
 		instance(custom_numerical_parser numerical_parser);
 		instance();
 

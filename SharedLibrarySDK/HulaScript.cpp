@@ -62,10 +62,10 @@ instance::value HulaScript::ffi_table_helper::get(std::string key) const {
 	std::vector<instance::instruction> ins;
 	ins.push_back({ .operation = instance::opcode::LOAD_TABLE });
 	return owner_instance.execute_arbitrary(ins,
-		{
-			instance::value(instance::value::vtype::TABLE, flags, 0, table_id),
-			instance::value(instance::value::value::INTERNAL_STRHASH, 0, 0, Hash::dj2b(key.c_str()))
-		}, true).value();
+	{
+		instance::value(instance::value::vtype::TABLE, flags, 0, table_id),
+		instance::value(instance::value::value::INTERNAL_STRHASH, 0, 0, Hash::dj2b(key.c_str()))
+	}, true).value();
 }
 
 void ffi_table_helper::emplace(instance::value key, instance::value set_val) {
@@ -75,7 +75,7 @@ void ffi_table_helper::emplace(instance::value key, instance::value set_val) {
 		instance::value(instance::value::vtype::TABLE, flags, 0, table_id),
 		key,
 		set_val
-		}, true);
+	}, true);
 }
 
 void HulaScript::ffi_table_helper::emplace(std::string key, instance::value set_val) {

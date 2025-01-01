@@ -231,6 +231,10 @@ namespace HulaScript {
 		virtual bool declare_global(std::string name, value val) = 0;
 		virtual void panic(std::string msg) const = 0;
 
+		virtual void temp_gc_protect(value val) = 0;
+
+		virtual void temp_gc_unprotect() = 0;
+
 	private:
 		using operand = uint8_t;
 
@@ -338,6 +342,10 @@ namespace HulaScript {
 
 		instance::value get_table() const noexcept {
 			return instance::value(instance::value::vtype::TABLE, flags, 0, table_id);
+		}
+
+		void temp_gc_protect() {
+			owner_instance.temp_gc_protect(instance::value(instance::value::vtype::TABLE, flags, 0, table_id));
 		}
 	private:
 		size_t table_id;

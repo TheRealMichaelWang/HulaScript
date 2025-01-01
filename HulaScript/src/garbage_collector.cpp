@@ -28,9 +28,17 @@ instance::gc_block instance::allocate_block(size_t capacity, bool allow_collect)
 size_t instance::allocate_table(size_t capacity, bool allow_collect) {
 	table t(allocate_block(capacity, allow_collect));
 
-	tables.insert({ next_table_id, t });
-	next_table_id++;
-	return next_table_id - 1;
+	if (available_table_ids.empty()) {
+		tables.insert({ next_table_id, t });
+		next_table_id++;
+		return next_table_id - 1;
+	}
+	else {
+		size_t id = available_table_ids.back();
+		available_table_ids.pop_back();
+		tables.insert({ id, t });
+		return id;
+	}
 }
 
 void instance::reallocate_table(size_t table_id, size_t new_capacity, bool allow_collect) {
@@ -62,6 +70,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	values_to_trace.insert(values_to_trace.end(), locals.begin(), locals.end());
 	values_to_trace.insert(values_to_trace.end(), temp_gc_exempt.begin(), temp_gc_exempt.end());
 	for (auto id : repl_used_constants) {
+		assert((constants[id].flags & value::vflags::INVALID_CONSTANT) == 0);
 		values_to_trace.push_back(constants[id]);
 	}
 
@@ -140,8 +149,9 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 
 	//remove unused table entries
 	for (auto it = tables.begin(); it != tables.end(); ) {
-		if (!marked_tables.contains(it->first)) {
-			available_table_ids.push_back(it->first);
+		auto id = it->first;
+		if (!marked_tables.contains(id)) {
+			available_table_ids.push_back(id);
 			it = tables.erase(it);
 		}
 		else {
