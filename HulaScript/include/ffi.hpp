@@ -99,13 +99,6 @@ namespace HulaScript {
 			owner_instance.heap[table_entry.block.start + b] = temp;
 		}
 
-		void temp_gc_protect() {
-			owner_instance.temp_gc_exempt.push_back(instance::value(instance::value::vtype::TABLE, flags, 0, table_id));
-		}
-		void temp_gc_unprotect() {
-			owner_instance.temp_gc_exempt.pop_back();
-		}
-
 		instance::value get(instance::value key) const;
 		instance::value get(std::string key) const;
 		void emplace(instance::value key, instance::value set_val);
@@ -113,6 +106,10 @@ namespace HulaScript {
 
 		void reserve(size_t capacity, bool allow_collect = false);
 		void append(instance::value value, bool allow_collect=false);
+
+		void temp_gc_protect() {
+			owner_instance.temp_gc_protect(instance::value(instance::value::vtype::TABLE, flags, 0, table_id));
+		}
 	private:
 		size_t table_id;
 		instance& owner_instance;
