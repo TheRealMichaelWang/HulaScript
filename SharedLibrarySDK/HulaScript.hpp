@@ -119,8 +119,11 @@ namespace HulaScript {
 
 			const int64_t index(int64_t min, int64_t max, instance& instance) const;
 
+			template<bool IsTableHash>
 			const constexpr size_t hash() const {
 				size_t payload = 0;
+				size_t final_mask = static_cast<size_t>(type);
+
 				switch (type)
 				{
 				case vtype::NIL:
@@ -142,8 +145,13 @@ namespace HulaScript {
 					payload = data.foreign_object->compute_hash();
 					break;
 				case vtype::STRING: {
-					payload = Hash::dj2b(data.str);
-					break;
+					if constexpr (IsTableHash) {
+						return Hash::dj2b(data.str);
+					}
+					else {
+						payload = Hash::dj2b(data.str);
+						break;
+					}
 				}
 				case vtype::RATIONAL:
 					if (data.id == 0) {
@@ -163,8 +171,6 @@ namespace HulaScript {
 					payload = function_id;
 					break;
 				}
-
-				size_t final_mask = static_cast<size_t>(type);
 				final_mask <<= sizeof(vflags);
 				final_mask += static_cast<size_t>(flags);
 				return HulaScript::Hash::combine(final_mask, payload);

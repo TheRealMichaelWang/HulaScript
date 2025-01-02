@@ -174,7 +174,7 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 				continue;
 			}
 
-			size_t hash = constants[i].hash();
+			size_t hash = constants[i].hash<false>();
 			constant_hashes.erase(hash);
 			available_constant_ids.push_back(i);
 

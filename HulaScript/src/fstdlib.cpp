@@ -110,6 +110,27 @@ static instance::value new_random_generator(std::vector<instance::value> argumen
 	return instance.add_foreign_object(std::make_unique<random_generator>(random_generator(lower_bound, upper_bound)));
 }
 
+static instance::value parse_rational_str(std::vector<instance::value> arguments, instance& instance) {
+	if (arguments.size() != 1) {
+		instance.panic("FFI Error: Parse rational expected 1 argument.");
+	}
+
+	try {
+		return instance.parse_rational(arguments.at(0).str(instance));
+	}
+	catch (const std::runtime_error& error) {
+		instance.panic(error.what());
+	}
+}
+
+static instance::value parse_number_str(std::vector<instance::value> arguments, instance& instance) {
+	if (arguments.size() != 1) {
+		instance.panic("FFI Error: Parse number expected 1 argument.");
+	}
+
+	return instance.parse_number(arguments.at(0).str(instance));
+}
+
 static instance::value sort_table(std::vector<instance::value> arguments, instance& instance) {
 	if (arguments.size() != 2) {
 		instance.panic("FFI Error: Function sort expects 2 arguments: a array-table, and a comparator (return whether left is less than right).");
@@ -202,7 +223,7 @@ static instance::value format_string(std::vector<instance::value> arguments, ins
 				result.insert(result.end(), to_insert.begin(), to_insert.end());
 			}
 			else if (code == 'p') {
-				std::string to_insert = instance.get_value_print_string(arguments.at(arg_no).number(instance));
+				std::string to_insert = instance.get_value_print_string(arguments.at(arg_no));
 				result.insert(result.end(), to_insert.begin(), to_insert.end());
 			}
 			else {
@@ -322,7 +343,7 @@ static instance::value import_foreign_module(std::vector<instance::value>& argum
 }
 #endif // HULASCRIPT_USE_SHARED_LIBRARY
 
-static instance::value standard_number_parser(std::string str, instance& instance) {
+static instance::value standard_number_parser(std::string str, const instance& instance) {
 	try {
 		return instance.parse_rational(str);
 	}
@@ -333,6 +354,8 @@ static instance::value standard_number_parser(std::string str, instance& instanc
 
 instance::instance(custom_numerical_parser numerical_parser) : numerical_parser(numerical_parser) {
 	declare_global("format", make_foreign_function(format_string));
+	declare_global("rational", make_foreign_function(parse_rational_str));
+	declare_global("number", make_foreign_function(parse_number_str));
 
 	declare_global("irange", make_foreign_function(new_int_range));
 	declare_global("randomer", make_foreign_function(new_random_generator));

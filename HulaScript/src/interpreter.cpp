@@ -92,7 +92,7 @@ void instance::execute() {
 		//table operations
 		case opcode::LOAD_TABLE: {
 			value key = evaluation_stack.back();
-			size_t hash = key.hash();
+			size_t hash = key.hash<true>();
 			evaluation_stack.pop_back();
 
 			value table_value = evaluation_stack.back();
@@ -164,7 +164,7 @@ void instance::execute() {
 			uint16_t flags = table_value.flags;
 			evaluation_stack.pop_back();
 
-			size_t hash = key.hash();
+			size_t hash = key.hash<true>();
 
 			for (;;) {
 				table& table = tables.at(table_id);
@@ -253,7 +253,7 @@ void instance::execute() {
 		}
 		case opcode::LOAD_MODULE: {
 			value key = evaluation_stack.back();
-			size_t hash = key.hash();
+			size_t hash = key.hash<true>();
 			evaluation_stack.pop_back();
 
 			evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::TABLE_IS_MODULE, 0, loaded_modules.at(hash)));
@@ -265,7 +265,7 @@ void instance::execute() {
 			evaluation_stack.pop_back();
 
 			value key = evaluation_stack.back();
-			size_t hash = key.hash();
+			size_t hash = key.hash<true>();
 			evaluation_stack.pop_back();
 
 			loaded_modules.insert({ hash, table_id });
@@ -337,7 +337,7 @@ void instance::execute() {
 			evaluation_stack.pop_back();
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			evaluation_stack.push_back(value(a.hash() == b.hash()));
+			evaluation_stack.push_back(value(a.hash<false>() == b.hash<false>()));
 			break;
 		}
 		case opcode::NOT_EQUAL: {
@@ -345,7 +345,7 @@ void instance::execute() {
 			evaluation_stack.pop_back();
 			value a = evaluation_stack.back();
 			evaluation_stack.pop_back();
-			evaluation_stack.push_back(value(a.hash() != b.hash()));
+			evaluation_stack.push_back(value(a.hash<false>() != b.hash<false>()));
 			break;
 		}
 		case opcode::IFNT_NIL_JUMP_AHEAD: {
@@ -437,7 +437,7 @@ void instance::execute() {
 					for (int i = ins.operand - 1; i >= 0; i--) {
 						heap[arg_table_entry.block.start + i] = locals.back();
 						locals.pop_back();
-						arg_table_entry.key_hashes.insert({ rational_integer(i).hash(), i });
+						arg_table_entry.key_hashes.insert({ rational_integer(i).hash<true>(), i });
 					}
 
 					locals.push_back(value(value::vtype::TABLE, value::vflags::TABLE_IS_FINAL, 0, arg_table_id));
