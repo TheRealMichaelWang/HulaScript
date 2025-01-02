@@ -122,8 +122,11 @@ namespace HulaScript {
 
 			const int64_t index(int64_t min, int64_t max, instance& instance) const;
 
+			template<bool IsTableHash>
 			const constexpr size_t hash() const {
 				size_t payload = 0;
+				size_t final_mask = static_cast<size_t>(type);
+
 				switch (type)
 				{
 				case vtype::NIL:
@@ -145,8 +148,13 @@ namespace HulaScript {
 					payload = data.foreign_object->compute_hash();
 					break;
 				case vtype::STRING: {
-					payload = Hash::dj2b(data.str);
-					break;
+					if constexpr (IsTableHash) {
+						return Hash::dj2b(data.str);
+					}
+					else {
+						payload = Hash::dj2b(data.str);
+						break;
+					}
 				}
 				case vtype::RATIONAL:
 					if (data.id == 0) {
@@ -166,8 +174,6 @@ namespace HulaScript {
 					payload = function_id;
 					break;
 				}
-
-				size_t final_mask = static_cast<size_t>(type);
 				final_mask <<= sizeof(vflags);
 				final_mask += static_cast<size_t>(flags);
 				return HulaScript::Hash::combine(final_mask, payload);
@@ -212,7 +218,7 @@ namespace HulaScript {
 			virtual ~foreign_object() = default;
 		};
 
-		typedef value(*custom_numerical_parser)(std::string numerical_str, instance& instance);
+		typedef value(*custom_numerical_parser)(std::string numerical_str, const instance& instance);
 
 		std::variant<value, std::vector<compilation_error>, std::monostate> run(std::string source, std::optional<std::string> file_name, bool repl_mode = true);
 		std::optional<value> run_no_warnings(std::string source, std::optional<std::string> file_name, bool repl_mode = true);
@@ -289,7 +295,7 @@ namespace HulaScript {
 			size_t table_id = allocate_table(elems.size(), false);
 			table& table = tables.at(table_id);
 			for (size_t i = 0; i < elems.size(); i++) {
-				table.key_hashes.insert({ rational_integer(i).hash(), i });
+				table.key_hashes.insert({ rational_integer(i).hash<true>(), i });
 				heap[table.block.start + i] = elems[i];
 			}
 			table.count = elems.size();
@@ -298,6 +304,10 @@ namespace HulaScript {
 		}
 
 		HULASCRIPT_FUNCTION value parse_rational(std::string src) const;
+
+		value parse_number(std::string src) const {
+			return numerical_parser(src, *this);
+		}
 
 		HULASCRIPT_FUNCTION value rational_integer(int64_t integer) const noexcept {
 			return value(value::vtype::RATIONAL, integer < 0 ? value::vflags::RATIONAL_IS_NEGATIVE : value::vflags::NONE, 1, integer < 0 ? (-integer) : integer);
@@ -584,7 +594,7 @@ namespace HulaScript {
 		}
 
 		uint32_t add_constant(value constant) {
-			size_t hash = constant.hash();
+			size_t hash = constant.hash<false>();
 			auto it = constant_hashes.find(hash);
 			if (it != constant_hashes.end()) {
 				return it->second;

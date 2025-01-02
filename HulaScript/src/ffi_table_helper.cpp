@@ -75,7 +75,7 @@ void HulaScript::ffi_table_helper::append(instance::value value, bool allow_coll
 	}
 
 	instance::value index_val(static_cast<double>(table_entry.count));
-	table_entry.key_hashes.insert({ index_val.hash(), table_entry.count });
+	table_entry.key_hashes.insert({ index_val.hash<true>(), table_entry.count });
 	owner_instance.heap[table_entry.block.start + table_entry.count] = value;
 	table_entry.count++;
 }
