@@ -6,6 +6,7 @@
 #include <random>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 
 using namespace HulaScript;
 
@@ -167,6 +168,57 @@ static instance::value binary_search_table(std::vector<instance::value> argument
 	return instance::value(-(static_cast<double>(mid) + 1));
 }
 
+
+static instance::value format_string(std::vector<instance::value> arguments, instance& instance) {
+	if (arguments.size() < 1) {
+		instance.panic("FFI Error: Format string expects two arguments.");
+	}
+
+	std::string format_str = arguments.at(0).str(instance);
+	std::string result;
+	size_t arg_no = 1;
+	for (size_t i = 0; i < format_str.size(); i++) {
+		if (format_str.at(i) == '%') {
+			i++;
+			if (i == format_str.size()) {
+				instance.panic("% cannot be succeeded by an EOF");
+			}
+
+			char code = format_str.at(i);
+			if (arg_no == arguments.size()) {
+				std::stringstream ss;
+				ss << "Format Error: Expected at least " << arg_no << " printable arguments, but got " << (arguments.size() - 1) << " instead.";
+			}
+			if (code == 's') {
+				std::string to_insert = arguments.at(arg_no).str(instance);
+				result.insert(result.end(), to_insert.begin(), to_insert.end());
+			}
+			else if (code == 'd' || code == 'r') {
+				std::string to_insert = instance.rational_to_string(arguments.at(arg_no), code == 'd');
+				result.insert(result.end(), to_insert.begin(), to_insert.end());
+			}
+			else if (code == 'f' || code == 'n') {
+				std::string to_insert = std::to_string(arguments.at(arg_no).number(instance));
+				result.insert(result.end(), to_insert.begin(), to_insert.end());
+			}
+			else if (code == 'p') {
+				std::string to_insert = instance.get_value_print_string(arguments.at(arg_no).number(instance));
+				result.insert(result.end(), to_insert.begin(), to_insert.end());
+			}
+			else {
+				std::stringstream ss;
+				ss << "Format code \"%" << code << "\" is invalid.";
+				instance.panic(ss.str());
+			}
+			arg_no++;
+		}
+		else {
+			result.push_back(format_str.at(i));
+		}
+	}
+	return instance.make_string(result);
+}
+
 static instance::value iterator_to_array(std::vector<instance::value> arguments, instance& instance) {
 	if (arguments.size() != 1) {
 		instance.panic("FFI Error: Iterator-to-array expects one argument, an iterator object, but did not receive it.");
@@ -280,6 +332,8 @@ static instance::value standard_number_parser(std::string str, instance& instanc
 }
 
 instance::instance(custom_numerical_parser numerical_parser) : numerical_parser(numerical_parser) {
+	declare_global("format", make_foreign_function(format_string));
+
 	declare_global("irange", make_foreign_function(new_int_range));
 	declare_global("randomer", make_foreign_function(new_random_generator));
 
