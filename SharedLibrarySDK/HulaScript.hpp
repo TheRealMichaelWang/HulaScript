@@ -397,4 +397,30 @@ namespace HulaScript {
 		std::unordered_map<size_t, uint32_t> method_id_lookup;
 		std::vector<instance::value(child_type::*)(std::vector<instance::value>& arguments, instance& instance)> methods;
 	};
+
+	template<typename child_type>
+	class foreign_getter_object : public foreign_method_object<child_type> {
+	private:
+		std::unordered_map<size_t, instance::value(child_type::*)(instance& instance)> getters;
+
+	public:
+		instance::value load_property(size_t name_hash, instance& instance) override {
+			auto it = getters.find(name_hash);
+			if (it == getters.end()) {
+				return dynamic_cast<foreign_method_object<child_type>*>(this)->load_property(name_hash, instance);
+			}
+			return (dynamic_cast<child_type*>(this)->*(it->second))(instance);
+		}
+
+	protected:
+		bool declare_getter(std::string name, instance::value(child_type::* getter)(instance& instance)) {
+			size_t name_hash = Hash::dj2b(name.c_str());
+			if (getters.contains(name_hash)) {
+				return false;
+			}
+
+			getters.insert({ name_hash, getter });
+			return true;
+		}
+	};
 }
