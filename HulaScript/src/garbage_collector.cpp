@@ -221,7 +221,8 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 
 	for (auto it = foreign_functions.begin(); it != foreign_functions.end();) {
 		if (!marked_foreign_functions.contains(it->first)) {
-			available_foreign_function_ids.push_back(it->first);
+			//available_foreign_function_ids.push_back(it->first);
+			available_function_ids.push_back(it->first);
 			it = foreign_functions.erase(it);
 		}
 		else {

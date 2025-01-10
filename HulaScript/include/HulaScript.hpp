@@ -262,12 +262,13 @@ namespace HulaScript {
 
 		HULASCRIPT_FUNCTION value make_foreign_function(std::function<value(std::vector<value>& arguments, instance& instance)> function) {
 			uint32_t id;
-			if (available_foreign_function_ids.empty()) {
-				id = static_cast<uint32_t>(foreign_functions.size());
+			if (available_function_ids.empty()) {
+				id = next_function_id;
+				next_function_id++;
 			}
 			else {
-				id = available_foreign_function_ids.back();
-				available_foreign_function_ids.pop_back();
+				id = available_function_ids.back();
+				available_function_ids.pop_back();
 			}
 			foreign_functions.insert({ id, function });
 			return value(value::vtype::FOREIGN_FUNCTION, value::vflags::NONE, id, 0);
@@ -475,6 +476,13 @@ namespace HulaScript {
 			std::vector<uint32_t> referenced_constants;
 		};
 
+		struct try_handler_entry {
+			size_t return_ip;
+			
+			size_t return_stack_size;
+			size_t local_size;
+		};
+
 		static uint8_t operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::DOUBLE) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::DOUBLE) + 1];
 		static operator_handler operator_handlers[];
 
@@ -529,7 +537,7 @@ namespace HulaScript {
 		phmap::btree_map<size_t, size_t> loaded_modules;
 
 		phmap::flat_hash_map<uint32_t, std::function<value(std::vector<value>& arguments, instance& instance)>> foreign_functions;
-		std::vector<uint32_t> available_foreign_function_ids;
+		//std::vector<uint32_t> available_foreign_function_ids;
 
 		phmap::btree_multimap<size_t, gc_block> free_blocks;
 		phmap::flat_hash_map<size_t, table> tables;
