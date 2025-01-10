@@ -120,6 +120,7 @@ static instance::value parse_rational_str(std::vector<instance::value> arguments
 	}
 	catch (const std::runtime_error& error) {
 		instance.panic(error.what());
+		return instance::value();
 	}
 }
 
@@ -336,6 +337,10 @@ static instance::value import_foreign_module(std::vector<instance::value>& argum
 	try {
 		dynalo::native::handle library_handle = dynalo::open(dynalo::to_native_name(arguments[0].str(instance)));
 		return instance.add_foreign_object(std::make_unique<foreign_imported_library>(library_handle));
+	}
+	catch (const std::exception& exception) {
+		std::cout << exception.what() << std::endl;
+		return instance::value(); //return nil if error
 	}
 	catch (...) {
 		return instance::value(); //return nil if error
