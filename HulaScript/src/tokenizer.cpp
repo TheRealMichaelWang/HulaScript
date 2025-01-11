@@ -127,6 +127,10 @@ token tokenizer::scan_token() {
 			return last_token = token(token_type::WHILE);
 		case Hash::dj2b("for"):
 			return last_token = token(token_type::FOR);
+		case Hash::dj2b("try"):
+			return last_token = token(token_type::TRY);
+		case Hash::dj2b("catch"):
+			return last_token = token(token_type::CATCH);
 		case Hash::dj2b("in"):
 			return last_token = token(token_type::IN_TOK);
 		case Hash::dj2b("do"):

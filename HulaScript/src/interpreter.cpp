@@ -584,6 +584,7 @@ restart_execution:
 				try_handlers.push_back({
 					.return_ip = ip + ins.operand,
 					.return_stack_size = return_stack.size(),
+					.eval_stack_size = evaluation_stack.size(),
 					.local_size = locals.size(),
 					.call_depth = call_depth
 					});
@@ -604,6 +605,9 @@ restart_execution:
 					extended_offsets.pop_back();
 				}
 				locals.erase(locals.begin() + try_handler.local_size, locals.end());
+				evaluation_stack.erase(evaluation_stack.begin() + try_handler.eval_stack_size, evaluation_stack.end());
+
+				evaluation_stack.push_back(add_foreign_object(std::make_unique<handled_error>(error)));
 
 				try_handlers.pop_back();
 				goto restart_execution;
