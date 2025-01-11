@@ -30,6 +30,8 @@ namespace HulaScript {
 		ELSE,
 		WHILE,
 		FOR,
+		TRY,
+		CATCH,
 		IN_TOK,
 		DO,
 		RETURN,

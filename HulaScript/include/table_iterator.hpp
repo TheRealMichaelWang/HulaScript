@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ffi.hpp"
+#include "error.hpp"
 #ifdef HULASCRIPT_USE_SHARED_LIBRARY
 #include "dynalo.hpp"
 #endif
@@ -19,9 +20,22 @@ namespace HulaScript {
 		}
 
 		instance::value next(instance& instance) override {
-			instance::value toret = helper.at_index(position);
+			instance::value to_ret = helper.at_index(position);
 			position++;
-			return toret;
+			return to_ret;
+		}
+	};
+
+	class handled_error : public foreign_method_object<handled_error> {
+	private:
+		runtime_error error;
+
+		instance::value what(std::vector<instance::value>& arguments, instance& instance) {
+			return instance.make_string(error.to_print_string());
+		}
+	public:
+		handled_error(runtime_error error) : error(error) { 
+			declare_method("what", &handled_error::what);
 		}
 	};
 
