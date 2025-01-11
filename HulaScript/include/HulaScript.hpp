@@ -343,7 +343,7 @@ namespace HulaScript {
 				call_stack.push_back(std::make_pair(src_from_ip(ip), count));
 			}
 
-			throw runtime_error(msg, call_stack);
+			throw HulaScript::runtime_error(msg, call_stack);
 		}
 
 		HULASCRIPT_FUNCTION void temp_gc_protect(value val) {
@@ -439,6 +439,8 @@ namespace HulaScript {
 			CAPTURE_CLOSURE,
 			CAPTURE_VARIADIC_FUNCPTR,
 			CAPTURE_VARIADIC_CLOSURE,
+
+			TRY_HANDLE_ERROR
 		};
 
 		struct instruction
@@ -481,6 +483,7 @@ namespace HulaScript {
 			
 			size_t return_stack_size;
 			size_t local_size;
+			size_t call_depth;
 		};
 
 		static uint8_t operator_handler_map[(opcode::EXPONENTIATE - opcode::ADD) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::DOUBLE) + 1][(value::vtype::FOREIGN_OBJECT - value::vtype::DOUBLE) + 1];
@@ -554,6 +557,7 @@ namespace HulaScript {
 		std::vector<operand> extended_offsets; 
 
 		std::vector<size_t> return_stack;
+		std::vector<try_handler_entry> try_handlers;
 		size_t ip = 0;
 		std::vector<instruction> instructions;
 		phmap::btree_map<size_t, source_loc> ip_src_map;
@@ -567,6 +571,7 @@ namespace HulaScript {
 
 		uint32_t next_function_id = 0;
 		uint32_t declared_top_level_locals = 0;
+		size_t call_depth = 0;
 
 		//executes instructions loaded in instructions
 		void execute();

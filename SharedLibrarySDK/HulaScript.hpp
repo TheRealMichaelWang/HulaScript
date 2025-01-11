@@ -210,7 +210,7 @@ namespace HulaScript {
 				return (size_t)this;
 			}
 
-			friend class value;
+			friend struct value;
 		public:
 			virtual ~foreign_object() = default;
 		};
