@@ -23,3 +23,13 @@ do
 		break
 	end
 while i != 10
+
+function r(n) no_capture do
+    if n <= 0 then
+            return nil
+    else
+            print(n)
+            r(n - 2)
+            print(n - 1)
+    end
+end
