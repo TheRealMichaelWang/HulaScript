@@ -482,6 +482,7 @@ namespace HulaScript {
 			size_t return_ip;
 			
 			size_t return_stack_size;
+			size_t eval_stack_size;
 			size_t local_size;
 			size_t call_depth;
 		};
