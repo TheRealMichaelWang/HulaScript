@@ -838,6 +838,7 @@ namespace HulaScript {
 
 		void compile_for_loop(compilation_context& context);
 		void compile_for_loop_value(compilation_context& context);
+		void compile_try_catch(compilation_context& context);
 
 		uint32_t compile_function(compilation_context& context, std::string name, bool is_class_method=false, bool is_constructor = false, bool requires_super_call = false);
 		void compile_class(compilation_context& context);
