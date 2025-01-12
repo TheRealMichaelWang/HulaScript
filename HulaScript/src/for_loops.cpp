@@ -1,4 +1,5 @@
 #include "HulaScript.hpp"
+#include "HulaScript.hpp"
 #include "hash.hpp"
 
 using namespace HulaScript;
@@ -141,4 +142,47 @@ void instance::compile_for_loop_value(compilation_context& context) {
 	auto scope = unwind_lexical_scope(context);
 	assert(scope.break_requests.size() == 0);
 	assert(scope.continue_requests.size() == 0);
+}
+
+void instance::compile_try_catch(compilation_context& context)
+{
+	context.tokenizer.scan_token();
+	size_t try_addr = context.emit({ .operation = opcode::TRY_HANDLE_ERROR });
+	auto try_block_res = compile_block(context, { token_type::CATCH, token_type::END_BLOCK });
+
+	if (context.tokenizer.match_token(token_type::CATCH)) {
+		context.tokenizer.scan_token();
+		size_t skip_catch_jump = context.emit({ .operation = opcode::JUMP_AHEAD });
+		context.set_operand(try_addr, context.current_ip() - try_addr);
+
+		if (context.tokenizer.match_token(token_type::OPEN_PAREN)) {
+			context.tokenizer.scan_token();
+			context.tokenizer.expect_token(token_type::IDENTIFIER);
+			std::string id = context.tokenizer.get_last_token().str();
+			context.tokenizer.scan_token();
+			context.tokenizer.expect_token(token_type::CLOSE_PAREN);
+			context.tokenizer.scan_token();
+
+			make_lexical_scope(context, false);
+			context.alloc_and_store(id, true);
+
+			auto catch_block_res = compile_block(context, { token_type::END_BLOCK });
+			context.lexical_scopes.back().all_code_paths_return |= (try_block_res.all_code_paths_return && catch_block_res.all_code_paths_return);
+			context.tokenizer.scan_token();
+
+			unwind_lexical_scope(context);
+		}
+		else {
+			context.emit({ .operation = opcode::DISCARD_TOP });
+			auto catch_block_res = compile_block(context, { token_type::END_BLOCK });
+			context.lexical_scopes.back().all_code_paths_return |= (try_block_res.all_code_paths_return && catch_block_res.all_code_paths_return);
+			context.tokenizer.scan_token();
+		}
+		context.set_operand(skip_catch_jump, context.current_ip() - skip_catch_jump);
+	}
+	else {
+		context.tokenizer.expect_token(token_type::END_BLOCK);
+		context.tokenizer.scan_token();
+		context.set_operand(try_addr, context.current_ip() - try_addr);
+	}
 }
