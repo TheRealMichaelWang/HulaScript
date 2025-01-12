@@ -105,6 +105,8 @@ static const char* tok_names[] = {
 	"ELSE",
 	"WHILE",
 	"FOR",
+	"TRY",
+	"CATCH",
 	"IN",
 	"DO",
 	"RETURN",

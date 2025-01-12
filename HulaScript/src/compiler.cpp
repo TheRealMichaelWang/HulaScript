@@ -639,6 +639,10 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 
 		break;
 	}
+	case token_type::TRY: {
+		compile_try_catch(context);
+		break;
+	}
 	case token_type::RETURN: {
 		context.tokenizer.scan_token();
 
