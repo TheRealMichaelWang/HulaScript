@@ -139,6 +139,9 @@ restart_execution:
 						case Hash::dj2b("appendRange"):
 							evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_APPEND_RANGE, flags, 0, table_id));
 							break;
+						case Hash::dj2b("remove"):
+							evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_REMOVE, flags, 0, table_id));
+							break;
 						default:
 							evaluation_stack.push_back(value());
 							break;
@@ -175,6 +178,9 @@ restart_execution:
 					table& table = tables.at(table_id);
 					auto it = table.key_hashes.find(hash);
 					if (it != table.key_hashes.end()) {
+						if (flags & value::vflags::TABLE_IS_FINAL) {
+							panic("Cannot add to an immutable table.");
+						}
 						evaluation_stack.push_back(heap[table.block.start + it->second] = set_value);
 						break;
 					}
@@ -415,7 +421,7 @@ restart_execution:
 					ins.operand = table.count;
 				}
 			}
-									  [[fallthrough]];
+			[[fallthrough]];
 			case opcode::CALL: {
 				//push arguments into local variable stack
 				size_t local_count = locals.size();
@@ -496,11 +502,11 @@ restart_execution:
 						panic("Array append expects 1 argument, append function.");
 					}
 
-					value arguments = locals.back();
+					value argument = locals.back();
 					locals.pop_back();
-
-					evaluation_stack.push_back(append_table(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments, *this));
-
+					
+					HulaScript::ffi_table_helper helper(call_value.data.id, call_value.flags, *this);
+					helper.append(argument, true);
 					break;
 				}
 				case value::vtype::INTERNAL_TABLE_APPEND_RANGE: {
@@ -513,6 +519,18 @@ restart_execution:
 
 					evaluation_stack.push_back(append_range(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments, *this));
 
+					break;
+				}
+				case value::vtype::INTERNAL_TABLE_REMOVE: {
+					if (ins.operand != 1) {
+						panic("Array remove expects 1 argument, remove function.");
+					}
+
+					value argument = locals.back();
+					locals.pop_back();
+
+					HulaScript::ffi_table_helper helper(call_value.data.id, call_value.flags, *this);
+					evaluation_stack.push_back(helper.remove(argument));
 					break;
 				}
 				default:

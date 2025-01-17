@@ -30,11 +30,21 @@ namespace HulaScript {
 	private:
 		runtime_error error;
 
+		instance::value stack_trace(std::vector<instance::value>& arguments, instance& instance) {
+			return instance.make_string(error.stack_trace());
+		}
+
+		instance::value msg(std::vector<instance::value>& arguments, instance& instance) {
+			return instance.make_string(error.msg());
+		}
+
 		instance::value what(std::vector<instance::value>& arguments, instance& instance) {
 			return instance.make_string(error.to_print_string());
 		}
 	public:
-		handled_error(runtime_error error) : error(error) { 
+		handled_error(runtime_error error) : error(error) {
+			declare_method("stackTrace", &handled_error::stack_trace);
+			declare_method("msg", &handled_error::msg);
 			declare_method("what", &handled_error::what);
 		}
 	};
@@ -82,6 +92,5 @@ namespace HulaScript {
 #endif // HULASCRIPT_USE_SHARED_LIBRARY
 
 	instance::value filter_table(instance::value table_value, instance::value keep_cond, instance& instance);
-	instance::value append_table(instance::value table_value, instance::value to_append, instance& instance);
 	instance::value append_range(instance::value table_value, instance::value to_append, instance& instance);
 }
