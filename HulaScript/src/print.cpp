@@ -1,3 +1,4 @@
+#include "error.hpp"
 #include "HulaScript.hpp"
 #include <sstream>
 #include "error.hpp"
@@ -14,24 +15,30 @@ std::string compilation_error::to_print_string() const noexcept {
 	return ss.str();
 }
 
-std::string runtime_error::to_print_string() const noexcept {
+std::string HulaScript::runtime_error::stack_trace() const noexcept
+{
 	std::stringstream ss;
-	ss << "Traceback (most recent call last): " << std::endl;
+	ss << "Traceback (most recent call last): ";
 	for (auto trace_back : call_stack) {
-		ss << '\t';
+		ss << std::endl << '\t';
 		if (trace_back.first.has_value()) {
 			ss << trace_back.first.value().to_print_string();
 		}
 		else {
 			ss << "Unresolved Source Location";
 		}
-		ss << std::endl;
+		//ss << std::endl;
 
 		if (trace_back.second > 1) {
-			ss << "\t[previous line repeated " << (trace_back.second - 1) << " more time(s)]" << std::endl;
+			ss << std::endl << "\t[previous line repeated " << (trace_back.second - 1) << " more time(s)]";
 		}
 	}
-	ss << msg;
+	return ss.str();
+}
+
+std::string runtime_error::to_print_string() const noexcept {
+	std::stringstream ss;
+	ss << stack_trace() << std::endl << msg_;
 
 	return ss.str();
 }
@@ -67,7 +74,8 @@ static const char* type_names[] = {
 	"BUILTIN TABLE-GET-ITERATOR",
 	"BUILTIN TABLE-FILTER",
 	"BUILTIN TABLE-APPEND",
-	"BUILTIN TABLE-APPEND-RANGE"
+	"BUILTIN TABLE-APPEND-RANGE",
+	"BUILTIN TABLE-REMOVE"
 };
 void instance::value::expect_type(value::vtype expected_type, const instance& instance) const {
 	if (type != expected_type) {

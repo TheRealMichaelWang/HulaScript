@@ -89,7 +89,11 @@ namespace HulaScript {
 	//helps you access and manipulate a table
 	class ffi_table_helper {
 	public:
-		ffi_table_helper(instance::value table_value, instance& owner_instance) : owner_instance(owner_instance), table_id(table_value.data.id), flags(table_value.flags) { 
+		ffi_table_helper(size_t table_id, uint16_t flags, instance& owner_instance) : owner_instance(owner_instance), table_id(table_id), flags(flags) {
+
+		}
+
+		ffi_table_helper(instance::value table_value, instance& owner_instance) : ffi_table_helper(table_value.data.id, table_value.flags, owner_instance) { 
 			table_value.expect_type(instance::value::vtype::TABLE, owner_instance);
 		}
 
@@ -132,6 +136,8 @@ namespace HulaScript {
 
 		void reserve(size_t capacity, bool allow_collect = false);
 		void append(instance::value value, bool allow_collect=false);
+
+		bool remove(instance::value value);
 
 		void temp_gc_protect() {
 			owner_instance.temp_gc_protect(instance::value(instance::value::vtype::TABLE, flags, 0, table_id));

@@ -24,6 +24,17 @@ static HulaScript::instance::value print(std::vector<HulaScript::instance::value
 	return HulaScript::instance::value(static_cast<double>(arguments.size()));
 }
 
+static HulaScript::instance::value input(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
+	for (auto argument : arguments) {
+		std::cout << instance.get_value_print_string(argument);
+	}
+	
+	string line;
+	getline(cin, line);
+
+	return instance.make_string(line);
+}
+
 static HulaScript::instance::value set_warnings(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
 	if (arguments.size() == 0) {
 		instance.panic("Expected 1 argument, a boolean to indicate whether you want warnings or not.");
@@ -55,6 +66,7 @@ int main()
 
 	instance.declare_global("quit", instance.make_foreign_function(quit));
 	instance.declare_global("print", instance.make_foreign_function(print));
+	instance.declare_global("input", instance.make_foreign_function(input));
 	instance.declare_global("warnings", instance.make_foreign_function(set_warnings));
 
 	while (!should_quit) {
@@ -100,7 +112,7 @@ int main()
 						cout << warning.to_print_string() << std::endl;
 					}
 
-					cout << "Press ENTER to aknowledge and continue execution..." << std::endl;
+					cout << "Press ENTER to acknowledge and continue execution..." << std::endl;
 					while (cin.get() != '\n') {}
 
 					auto run_res = instance.run_loaded();
@@ -112,6 +124,7 @@ int main()
 		}
 		catch (const HulaScript::compilation_error& error) {
 			cout << error.to_print_string();
+			repl_completer.clear();
 		}
 		catch (const HulaScript::runtime_error& error) {
 			cout << error.to_print_string();

@@ -97,7 +97,7 @@ void instance::compile_for_loop_value(compilation_context& context) {
 	std::string iterator_var = "@iterator_" + identifier;
 	std::string result_var = "@result_" + identifier;
 
-	context.emit({ .operation = opcode::ALLOCATE_TABLE_LITERAL, .operand = 4 });
+	context.emit({ .operation = opcode::ALLOCATE_ARRAY_LITERAL, .operand = 4 });
 	context.alloc_and_store(result_var, true);
 
 	compile_expression(context);
@@ -150,10 +150,10 @@ void instance::compile_try_catch(compilation_context& context)
 	size_t try_addr = context.emit({ .operation = opcode::TRY_HANDLE_ERROR });
 	auto try_block_res = compile_block(context, { token_type::CATCH, token_type::END_BLOCK });
 
+	size_t skip_catch_jump = context.emit({ .operation = opcode::JUMP_AHEAD });
+	context.set_operand(try_addr, context.current_ip() - try_addr);
 	if (context.tokenizer.match_token(token_type::CATCH)) {
 		context.tokenizer.scan_token();
-		size_t skip_catch_jump = context.emit({ .operation = opcode::JUMP_AHEAD });
-		context.set_operand(try_addr, context.current_ip() - try_addr);
 
 		if (context.tokenizer.match_token(token_type::OPEN_PAREN)) {
 			context.tokenizer.scan_token();
@@ -183,6 +183,8 @@ void instance::compile_try_catch(compilation_context& context)
 	else {
 		context.tokenizer.expect_token(token_type::END_BLOCK);
 		context.tokenizer.scan_token();
-		context.set_operand(try_addr, context.current_ip() - try_addr);
+
+		context.emit({ .operation = opcode::DISCARD_TOP });
+		context.set_operand(skip_catch_jump, context.current_ip() - skip_catch_jump);
 	}
 }
