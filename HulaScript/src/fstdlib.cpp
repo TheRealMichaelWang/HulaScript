@@ -274,16 +274,6 @@ instance::value HulaScript::filter_table(instance::value table_value, instance::
 	return instance.make_array(elems);
 }
 
-instance::value HulaScript::append_table(instance::value table_value, instance::value to_append, instance& instance) {
-	HulaScript::ffi_table_helper helper(table_value, instance);
-	if (!helper.is_array()) {
-		instance.panic("FFI Error: Append expects table to be an array.");
-	}
-	
-	helper.append(to_append, true);
-	return instance::value();
-}
-
 instance::value HulaScript::append_range(instance::value table_value, instance::value to_append, instance& instance) {
 	HulaScript::ffi_table_helper helper(table_value, instance);
 	if (!helper.is_array()) {
