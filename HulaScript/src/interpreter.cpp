@@ -608,6 +608,17 @@ restart_execution:
 					});
 				break;
 			}
+			case opcode::COMPARE_ERROR_CODE: {
+				size_t code = evaluation_stack.back().size(*this);
+				evaluation_stack.pop_back();
+				handled_error* error = dynamic_cast<handled_error*>(evaluation_stack.back().foreign_obj(*this));
+				if (error == NULL) {
+					panic("Expected handled error, got another foreign object.");
+				}
+
+				evaluation_stack.push_back(value(error->error().code() == code));
+				break;
+			}
 			}
 
 			ip++;
