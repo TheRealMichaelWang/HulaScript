@@ -63,7 +63,7 @@ void HulaScript::ffi_table_helper::reserve(size_t capacity, bool allow_collect) 
 
 void HulaScript::ffi_table_helper::append(instance::value value, bool allow_collect) {
 	if (flags & instance::value::vflags::TABLE_IS_FINAL) {
-		owner_instance.panic("Cannot add to an immutable table.");
+		owner_instance.panic("Cannot add to an immutable table.", ERROR_IMMUTABLE);
 	}
 
 	instance::table& table_entry = owner_instance.tables.at(table_id);
@@ -86,7 +86,7 @@ void HulaScript::ffi_table_helper::append(instance::value value, bool allow_coll
 
 bool HulaScript::ffi_table_helper::remove(instance::value value) {
 	if (flags & instance::value::vflags::TABLE_IS_FINAL) {
-		owner_instance.panic("Cannot add to an immutable table.");
+		owner_instance.panic("Cannot add to an immutable table.", ERROR_IMMUTABLE);
 	}
 
 	instance::table& table_entry = owner_instance.tables.at(table_id);

@@ -7,6 +7,18 @@
 #include "source_loc.hpp"
 
 namespace HulaScript {
+	enum error_code {
+		ERROR_GENERAL,
+		ERROR_INDEX_OUT_OF_RANGE,
+		ERROR_TYPE,
+		ERROR_UNEXPECTED_ARGUMENT_COUNT,
+		ERROR_IMMUTABLE,
+		ERROR_INVALID_ARGUMENT,
+		ERROR_OVERFLOW,
+		ERROR_DIVIDE_BY_ZERO,
+		ERROR_IMPORT_FALIURE
+	};
+
 	class compilation_error : public std::exception {
 	public:
 		compilation_error(std::string msg, source_loc location) : msg(msg), location(location) { }

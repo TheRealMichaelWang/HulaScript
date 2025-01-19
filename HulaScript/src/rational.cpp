@@ -82,10 +82,10 @@ void instance::handle_rational_multiply(value& a, value& b) {
 		return;
 	}
 	if (anum > SIZE_MAX / bnum) {
-		panic("Overflow: Numerator in rational multiplication is too large.");
+		panic("Overflow: Numerator in rational multiplication is too large.", ERROR_OVERFLOW);
 	}
 	if (adenom > UINT32_MAX / bdenom) {
-		panic("Overflow: Denominator in rational multiplication is too large.");
+		panic("Overflow: Denominator in rational multiplication is too large.", ERROR_OVERFLOW);
 	}
 
 	value::vflags flags = ((a.flags & value::vflags::RATIONAL_IS_NEGATIVE) == (b.flags & value::vflags::RATIONAL_IS_NEGATIVE)) ? value::vflags::NONE : value::vflags::RATIONAL_IS_NEGATIVE;
@@ -102,13 +102,13 @@ void instance::handle_rational_divide(value& a, value& b) {
 	size_t bdenom = b.function_id / bnum_adenom_gcd;
 
 	if (bnum == 0) {
-		panic("Rational: Divide by Zero.");
+		panic("Rational: Divide by Zero.", ERROR_DIVIDE_BY_ZERO);
 	}
 	if (anum > SIZE_MAX / bdenom) {
-		panic("Overflow: Numerator in rational multiplication is too large.");
+		panic("Overflow: Numerator in rational multiplication is too large.", ERROR_OVERFLOW);
 	}
 	if (adenom > UINT32_MAX / bnum) {
-		panic("Overflow: Denominator in rational multiplication is too large.");
+		panic("Overflow: Denominator in rational multiplication is too large.", ERROR_OVERFLOW);
 	}
 
 	value::vflags flags = ((a.flags & value::vflags::RATIONAL_IS_NEGATIVE) == (b.flags & value::vflags::RATIONAL_IS_NEGATIVE)) ? value::vflags::NONE : value::vflags::RATIONAL_IS_NEGATIVE;
@@ -162,13 +162,13 @@ void HulaScript::instance::handle_rational_modulo(value& a, value& b) {
 	size_t bdenom = b.function_id / bnum_adenom_gcd;
 
 	if (bnum == 0) {
-		panic("Rational: Divide by Zero.");
+		panic("Rational: Divide by Zero.", ERROR_DIVIDE_BY_ZERO);
 	}
 	if (anum > SIZE_MAX / bdenom) {
-		panic("Overflow: Numerator in rational multiplication is too large.");
+		panic("Overflow: Numerator in rational multiplication is too large.", ERROR_OVERFLOW);
 	}
 	if (adenom > UINT32_MAX / bnum) {
-		panic("Overflow: Denominator in rational multiplication is too large.");
+		panic("Overflow: Denominator in rational multiplication is too large.", ERROR_OVERFLOW);
 	}
 
 	value::vflags flags = ((a.flags & value::vflags::RATIONAL_IS_NEGATIVE) == (b.flags & value::vflags::RATIONAL_IS_NEGATIVE)) ? value::vflags::NONE : value::vflags::RATIONAL_IS_NEGATIVE;
@@ -192,7 +192,7 @@ instance::value instance::parse_rational(std::string str) const {
 		char c = str.at(i);
 		if (c >= '0' && c <= '9') {
 			if (numerator > UINT64_MAX / 10) {
-				throw std::runtime_error("Overflow: Numerator is too large.");
+				panic("Overflow: Numerator is too large while parsing rational.", ERROR_OVERFLOW);
 			}
 
 			numerator *= 10;
@@ -200,26 +200,26 @@ instance::value instance::parse_rational(std::string str) const {
 
 			if (decimal_detected) {
 				if (denominator > UINT32_MAX / 10) {
-					throw std::runtime_error("Overflow: Denominator is too large.");
+					panic("Overflow: Denominator is too large while parsing rational.", ERROR_OVERFLOW);
 				}
 				denominator *= 10;
 			}
 		}
 		else if (c == '.') {
 			if (decimal_detected) {
-				throw std::runtime_error("Format: Two decimals detected.");
+				panic("Format: Two decimals detected.", ERROR_INVALID_ARGUMENT);
 			}
 
 			decimal_detected = true;
 		}
 		else if (c == '-') {
 			if (is_negate) {
-				throw std::runtime_error("Format: Two negates detected.");
+				panic("Format: Two negates detected.", ERROR_INVALID_ARGUMENT);
 			}
 			is_negate = true;
 		}
 		else {
-			throw std::runtime_error("Format: Must be digit (0-9).");
+			panic("Format: Must be digit (0-9).", ERROR_INVALID_ARGUMENT);
 		}
 	}
 
