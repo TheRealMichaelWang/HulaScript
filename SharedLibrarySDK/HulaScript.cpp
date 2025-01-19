@@ -1,4 +1,5 @@
 #include <sstream>
+#include "error.hpp"
 #include "HulaScript.hpp"
 
 using namespace HulaScript;
@@ -11,7 +12,7 @@ const int64_t instance::value::index(int64_t min, int64_t max, instance& instanc
 	if (num < min || num >= max) {
 		std::stringstream ss;
 		ss << num << " is outside the range of [" << min << ", " << max << ").";
-		instance.panic(ss.str());
+		instance.panic(ss.str(), ERROR_INDEX_OUT_OF_RANGE);
 	}
 
 	return static_cast<int64_t>(num);
@@ -40,7 +41,7 @@ void instance::value::expect_type(value::vtype expected_type, const instance& in
 	if (type != expected_type) {
 		std::stringstream ss;
 		ss << "Type Error: Expected value of type " << type_names[expected_type] << " but got " << type_names[type] << " instead.";
-		instance.panic(ss.str());
+		instance.panic(ss.str(), ERROR_TYPE);
 	}
 }
 

@@ -3,6 +3,7 @@
 
 #include <optional>
 #include <iostream>
+#include "error.hpp"
 #include "HulaScript.hpp"
 #include "repl_completer.hpp"
 
@@ -37,7 +38,7 @@ static HulaScript::instance::value input(std::vector<HulaScript::instance::value
 
 static HulaScript::instance::value set_warnings(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
 	if (arguments.size() == 0) {
-		instance.panic("Expected 1 argument, a boolean to indicate whether you want warnings or not.");
+		instance.panic("Expected 1 argument, a boolean to indicate whether you want warnings or not.", HulaScript::ERROR_UNEXPECTED_ARGUMENT_COUNT);
 	}
 
 	bool see_warnings = arguments[0].boolean(instance);

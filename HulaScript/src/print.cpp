@@ -81,7 +81,7 @@ void instance::value::expect_type(value::vtype expected_type, const instance& in
 	if (type != expected_type) {
 		std::stringstream ss;
 		ss << "Type Error: Expected value of type " << type_names[expected_type] << " but got " << type_names[type] << " instead.";
-		instance.panic(ss.str());
+		instance.panic(ss.str(), ERROR_TYPE);
 	}
 }
 

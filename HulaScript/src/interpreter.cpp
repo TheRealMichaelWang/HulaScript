@@ -179,7 +179,7 @@ restart_execution:
 					auto it = table.key_hashes.find(hash);
 					if (it != table.key_hashes.end()) {
 						if (flags & value::vflags::TABLE_IS_FINAL) {
-							panic("Cannot add to an immutable table.");
+							panic("Cannot add to an immutable table.", ERROR_IMMUTABLE);
 						}
 						evaluation_stack.push_back(heap[table.block.start + it->second] = set_value);
 						break;
@@ -192,7 +192,7 @@ restart_execution:
 					}
 					else {
 						if (flags & value::vflags::TABLE_IS_FINAL) {
-							panic("Cannot add to an immutable table.");
+							panic("Cannot add to an immutable table.", ERROR_IMMUTABLE);
 						}
 						if (table.count == table.block.capacity) {
 							temp_gc_exempt.push_back(table_value);
@@ -416,7 +416,7 @@ restart_execution:
 					}
 
 					if (table.count >= UINT8_MAX) {
-						panic("Too many arguments in variadic call.");
+						panic("Too many arguments in variadic call.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 					}
 					ins.operand = table.count;
 				}
@@ -456,7 +456,7 @@ restart_execution:
 					else if (function.parameter_count != ins.operand) {
 						std::stringstream ss;
 						ss << "Argument Error: Function " << function.name << " expected " << static_cast<size_t>(function.parameter_count) << " argument(s), but got " << static_cast<size_t>(ins.operand) << " instead.";
-						panic(ss.str());
+						panic(ss.str(), ERROR_UNEXPECTED_ARGUMENT_COUNT);
 					}
 					if (call_value.flags & value::vflags::HAS_CAPTURE_TABLE) {
 						locals.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, call_value.data.id));
@@ -480,7 +480,7 @@ restart_execution:
 				}
 				case value::vtype::INTERNAL_TABLE_GET_ITERATOR: {
 					if (ins.operand != 0) {
-						panic("Array table iterator expects exactly 0 arguments.");
+						panic("Array table iterator expects exactly 0 arguments.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 					}
 
 					evaluation_stack.push_back(add_foreign_object(std::make_unique<table_iterator>(table_iterator(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), *this))));
@@ -488,7 +488,7 @@ restart_execution:
 				}
 				case value::vtype::INTERNAL_TABLE_FILTER: {
 					if (ins.operand != 1) {
-						panic("Array filter expects 1 argument, filter function.");
+						panic("Array filter expects 1 argument, filter function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 					}
 
 					value arguments = locals.back();
@@ -499,7 +499,7 @@ restart_execution:
 				}
 				case value::vtype::INTERNAL_TABLE_APPEND: {
 					if (ins.operand != 1) {
-						panic("Array append expects 1 argument, append function.");
+						panic("Array append expects 1 argument, append function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 					}
 
 					value argument = locals.back();
@@ -511,7 +511,7 @@ restart_execution:
 				}
 				case value::vtype::INTERNAL_TABLE_APPEND_RANGE: {
 					if (ins.operand != 1) {
-						panic("Array append range expects 1 argument, append range function.");
+						panic("Array append range expects 1 argument, append range function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 					}
 
 					value arguments = locals.back();
@@ -523,7 +523,7 @@ restart_execution:
 				}
 				case value::vtype::INTERNAL_TABLE_REMOVE: {
 					if (ins.operand != 1) {
-						panic("Array remove expects 1 argument, remove function.");
+						panic("Array remove expects 1 argument, remove function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 					}
 
 					value argument = locals.back();
@@ -613,7 +613,7 @@ restart_execution:
 				evaluation_stack.pop_back();
 				handled_error* error = dynamic_cast<handled_error*>(evaluation_stack.back().foreign_obj(*this));
 				if (error == NULL) {
-					panic("Expected handled error, got another foreign object.");
+					panic("Expected handled error, got another foreign object.", ERROR_TYPE);
 				}
 
 				evaluation_stack.push_back(value(error->error().code() == code));

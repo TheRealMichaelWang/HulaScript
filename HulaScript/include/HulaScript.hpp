@@ -109,7 +109,7 @@ namespace HulaScript {
 			size_t size(instance& instance) const {
 				expect_type(vtype::RATIONAL, instance);
 				if (flags & vflags::RATIONAL_IS_NEGATIVE) {
-					instance.panic("Expected positive size, got negative rational instead.");
+					instance.panic("Expected positive size, got negative rational instead.", ERROR_TYPE);
 				}
 				return data.id / function_id;
 			}
@@ -336,7 +336,7 @@ namespace HulaScript {
 			return true;
 		}
 
-		HULASCRIPT_FUNCTION void panic(std::string msg, size_t error_code = 0) const;
+		HULASCRIPT_FUNCTION void panic(std::string msg, size_t error_code = ERROR_GENERAL) const;
 
 		HULASCRIPT_FUNCTION void temp_gc_protect(value val) {
 			temp_gc_exempt.push_back(val);
