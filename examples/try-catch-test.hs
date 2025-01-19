@@ -6,4 +6,3 @@ for i in irange(10) do
             print(error.what())
     end
 end
-

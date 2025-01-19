@@ -106,6 +106,14 @@ namespace HulaScript {
 				return data.number;
 			}
 
+			size_t size(instance& instance) const {
+				expect_type(vtype::RATIONAL, instance);
+				if (flags & vflags::RATIONAL_IS_NEGATIVE) {
+					instance.panic("Expected positive size, got negative rational instead.");
+				}
+				return data.id / function_id;
+			}
+
 			bool boolean(instance& instance) const {
 				expect_type(vtype::BOOLEAN, instance);
 				return data.boolean;
@@ -328,24 +336,7 @@ namespace HulaScript {
 			return true;
 		}
 
-		HULASCRIPT_FUNCTION void panic(std::string msg) const {
-			std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;
-			call_stack.reserve(return_stack.size() + 1);
-
-			std::vector<size_t> ip_stack(return_stack);
-			ip_stack.push_back(ip);
-			for (auto it = ip_stack.begin(); it != ip_stack.end(); ) {
-				size_t ip = *it;
-				size_t count = 0;
-				do {
-					count++;
-					it++;
-				} while (it != ip_stack.end() && *it == ip);
-				call_stack.push_back(std::make_pair(src_from_ip(ip), count));
-			}
-
-			throw HulaScript::runtime_error(msg, call_stack);
-		}
+		HULASCRIPT_FUNCTION void panic(std::string msg, size_t error_code = 0) const;
 
 		HULASCRIPT_FUNCTION void temp_gc_protect(value val) {
 			temp_gc_exempt.push_back(val);
@@ -441,7 +432,8 @@ namespace HulaScript {
 			CAPTURE_VARIADIC_FUNCPTR,
 			CAPTURE_VARIADIC_CLOSURE,
 
-			TRY_HANDLE_ERROR
+			TRY_HANDLE_ERROR,
+			COMPARE_ERROR_CODE,
 		};
 
 		struct instruction

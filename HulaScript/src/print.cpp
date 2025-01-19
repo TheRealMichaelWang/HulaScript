@@ -383,7 +383,14 @@ std::string instance::rational_to_string(value& rational, bool print_as_frac) {
 }
 
 const int64_t instance::value::index(int64_t min, int64_t max, instance& instance) const {
-	double num = number(instance);
+	int64_t num;
+		
+	if (check_type(vtype::RATIONAL)) {
+		num = size(instance);
+	}
+	else {
+		num = static_cast<int64_t>(number(instance));
+	}
 
 	if (num < min || num >= max) {
 		std::stringstream ss;
@@ -391,5 +398,24 @@ const int64_t instance::value::index(int64_t min, int64_t max, instance& instanc
 		instance.panic(ss.str());
 	}
 
-	return static_cast<int64_t>(num);
+	return num;
+}
+
+void instance::panic(std::string msg, size_t error_code) const {
+	std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;
+	call_stack.reserve(return_stack.size() + 1);
+
+	std::vector<size_t> ip_stack(return_stack);
+	ip_stack.push_back(ip);
+	for (auto it = ip_stack.begin(); it != ip_stack.end(); ) {
+		size_t ip = *it;
+		size_t count = 0;
+		do {
+			count++;
+			it++;
+		} while (it != ip_stack.end() && *it == ip);
+		call_stack.push_back(std::make_pair(src_from_ip(ip), count));
+	}
+
+	throw HulaScript::runtime_error(msg, call_stack, error_code);
 }

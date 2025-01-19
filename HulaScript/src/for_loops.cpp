@@ -150,27 +150,59 @@ void instance::compile_try_catch(compilation_context& context)
 	size_t try_addr = context.emit({ .operation = opcode::TRY_HANDLE_ERROR });
 	auto try_block_res = compile_block(context, { token_type::CATCH, token_type::END_BLOCK });
 
-	size_t skip_catch_jump = context.emit({ .operation = opcode::JUMP_AHEAD });
+	std::vector<size_t> skip_catch_addrs;
+	skip_catch_addrs.push_back(context.emit({ .operation = opcode::JUMP_AHEAD }));
 	context.set_operand(try_addr, context.current_ip() - try_addr);
-	if (context.tokenizer.match_token(token_type::CATCH)) {
+
+	if (!context.tokenizer.match_token(token_type::CATCH)) {
+		context.tokenizer.expect_token(token_type::END_BLOCK);
 		context.tokenizer.scan_token();
 
+		context.emit({ .operation = opcode::DISCARD_TOP });
+		context.set_operand(skip_catch_addrs.back(), context.current_ip() - skip_catch_addrs.back());
+		return;
+	}
+
+	size_t last_continue_ip = 0;
+	bool has_next_catch = true;
+	while (context.tokenizer.match_token(token_type::CATCH) && has_next_catch) {
+		context.tokenizer.scan_token();
+
+		if (skip_catch_addrs.size() > 1) {
+			context.set_operand(last_continue_ip, context.current_ip() - last_continue_ip);
+		}
+
+		has_next_catch = false; //true = may have next catch, false = for sure no next catch
 		if (context.tokenizer.match_token(token_type::OPEN_PAREN)) {
 			context.tokenizer.scan_token();
 			context.tokenizer.expect_token(token_type::IDENTIFIER);
 			std::string id = context.tokenizer.get_last_token().str();
 			context.tokenizer.scan_token();
+
+			if (context.tokenizer.match_token(token_type::COLON)) {
+				context.tokenizer.scan_token();
+				compile_expression(context);
+				context.emit({ .operation = opcode::COMPARE_ERROR_CODE });
+
+				last_continue_ip = context.emit({ .operation = opcode::IF_FALSE_JUMP_AHEAD });
+				has_next_catch = true;
+			}
+
 			context.tokenizer.expect_token(token_type::CLOSE_PAREN);
 			context.tokenizer.scan_token();
 
 			make_lexical_scope(context, false);
 			context.alloc_and_store(id, true);
 
-			auto catch_block_res = compile_block(context, { token_type::END_BLOCK });
+			auto catch_block_res = compile_block(context, { token_type::CATCH, token_type::END_BLOCK });
 			context.lexical_scopes.back().all_code_paths_return |= (try_block_res.all_code_paths_return && catch_block_res.all_code_paths_return);
-			context.tokenizer.scan_token();
+			//context.tokenizer.scan_token();
 
 			unwind_lexical_scope(context);
+
+			if (has_next_catch) {
+				skip_catch_addrs.push_back(context.emit({ .operation = opcode::JUMP_AHEAD }));
+			}
 		}
 		else {
 			context.emit({ .operation = opcode::DISCARD_TOP });
@@ -178,13 +210,15 @@ void instance::compile_try_catch(compilation_context& context)
 			context.lexical_scopes.back().all_code_paths_return |= (try_block_res.all_code_paths_return && catch_block_res.all_code_paths_return);
 			context.tokenizer.scan_token();
 		}
-		context.set_operand(skip_catch_jump, context.current_ip() - skip_catch_jump);
 	}
-	else {
-		context.tokenizer.expect_token(token_type::END_BLOCK);
-		context.tokenizer.scan_token();
+	context.tokenizer.expect_token(token_type::END_BLOCK);
+	context.tokenizer.scan_token();
 
+	if (has_next_catch) {
 		context.emit({ .operation = opcode::DISCARD_TOP });
-		context.set_operand(skip_catch_jump, context.current_ip() - skip_catch_jump);
+	}
+
+	for (size_t jump_ins_addr : skip_catch_addrs) {
+		context.set_operand(jump_ins_addr, context.current_ip() - jump_ins_addr);
 	}
 }
