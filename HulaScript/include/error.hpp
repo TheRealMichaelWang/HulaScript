@@ -19,7 +19,7 @@ namespace HulaScript {
 
 	class runtime_error : public std::exception {
 	public:
-		runtime_error(std::string msg_, std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack) : msg_(msg_), call_stack(call_stack) { }
+		runtime_error(std::string msg_, std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack, size_t code_) : msg_(msg_), call_stack(call_stack), code_(code_) { }
 
 		std::string stack_trace() const noexcept;
 		std::string to_print_string() const noexcept;
@@ -27,8 +27,14 @@ namespace HulaScript {
 		std::string msg() const noexcept {
 			return msg_;
 		}
+
+		size_t code() const noexcept {
+			return code_;
+		}
+
 	private:
 		std::string msg_;
 		std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;
+		size_t code_;
 	};
 }

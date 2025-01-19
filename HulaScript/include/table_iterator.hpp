@@ -28,24 +28,33 @@ namespace HulaScript {
 
 	class handled_error : public foreign_method_object<handled_error> {
 	private:
-		runtime_error error;
+		runtime_error error_;
 
 		instance::value stack_trace(std::vector<instance::value>& arguments, instance& instance) {
-			return instance.make_string(error.stack_trace());
+			return instance.make_string(error_.stack_trace());
 		}
 
 		instance::value msg(std::vector<instance::value>& arguments, instance& instance) {
-			return instance.make_string(error.msg());
+			return instance.make_string(error_.msg());
 		}
 
 		instance::value what(std::vector<instance::value>& arguments, instance& instance) {
-			return instance.make_string(error.to_print_string());
+			return instance.make_string(error_.to_print_string());
+		}
+
+		instance::value code(std::vector<instance::value>& arguments, instance& instance) {
+			return instance.rational_integer(error_.code());
 		}
 	public:
-		handled_error(runtime_error error) : error(error) {
+		handled_error(runtime_error error_) : error_(error_) {
 			declare_method("stackTrace", &handled_error::stack_trace);
 			declare_method("msg", &handled_error::msg);
 			declare_method("what", &handled_error::what);
+			declare_method("code", &handled_error::code);
+		}
+
+		const runtime_error error() const noexcept {
+			return error_;
 		}
 	};
 
