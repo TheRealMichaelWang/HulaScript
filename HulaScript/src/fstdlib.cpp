@@ -10,6 +10,12 @@
 
 using namespace HulaScript;
 
+#define EXPECT_ARGS(EXPECTED_NUM) if (arguments.size() != EXPECTED_NUM) {\
+std::stringstream ss;\
+ss << "Expected " << EXPECTED_NUM << " arguments, but got " << arguments.size() << " instead.";\
+instance.panic(ss.str(), ERROR_UNEXPECTED_ARGUMENT_COUNT);\
+}\
+
 class int_range_iterator : public foreign_iterator {
 public:
 	int_range_iterator(int64_t start, int64_t stop, int64_t step) : i(start), stop(stop), step(step) { }
@@ -78,17 +84,17 @@ static instance::value new_int_range(std::vector<instance::value> arguments, ins
 		stop = static_cast<int64_t>(arguments[0].number(instance));
 	}
 	else {
-		instance.panic("FFI Error: Function irange expects 1, 2, or 3 arguments.");
+		instance.panic("FFI Error: Function irange expects 1, 2, or 3 arguments.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 		return instance::value();
 	}
 
 	int64_t range = stop - start;
 	if (range != 0) {
 		if (range % step != 0) {
-			instance.panic("FFI Error: Function irange expects (stop - start) % step to be zero.");
+			instance.panic("FFI Error: Function irange expects (stop - start) % step to be zero.", ERROR_INVALID_ARGUMENT);
 		}
 		else if (range * step < 1) {
-			instance.panic("FFI Error: Function irange expects (stop - start) * step to be >= 1 if (stop - start) != 0.");
+			instance.panic("FFI Error: Function irange expects (stop - start) * step to be >= 1 if (stop - start) != 0.", ERROR_INVALID_ARGUMENT);
 		}
 	}
 	
@@ -96,46 +102,30 @@ static instance::value new_int_range(std::vector<instance::value> arguments, ins
 }
 
 static instance::value new_random_generator(std::vector<instance::value> arguments, instance& instance) {
-	if (arguments.size() != 2) {
-		instance.panic("FFI Error: A random generator instance needs a lower bound and an upper bound, two arguments.");
-	}
+	EXPECT_ARGS(2);
 
 	double lower_bound = arguments[0].number(instance);
 	double upper_bound = arguments[1].number(instance);
 
 	if (lower_bound >= upper_bound) {
-		instance.panic("FFI Error: A random generator instance cannot have a lower bound greater than or equal to its upper bound.");
+		instance.panic("FFI Error: A random generator instance cannot have a lower bound greater than or equal to its upper bound.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 	}
 
 	return instance.add_foreign_object(std::make_unique<random_generator>(random_generator(lower_bound, upper_bound)));
 }
 
 static instance::value parse_rational_str(std::vector<instance::value> arguments, instance& instance) {
-	if (arguments.size() != 1) {
-		instance.panic("FFI Error: Parse rational expected 1 argument.");
-	}
-
-	try {
-		return instance.parse_rational(arguments.at(0).str(instance));
-	}
-	catch (const std::runtime_error& error) {
-		instance.panic(error.what());
-		return instance::value();
-	}
+	EXPECT_ARGS(1);
+	return instance.parse_rational(arguments.at(0).str(instance));
 }
 
 static instance::value parse_number_str(std::vector<instance::value> arguments, instance& instance) {
-	if (arguments.size() != 1) {
-		instance.panic("FFI Error: Parse number expected 1 argument.");
-	}
-
+	EXPECT_ARGS(1);
 	return instance.parse_number(arguments.at(0).str(instance));
 }
 
 static instance::value sort_table(std::vector<instance::value> arguments, instance& instance) {
-	if (arguments.size() != 2) {
-		instance.panic("FFI Error: Function sort expects 2 arguments: a array-table, and a comparator (return whether left is less than right).");
-	}
+	EXPECT_ARGS(2);
 
 	HulaScript::ffi_table_helper helper(arguments[0], instance);
 	for (size_t i = 0; i < helper.size() - 1; i++) {
@@ -160,9 +150,7 @@ static instance::value sort_table(std::vector<instance::value> arguments, instan
 }
 
 static instance::value binary_search_table(std::vector<instance::value> arguments, instance& instance) {
-	if (arguments.size() != 3) {
-		instance.panic("FFI Error: Function sort expects 2 arguments: a array-table, and a comparator (return whether left is less than right), and a key.");
-	}
+	EXPECT_ARGS(3);
 
 	HulaScript::ffi_table_helper helper(arguments[0], instance);
 	size_t low = 0;
@@ -193,7 +181,7 @@ static instance::value binary_search_table(std::vector<instance::value> argument
 
 static instance::value format_string(std::vector<instance::value> arguments, instance& instance) {
 	if (arguments.size() < 1) {
-		instance.panic("FFI Error: Format string expects two arguments.");
+		instance.panic("FFI Error: Format string expects two arguments.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 	}
 
 	std::string format_str = arguments.at(0).str(instance);
@@ -203,13 +191,14 @@ static instance::value format_string(std::vector<instance::value> arguments, ins
 		if (format_str.at(i) == '%') {
 			i++;
 			if (i == format_str.size()) {
-				instance.panic("% cannot be succeeded by an EOF");
+				instance.panic("% cannot be succeeded by an EOF", ERROR_INVALID_ARGUMENT);
 			}
 
 			char code = format_str.at(i);
 			if (arg_no == arguments.size()) {
 				std::stringstream ss;
 				ss << "Format Error: Expected at least " << arg_no << " printable arguments, but got " << (arguments.size() - 1) << " instead.";
+				instance.panic(ss.str(), ERROR_INVALID_ARGUMENT);
 			}
 			if (code == 's') {
 				std::string to_insert = arguments.at(arg_no).str(instance);
@@ -230,7 +219,7 @@ static instance::value format_string(std::vector<instance::value> arguments, ins
 			else {
 				std::stringstream ss;
 				ss << "Format code \"%" << code << "\" is invalid.";
-				instance.panic(ss.str());
+				instance.panic(ss.str(), ERROR_INVALID_ARGUMENT);
 			}
 			arg_no++;
 		}
@@ -242,9 +231,7 @@ static instance::value format_string(std::vector<instance::value> arguments, ins
 }
 
 static instance::value iterator_to_array(std::vector<instance::value> arguments, instance& instance) {
-	if (arguments.size() != 1) {
-		instance.panic("FFI Error: Iterator-to-array expects one argument, an iterator object, but did not receive it.");
-	}
+	EXPECT_ARGS(1);
 	
 	std::vector<instance::value> elems;
 	instance::value iterator = instance.invoke_method(arguments[0], "iterator", { });
@@ -259,7 +246,7 @@ static instance::value iterator_to_array(std::vector<instance::value> arguments,
 instance::value HulaScript::filter_table(instance::value table_value, instance::value keep_cond, instance& instance) {
 	HulaScript::ffi_table_helper helper(table_value, instance);
 	if (!helper.is_array()) {
-		instance.panic("FFI Error: Filter expects table to be an array.");
+		instance.panic("FFI Error: Filter expects table to be an array.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 	}
 
 	std::vector<instance::value> elems;
@@ -277,12 +264,12 @@ instance::value HulaScript::filter_table(instance::value table_value, instance::
 instance::value HulaScript::append_range(instance::value table_value, instance::value to_append, instance& instance) {
 	HulaScript::ffi_table_helper helper(table_value, instance);
 	if (!helper.is_array()) {
-		instance.panic("FFI Error: Append expects table to be an array.");
+		instance.panic("FFI Error: Append expects table to be an array.", ERROR_TYPE);
 	}
 
 	HulaScript::ffi_table_helper toappend_helper(to_append, instance);
 	if (!toappend_helper.is_array()) { //append an array
-		instance.panic("FFI Error: Append expects table to append to be an array.");
+		instance.panic("FFI Error: Append expects table to append to be an array.", ERROR_TYPE);
 	}
 
 	toappend_helper.temp_gc_protect();
@@ -295,11 +282,8 @@ instance::value HulaScript::append_range(instance::value table_value, instance::
 	return instance::value();
 }
 
-static instance::value import_module(std::vector<instance::value>& arguments, instance& instance)
-{
-	if (arguments.size() < 1) {
-		instance.panic("FFI Error: Import module requires module identifier argument.");
-	}
+static instance::value import_module(std::vector<instance::value>& arguments, instance& instance) {
+	EXPECT_ARGS(1);
 
 	std::ifstream infile(arguments.at(0).str(instance));
 	if (infile.fail()) { //file probably not found
@@ -316,23 +300,27 @@ static instance::value import_module(std::vector<instance::value>& arguments, in
 	return instance.load_module_from_source(s, arguments.at(0).str(instance));
 }
 
+static instance::value user_panic(std::vector<instance::value>& arguments, instance& instance) {
+	EXPECT_ARGS(2);
+	instance.panic(arguments.at(1).str(instance), arguments.at(0).size(instance));
+	return instance::value();
+}
 
 #ifdef HULASCRIPT_USE_SHARED_LIBRARY
 static instance::value import_foreign_module(std::vector<instance::value>& arguments, instance& instance)
 {
-	if (arguments.size() < 1) {
-		instance.panic("FFI Error: Import module requires module identifier argument.");
-	}
+	EXPECT_ARGS(1);
 
 	try {
 		dynalo::native::handle library_handle = dynalo::open(dynalo::to_native_name(arguments[0].str(instance)));
 		return instance.add_foreign_object(std::make_unique<foreign_imported_library>(library_handle));
 	}
 	catch (const std::exception& exception) {
-		std::cout << exception.what() << std::endl;
+		instance.panic(exception.what(), ERROR_IMPORT_FALIURE);
 		return instance::value(); //return nil if error
 	}
 	catch (...) {
+		instance.panic("FFI Error: Failed to import module. Reason unknown.", ERROR_IMPORT_FALIURE);
 		return instance::value(); //return nil if error
 	}
 }
@@ -342,7 +330,7 @@ static instance::value standard_number_parser(std::string str, const instance& i
 	try {
 		return instance.parse_rational(str);
 	}
-	catch(const std::runtime_error& err) {
+	catch(const runtime_error& err) {
 		return instance::value(std::stod(str));
 	}
 }
@@ -364,6 +352,19 @@ instance::instance(custom_numerical_parser numerical_parser) : numerical_parser(
 #ifdef HULASCRIPT_USE_SHARED_LIBRARY
 	declare_global("fimport", make_foreign_function(import_foreign_module));
 #endif // HULASCRIPT_USE_SHARED_LIBRARY
+
+	std::vector<std::pair<std::string, instance::value>> errors;
+	errors.push_back(std::make_pair("general", rational_integer(ERROR_GENERAL)));
+	errors.push_back(std::make_pair("indexOutOfRange", rational_integer(ERROR_INDEX_OUT_OF_RANGE)));
+	errors.push_back(std::make_pair("type", rational_integer(ERROR_TYPE)));
+	errors.push_back(std::make_pair("unexpectedArgCount", rational_integer(ERROR_UNEXPECTED_ARGUMENT_COUNT)));
+	errors.push_back(std::make_pair("immutable", rational_integer(ERROR_IMMUTABLE)));
+	errors.push_back(std::make_pair("invalidArgument", rational_integer(ERROR_INVALID_ARGUMENT)));
+	errors.push_back(std::make_pair("overflow", rational_integer(ERROR_OVERFLOW)));
+	errors.push_back(std::make_pair("divideByZero", rational_integer(ERROR_DIVIDE_BY_ZERO)));
+	errors.push_back(std::make_pair("importFailure", rational_integer(ERROR_IMPORT_FALIURE)));
+	declare_global("errors", make_table_obj(errors, true));
+	declare_global("panic", make_foreign_function(user_panic));
 }
 
 instance::instance() : instance(standard_number_parser) {
