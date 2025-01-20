@@ -15,6 +15,18 @@
 #define HULASCRIPT_EXPECT_ARGS(ARG_COUNT) if(args.size() != (ARG_COUNT)) { instance.panic("FFI Error: Function received wrong number of arguments.");}
 
 namespace HulaScript {
+	enum error_code {
+		ERROR_GENERAL,
+		ERROR_INDEX_OUT_OF_RANGE,
+		ERROR_TYPE,
+		ERROR_UNEXPECTED_ARGUMENT_COUNT,
+		ERROR_IMMUTABLE,
+		ERROR_INVALID_ARGUMENT,
+		ERROR_OVERFLOW,
+		ERROR_DIVIDE_BY_ZERO,
+		ERROR_IMPORT_FALIURE
+	};
+
 	namespace Hash {
 		static size_t constexpr dj2b(char const* input) {
 			return *input ?
@@ -235,7 +247,7 @@ namespace HulaScript {
 		virtual value invoke_method(value object, std::string method_name, std::vector<value> arguments) = 0;
 
 		virtual bool declare_global(std::string name, value val) = 0;
-		virtual void panic(std::string msg) const = 0;
+		virtual void panic(std::string msg, size_t error_code=ERROR_GENERAL) const = 0;
 
 		virtual void temp_gc_protect(value val) = 0;
 
