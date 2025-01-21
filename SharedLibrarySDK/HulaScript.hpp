@@ -129,6 +129,14 @@ namespace HulaScript {
 				return std::string(data.str);
 			}
 
+			size_t size(instance& instance) const {
+				expect_type(vtype::RATIONAL, instance);
+				if (flags & vflags::RATIONAL_IS_NEGATIVE) {
+					instance.panic("Expected positive size, got negative rational instead.", ERROR_TYPE);
+				}
+				return data.id / function_id;
+			}
+
 			const int64_t index(int64_t min, int64_t max, instance& instance) const;
 
 			template<bool IsTableHash>
@@ -326,6 +334,9 @@ namespace HulaScript {
 			CAPTURE_CLOSURE,
 			CAPTURE_VARIADIC_FUNCPTR,
 			CAPTURE_VARIADIC_CLOSURE,
+
+			TRY_HANDLE_ERROR,
+			COMPARE_ERROR_CODE,
 		};
 
 		struct instruction
