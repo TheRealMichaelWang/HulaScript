@@ -436,7 +436,9 @@ namespace HulaScript {
 			TRY_HANDLE_ERROR,
 			COMPARE_ERROR_CODE,
 
-			START_GREENTHREAD,
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+			START_GREENTHREAD
+#endif
 		};
 
 		struct instruction
@@ -559,7 +561,11 @@ namespace HulaScript {
 		};
 
 		std::vector<execution_context> active_threads;
-		execution_context& current_context;
+		size_t current_thread = 0;
+
+		//execution_context& active_threads.at(current_thread) {
+		//	return active_threads.at(current_thread);
+		//}
 
 		execution_context& main_context() {
 			return active_threads.front();
@@ -608,7 +614,7 @@ namespace HulaScript {
 
 		void expect_type(value::vtype expected_type) const {
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-			current_context.evaluation_stack.back().expect_type(expected_type, *this);
+			active_threads.at(current_thread).evaluation_stack.back().expect_type(expected_type, *this);
 #else
 			evaluation_stack.back().expect_type(expected_type, *this);
 #endif
@@ -834,7 +840,7 @@ namespace HulaScript {
 
 		uint32_t emit_finalize_function(compilation_context& context);
 
-		void compile_args_and_call(compilation_context& context);
+		void compile_args_and_call(compilation_context& context, bool startGreenThread=false);
 
 		void compile_value(compilation_context& context, bool expect_statement, bool expects_value);
 		void compile_expression(compilation_context& context, int min_prec=0, bool skip_lhs_compile=false);

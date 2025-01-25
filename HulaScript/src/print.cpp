@@ -107,6 +107,7 @@ static const char* tok_names[] = {
 	"CLASS",
 	"NO_CAPTURE",
 	"VARIADIC",
+	"START",
 
 	"IF",
 	"ELIF",
@@ -402,8 +403,8 @@ const int64_t instance::value::index(int64_t min, int64_t max, instance& instanc
 }
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-#define ip current_context.ip
-#define return_stack current_context.return_stack
+#define ip active_threads.at(current_thread).ip
+#define return_stack active_threads.at(current_thread).return_stack
 #endif
 void instance::panic(std::string msg, size_t error_code) const {
 	std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;

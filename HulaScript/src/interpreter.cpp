@@ -6,13 +6,13 @@
 #include "HulaScript.hpp"
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-#define evaluation_stack current_context.evaluation_stack
-#define local_offset current_context.local_offset
-#define return_stack current_context.return_stack
-#define extended_offsets current_context.extended_offsets
-#define try_handlers current_context.try_handlers
-#define LOCALS current_context.locals
-#define IP current_context.ip
+#define evaluation_stack active_threads.at(current_thread).evaluation_stack
+#define local_offset active_threads.at(current_thread).local_offset
+#define RETURN_STACK active_threads.at(current_thread).return_stack
+#define EXTENDED_OFFSETS active_threads.at(current_thread).extended_offsets
+#define try_handlers active_threads.at(current_thread).try_handlers
+#define LOCALS active_threads.at(current_thread).locals
+#define IP active_threads.at(current_thread).ip
 #else
 #define LOCALS locals
 #define IP ip
@@ -24,7 +24,6 @@ void instance::execute() {
 	call_depth++;
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-	std::vector<execution_context>::iterator it = active_threads.begin();
 try_restart_begin:
 	bool is_try_restarting = false;
 #else
@@ -33,24 +32,24 @@ try_restart_begin:
 
 	try {
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-#define INS_GOTO_NEW_IP it++; continue;
+#define INS_GOTO_NEW_IP current_thread++; continue;
 		if (call_depth > 1 || is_try_restarting) {
 			goto restart_execution;
 		}
 
-		for (; it != active_threads.end();) {
-			current_context = *it;
+		for (; current_thread < active_threads.size();) {
 
 		restart_execution:
 			if (IP == instructions.size()) {
-				if (it == active_threads.begin()) {
+				if (current_thread == 0) {
 					if (active_threads.size() == 1) {
 						goto quit_execution;
 					}
 				} 
 				else {
-					it = active_threads.erase(it);
+					active_threads.erase(active_threads.begin() + current_thread);
 				}
+				current_thread++;
 				continue;
 			}		
 #else
@@ -476,9 +475,9 @@ try_restart_begin:
 				switch (call_value.type)
 				{
 				case value::vtype::CLOSURE: {
-					extended_offsets.push_back(static_cast<operand>(local_count - local_offset));
+					EXTENDED_OFFSETS.push_back(static_cast<operand>(local_count - local_offset));
 					local_offset = local_count;
-					return_stack.push_back(IP); //push return address
+					RETURN_STACK.push_back(IP); //push return address
 
 					function_entry& function = functions.at(call_value.function_id);
 					if (call_value.flags & value::vflags::FUNCTION_IS_VARIADIC) {
@@ -590,15 +589,16 @@ try_restart_begin:
 				id = (id << 8) + static_cast<uint8_t>(payload.operation);
 				id = (id << 8) + payload.operand;
 
-				extended_offsets.push_back(static_cast<operand>(LOCALS.size() - local_offset));
+				EXTENDED_OFFSETS.push_back(static_cast<operand>(LOCALS.size() - local_offset));
 				local_offset = LOCALS.size();
-				return_stack.push_back(IP + 1); //push return address
+				RETURN_STACK.push_back(IP + 1); //push return address
 
 				function_entry& function = functions.at(id);
 
 				IP = function.start_address;
 				INS_GOTO_NEW_IP;
 			}
+#ifdef HULASCRIPT_USE_GREEN_THREADS
 			case opcode::START_GREENTHREAD: {
 				execution_context new_thread;
 				std::vector<value> arguments(evaluation_stack.end() - ins.operand, evaluation_stack.end());
@@ -615,7 +615,7 @@ try_restart_begin:
 					temp_gc_exempt.pop_back();
 				}
 				else {
-					new_thread.locals = std::move(arguments); 
+					new_thread.locals = std::move(arguments);
 					if (function.parameter_count != ins.operand) {
 						std::stringstream ss;
 						ss << "Argument Error: Function " << function.name << " expected " << static_cast<size_t>(function.parameter_count) << " argument(s), but got " << static_cast<size_t>(ins.operand) << " instead.";
@@ -623,17 +623,26 @@ try_restart_begin:
 					}
 				}
 
+				if (call_value.flags & value::vflags::HAS_CAPTURE_TABLE) {
+					new_thread.locals.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, call_value.data.id));
+				}
+
 				new_thread.ip = function.start_address;
+				new_thread.return_stack.push_back(instructions.size() - 1);
+				new_thread.extended_offsets.push_back(0);
 				active_threads.push_back(new_thread);
+
+				evaluation_stack.push_back(value());
 				break;
 			}
+#endif // HULASCRIPT_USE_GREEN_THREADS
 			case opcode::RETURN:
 				LOCALS.erase(LOCALS.begin() + local_offset, LOCALS.end());
-				local_offset -= extended_offsets.back();
-				extended_offsets.pop_back();
+				local_offset -= EXTENDED_OFFSETS.back();
+				EXTENDED_OFFSETS.pop_back();
 
-				IP = return_stack.back() + 1;
-				return_stack.pop_back();
+				IP = RETURN_STACK.back() + 1;
+				RETURN_STACK.pop_back();
 				INS_GOTO_NEW_IP;
 
 			case opcode::CAPTURE_VARIADIC_FUNCPTR:
@@ -672,7 +681,7 @@ try_restart_begin:
 			case opcode::TRY_HANDLE_ERROR: {
 				try_handlers.push_back({
 					.return_ip = IP + ins.operand,
-					.return_stack_size = return_stack.size(),
+					.return_stack_size = RETURN_STACK.size(),
 					.eval_stack_size = evaluation_stack.size(),
 					.local_size = LOCALS.size(),
 					.call_depth = call_depth
@@ -694,12 +703,12 @@ try_restart_begin:
 
 			IP++;
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-			it++;
+			current_thread++;
 #endif
 		}
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-		it = active_threads.begin();
+		current_thread = 0;
 		goto restart_execution;
 	quit_execution:
 		call_depth--;
@@ -711,9 +720,9 @@ try_restart_begin:
 			const auto& try_handler = try_handlers.back();
 			if (try_handler.call_depth == call_depth) {
 				IP = try_handler.return_ip;
-				for (; return_stack.size() != try_handler.return_stack_size; return_stack.pop_back()) {
-					local_offset -= extended_offsets.back();
-					extended_offsets.pop_back();
+				for (; RETURN_STACK.size() != try_handler.return_stack_size; RETURN_STACK.pop_back()) {
+					local_offset -= EXTENDED_OFFSETS.back();
+					EXTENDED_OFFSETS.pop_back();
 				}
 				LOCALS.erase(LOCALS.begin() + try_handler.local_size, LOCALS.end());
 				evaluation_stack.erase(evaluation_stack.begin() + try_handler.eval_stack_size, evaluation_stack.end());

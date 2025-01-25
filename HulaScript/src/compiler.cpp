@@ -146,7 +146,7 @@ void instance::emit_load_variable(std::string name, compilation_context& context
 	}
 }
 
-void instance::compile_args_and_call(compilation_context& context) {
+void instance::compile_args_and_call(compilation_context& context, bool startGreenThread) {
 	context.tokenizer.expect_token(token_type::OPEN_PAREN);
 	context.tokenizer.scan_token();
 
@@ -166,7 +166,7 @@ void instance::compile_args_and_call(compilation_context& context) {
 		context.panic("Function Error: Argument count cannot exceed 255 arguments.");
 	}
 
-	context.emit({ .operation = opcode::CALL, .operand = static_cast<opcode>(arguments) });
+	context.emit({ .operation = (startGreenThread ? opcode::START_GREENTHREAD : opcode::CALL), .operand = static_cast<opcode>(arguments) });
 }
 
 void instance::compile_value(compilation_context& context, bool expects_statement, bool expects_value) {
@@ -473,6 +473,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 				break;
 			}
 		}
+
 		case token_type::OPEN_PAREN: {
 			compile_args_and_call(context);
 			is_statement = true;
@@ -486,6 +487,12 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			context.tokenizer.match_token(token_type::CLOSE_PAREN);
 			context.tokenizer.scan_token();
 			context.emit({ .operation = opcode::VARIADIC_CALL });
+			is_statement = true;
+			break;
+		}
+		case token_type::START: {
+			context.tokenizer.scan_token();
+			compile_args_and_call(context, true);
 			is_statement = true;
 			break;
 		}
@@ -717,7 +724,7 @@ instance::compilation_context::lexical_scope instance::compile_block(compilation
 }
 
 void instance::make_lexical_scope(compilation_context& context, bool is_loop) {
-	auto prev_scope = context.lexical_scopes.back();
+	auto& prev_scope = context.lexical_scopes.back();
 
 	context.lexical_scopes.push_back({ .next_local_id = prev_scope.next_local_id, .all_code_paths_return = false, .is_loop_block = is_loop });
 }
@@ -834,7 +841,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 		context.emit({ .operation = opcode::RETURN });
 	}
 
-	auto captured_vars = context.function_decls.back().captured_variables;
+	auto& captured_vars = context.function_decls.back().captured_variables;
 	if (captured_vars.empty() && !qualifiers.contains(token_type::NO_CAPTURE) && !is_class_method) {
 		std::stringstream ss;
 		ss << "Function Warning: Function " << name << " doesn't capture any variables. Consider adding the no_capture annotation for enhanced performance.";
@@ -866,7 +873,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 	opcode operation = operations[op_no];
 	if (!qualifiers.contains(token_type::NO_CAPTURE) && !is_class_method) {
 		context.emit({.operation = opcode::ALLOCATE_TABLE_LITERAL, .operand = static_cast<operand>(captured_vars.size())});
-		for (auto captured_variable : captured_vars) {
+		for (auto& captured_variable : captured_vars) {
 			context.emit({ .operation = opcode::DUPLICATE_TOP });
 			emit_load_property(Hash::dj2b(captured_variable.c_str()), context);
 			emit_load_variable(captured_variable, context);
@@ -894,7 +901,7 @@ uint32_t instance::emit_finalize_function(compilation_context& context) {
 
 	size_t offset = instructions.size();
 	instructions.insert(instructions.end(), scope.instructions.begin(), scope.instructions.end());
-	for (auto src_loc : scope.ip_src_map) {
+	for (auto& src_loc : scope.ip_src_map) {
 		this->ip_src_map.insert(std::make_pair(src_loc.first + offset, src_loc.second));
 	}
 
@@ -1002,7 +1009,7 @@ void instance::compile_class(compilation_context& context) {
 	}
 	else {
 		context.function_decls.back().param_count = static_cast<operand>(properties.size() - default_value_stack.size());
-		for (auto prop : properties) {
+		for (auto& prop : properties) {
 			if (!prop.second) {
 				context.alloc_local(prop.first, true);
 			}
@@ -1016,7 +1023,7 @@ void instance::compile_class(compilation_context& context) {
 	context.emit({ .operation = alloc_operation, .operand = static_cast<operand>(properties.size() + methods.size())});
 
 	//set default properties
-	for (auto prop : properties) {
+	for (auto& prop : properties) {
 		if (prop.second) {
 			context.emit({ .operation = opcode::DUPLICATE_TOP });
 			emit_load_property(Hash::dj2b(prop.first.c_str()), context);
@@ -1060,7 +1067,7 @@ void instance::compile_class(compilation_context& context) {
 		emit_load_variable("@result", context);
 	}
 	else {
-		for (auto prop : properties) {
+		for (auto& prop : properties) {
 			if (!prop.second) {
 				context.emit({ .operation = opcode::DUPLICATE_TOP });
 				emit_load_property(Hash::dj2b(prop.first.c_str()), context);
@@ -1236,7 +1243,7 @@ void instance::compile(compilation_context& context) {
 	ip = instructions.size();
 	instructions.insert(instructions.end(), context.lexical_scopes.back().instructions.begin(), context.lexical_scopes.back().instructions.end());
 
-	for (auto src_loc : context.lexical_scopes.back().ip_src_map) {
+	for (auto& src_loc : context.lexical_scopes.back().ip_src_map) {
 		this->ip_src_map.insert(std::make_pair(src_loc.first + ip, src_loc.second));
 	}
 	context.lexical_scopes.pop_back();

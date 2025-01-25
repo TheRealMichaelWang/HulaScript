@@ -277,7 +277,7 @@ instance::operator_handler instance::operator_handlers[] = {
 };
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-#define evaluation_stack current_context.evaluation_stack
+#define evaluation_stack active_threads.at(current_thread).evaluation_stack
 #endif
 
 void instance::handle_double_add(value& a, value& b) {
