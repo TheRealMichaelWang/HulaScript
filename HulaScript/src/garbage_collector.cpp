@@ -65,9 +65,15 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	std::vector<value> values_to_trace;
 	std::vector<uint32_t> functions_to_trace;
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-	for (auto& thread : active_threads) {
+	for (auto& thread : all_threads) {
 		values_to_trace.insert(values_to_trace.end(), thread.evaluation_stack.begin(), thread.evaluation_stack.end());
 		values_to_trace.insert(values_to_trace.end(), thread.locals.begin(), thread.locals.end());
+		if (thread.finished_pollster != NULL) {
+			values_to_trace.push_back(value(thread.finished_pollster));
+		}
+	}
+	for (auto& thread : suspended_threads) {
+		values_to_trace.push_back(value(thread.first));
 	}
 #else
 	values_to_trace.insert(values_to_trace.end(), evaluation_stack.begin(), evaluation_stack.end());

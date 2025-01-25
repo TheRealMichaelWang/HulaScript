@@ -337,7 +337,7 @@ static instance::value standard_number_parser(std::string str, const instance& i
 
 instance::instance(custom_numerical_parser numerical_parser) : numerical_parser(numerical_parser)
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-, active_threads({ execution_context() }) 
+, all_threads({ execution_context() }) 
 #endif
 {
 	declare_global("format", make_foreign_function(format_string));

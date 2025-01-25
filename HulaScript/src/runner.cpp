@@ -80,7 +80,8 @@ std::optional<instance::value> instance::run_no_warnings(std::string source, std
 #endif
 std::optional<instance::value> instance::run_loaded() {
 	size_t exempt_count = temp_gc_exempt.size();
-	try {
+	//try {
+		active_threads.push_back(0);
 		execute();
 
 		if (!evaluation_stack.empty()) {
@@ -92,7 +93,7 @@ std::optional<instance::value> instance::run_loaded() {
 		}
 		finalize();
 		return std::nullopt;
-	}
+	/* }
 	catch (...) {
 		//global_vars.erase(global_vars.begin() + globals.size(), global_vars.end());
 		//top_level_local_vars.erase(top_level_local_vars.begin() + declared_top_level_locals, top_level_local_vars.end());
@@ -100,7 +101,7 @@ std::optional<instance::value> instance::run_loaded() {
 
 		finalize();
 		throw;
-	}
+	}*/
 }
 
 instance::value instance::load_module_from_source(std::string source, std::string file_name)

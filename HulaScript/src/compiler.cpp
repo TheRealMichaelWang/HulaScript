@@ -173,6 +173,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 	auto token = context.tokenizer.get_last_token();
 	context.set_src_loc(context.tokenizer.last_tok_begin());
 
+	bool is_statement = false;
 	switch (token.type())
 	{
 	//literal compilation
@@ -271,6 +272,13 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		context.tokenizer.expect_token(token_type::CLOSE_BRACKET);
 		context.tokenizer.scan_token();
 		break;
+	case token_type::AWAIT: {
+		context.tokenizer.scan_token();
+		compile_value(context, false, true);
+		context.emit({ .operation = opcode::AWAIT_OPERATION });
+		is_statement = true;
+		break;
+	}
 	case token_type::OPEN_BRACKET: {
 		context.tokenizer.scan_token();
 
@@ -420,7 +428,6 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		context.tokenizer.unexpected_token();
 	}
 
-	bool is_statement = false;
 	for (;;) {
 		token = context.tokenizer.get_last_token();
 		switch (token.type())
@@ -1177,6 +1184,8 @@ void instance::compile(compilation_context& context) {
 	while (!context.tokenizer.match_token(token_type::END_OF_SOURCE, true))
 	{
 		auto last_token = context.tokenizer.get_last_token();
+		context.set_src_loc(context.tokenizer.last_tok_begin());
+
 		switch (last_token.type())
 		{
 		case token_type::GLOBAL: {
@@ -1221,6 +1230,7 @@ void instance::compile(compilation_context& context) {
 		if (context.mode == compile_mode::COMPILE_MODE_REPL) {
 			context.tokenizer.expect_token(token_type::END_OF_SOURCE);
 		}
+		context.unset_src_loc();
 	}
 
 	if (context.mode == compile_mode::COMPILE_MODE_LIBRARY) {

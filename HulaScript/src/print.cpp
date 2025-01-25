@@ -403,8 +403,8 @@ const int64_t instance::value::index(int64_t min, int64_t max, instance& instanc
 }
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-#define ip active_threads.at(current_thread).ip
-#define return_stack active_threads.at(current_thread).return_stack
+#define ip all_threads.at(active_threads.at(current_thread)).ip
+#define return_stack all_threads.at(active_threads.at(current_thread)).return_stack
 #endif
 void instance::panic(std::string msg, size_t error_code) const {
 	std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;

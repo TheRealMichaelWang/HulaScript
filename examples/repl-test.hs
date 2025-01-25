@@ -17,3 +17,8 @@ utils.toJSON({
 
 	.@json_keys = ["name", "age"]
 })
+
+
+function hello() no_capture do
+	print("Hello World!")
+end

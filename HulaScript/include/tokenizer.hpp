@@ -25,6 +25,7 @@ namespace HulaScript {
 		NO_CAPTURE,
 		VARIADIC,
 		START,
+		AWAIT,
 
 		IF,
 		ELIF,

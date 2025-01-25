@@ -6,16 +6,17 @@
 #include "HulaScript.hpp"
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-#define evaluation_stack active_threads.at(current_thread).evaluation_stack
-#define local_offset active_threads.at(current_thread).local_offset
-#define RETURN_STACK active_threads.at(current_thread).return_stack
-#define EXTENDED_OFFSETS active_threads.at(current_thread).extended_offsets
-#define try_handlers active_threads.at(current_thread).try_handlers
-#define LOCALS active_threads.at(current_thread).locals
-#define IP active_threads.at(current_thread).ip
+#define EVALUATION_STACK all_threads.at(active_threads.at(current_thread)).evaluation_stack
+#define local_offset all_threads.at(active_threads.at(current_thread)).local_offset
+#define RETURN_STACK all_threads.at(active_threads.at(current_thread)).return_stack
+#define EXTENDED_OFFSETS all_threads.at(active_threads.at(current_thread)).extended_offsets
+#define try_handlers all_threads.at(active_threads.at(current_thread)).try_handlers
+#define LOCALS all_threads.at(active_threads.at(current_thread)).locals
+#define IP all_threads.at(active_threads.at(current_thread)).ip
 #else
 #define LOCALS locals
 #define IP ip
+#define EVALUATION_STACK evaluation_stack
 #endif // HULASCRIPT_USE_GREEN_THREADS
 
 using namespace HulaScript;
@@ -23,33 +24,61 @@ using namespace HulaScript;
 void instance::execute() {
 	call_depth++;
 
-#ifdef HULASCRIPT_USE_GREEN_THREADS
-try_restart_begin:
-	bool is_try_restarting = false;
-#else
-try_restart_begin:
-#endif
-
+retry_execution:
 	try {
+	restart_execution:
 #ifdef HULASCRIPT_USE_GREEN_THREADS
 #define INS_GOTO_NEW_IP current_thread++; continue;
-		if (call_depth > 1 || is_try_restarting) {
-			goto restart_execution;
+
+		for (auto it = suspended_threads.begin(); it != suspended_threads.end(); ) {
+			if (it->first->poll()) { //thread may finally resume
+				active_threads.push_back(it->second);
+				all_threads.at(it->second).evaluation_stack.push_back(it->first->get_result(*this));
+				it = suspended_threads.erase(it);
+			}
+			else {
+				it++;
+			}
 		}
 
 		for (; current_thread < active_threads.size();) {
-
-		restart_execution:
 			if (IP == instructions.size()) {
-				if (current_thread == 0) {
-					if (active_threads.size() == 1) {
+				/*if (active_threads.at(current_thread).is_main_thread) {
+					if (active_threads.size() == 1 && suspended_threads.size() == 0) {
 						goto quit_execution;
 					}
+					current_thread++;
 				} 
 				else {
+					auto& pollster = active_threads.at(current_thread).finished_pollster;
+					if (pollster != NULL) {
+						pollster->mark_finished(EVALUATION_STACK.back());
+					}
 					active_threads.erase(active_threads.begin() + current_thread);
+				}*/
+				auto& pollster = all_threads.at(active_threads.at(current_thread)).finished_pollster;
+				if (pollster != NULL) {
+					pollster->mark_finished(EVALUATION_STACK.back());
 				}
-				current_thread++;
+				size_t thread_no = active_threads.at(current_thread);
+				active_threads.erase(active_threads.begin() + current_thread);
+				if (thread_no != 0) {
+					all_threads.erase(all_threads.begin() + thread_no);
+					for (auto& thread_id : active_threads) {
+						if (thread_id > thread_no) {
+							thread_id--;
+						}
+					}
+					for (auto& suspended : suspended_threads) {
+						if (suspended.second > thread_no) {
+							suspended.second--;
+						}
+					}
+				}
+
+				if (active_threads.size() == 0 && suspended_threads.size() == 0) {
+					goto quit_execution;
+				}
 				continue;
 			}		
 #else
@@ -65,22 +94,22 @@ try_restart_begin:
 				IP = instructions.size();
 				continue;
 			case opcode::REVERSE_TOP: {
-				std::reverse(evaluation_stack.end() - ins.operand, evaluation_stack.end());
+				std::reverse(EVALUATION_STACK.end() - ins.operand, EVALUATION_STACK.end());
 				break;
 			}
 			case opcode::DUPLICATE_TOP:
-				evaluation_stack.push_back(evaluation_stack.back());
+				EVALUATION_STACK.push_back(EVALUATION_STACK.back());
 				break;
 			case opcode::DISCARD_TOP:
-				evaluation_stack.pop_back();
+				EVALUATION_STACK.pop_back();
 				break;
 			case opcode::BRING_TO_TOP: {
-				evaluation_stack.push_back(*(evaluation_stack.end() - (ins.operand + 1)));
+				EVALUATION_STACK.push_back(*(EVALUATION_STACK.end() - (ins.operand + 1)));
 				break;
 			}
 
 			case opcode::LOAD_CONSTANT_FAST:
-				evaluation_stack.push_back(constants[ins.operand]);
+				EVALUATION_STACK.push_back(constants[ins.operand]);
 				break;
 			case opcode::LOAD_CONSTANT: {
 				uint32_t index = ins.operand;
@@ -89,19 +118,19 @@ try_restart_begin:
 				index = (index << 8) + static_cast<uint8_t>(payload.operation);
 				index = (index << 8) + payload.operand;
 
-				evaluation_stack.push_back(constants[index]);
+				EVALUATION_STACK.push_back(constants[index]);
 
 				IP++;
 				break;
 			}
 			case opcode::PUSH_NIL:
-				evaluation_stack.push_back(value());
+				EVALUATION_STACK.push_back(value());
 				break;
 			case opcode::PUSH_TRUE:
-				evaluation_stack.push_back(value(true));
+				EVALUATION_STACK.push_back(value(true));
 				break;
 			case opcode::PUSH_FALSE:
-				evaluation_stack.push_back(value(false));
+				EVALUATION_STACK.push_back(value(false));
 				break;
 
 			case opcode::DECL_TOPLVL_LOCAL:
@@ -109,8 +138,8 @@ try_restart_begin:
 				[[fallthrough]];
 			case opcode::DECL_LOCAL:
 				assert(local_offset + ins.operand == LOCALS.size());
-				LOCALS.push_back(evaluation_stack.back());
-				evaluation_stack.pop_back();
+				LOCALS.push_back(EVALUATION_STACK.back());
+				EVALUATION_STACK.pop_back();
 				break;
 			case opcode::PROBE_LOCALS:
 				LOCALS.reserve(local_offset + ins.operand);
@@ -119,35 +148,35 @@ try_restart_begin:
 				LOCALS.erase(LOCALS.end() - ins.operand, LOCALS.end());
 				break;
 			case opcode::STORE_LOCAL:
-				LOCALS[local_offset + ins.operand] = evaluation_stack.back();
+				LOCALS[local_offset + ins.operand] = EVALUATION_STACK.back();
 				break;
 			case opcode::LOAD_LOCAL:
-				evaluation_stack.push_back(LOCALS[local_offset + ins.operand]);
+				EVALUATION_STACK.push_back(LOCALS[local_offset + ins.operand]);
 				break;
 
 			case opcode::DECL_GLOBAL:
 				assert(globals.size() == ins.operand);
-				globals.push_back(evaluation_stack.back());
-				evaluation_stack.pop_back();
+				globals.push_back(EVALUATION_STACK.back());
+				EVALUATION_STACK.pop_back();
 				break;
 			case opcode::STORE_GLOBAL:
-				globals[ins.operand] = evaluation_stack.back();
+				globals[ins.operand] = EVALUATION_STACK.back();
 				break;
 			case opcode::LOAD_GLOBAL:
-				evaluation_stack.push_back(globals[ins.operand]);
+				EVALUATION_STACK.push_back(globals[ins.operand]);
 				break;
 
 			//table operations
 			case opcode::LOAD_TABLE: {
-				value key = evaluation_stack.back();
+				value key = EVALUATION_STACK.back();
 				size_t hash = key.hash<true>();
-				evaluation_stack.pop_back();
+				EVALUATION_STACK.pop_back();
 
-				value table_value = evaluation_stack.back();
-				evaluation_stack.pop_back();
+				value table_value = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
 
 				if (table_value.type == value::vtype::FOREIGN_OBJECT) {
-					evaluation_stack.push_back(table_value.data.foreign_object->load_property(hash, *this));
+					EVALUATION_STACK.push_back(table_value.data.foreign_object->load_property(hash, *this));
 					break;
 				}
 
@@ -160,33 +189,33 @@ try_restart_begin:
 
 					auto it = table.key_hashes.find(hash);
 					if (it != table.key_hashes.end()) {
-						evaluation_stack.push_back(heap[table.block.start + it->second]);
+						EVALUATION_STACK.push_back(heap[table.block.start + it->second]);
 						break;
 					}
 					else if (hash == Hash::dj2b("@length")) {
-						evaluation_stack.push_back(rational_integer(table.count));
+						EVALUATION_STACK.push_back(rational_integer(table.count));
 						break;
 					}
 					else if (flags & value::vflags::TABLE_ARRAY_ITERATE) {
 						switch (hash)
 						{
 						case Hash::dj2b("iterator"):
-							evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_GET_ITERATOR, flags, 0, table_id));
+							EVALUATION_STACK.push_back(value(value::vtype::INTERNAL_TABLE_GET_ITERATOR, flags, 0, table_id));
 							break;
 						case Hash::dj2b("filter"):
-							evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_FILTER, flags, 0, table_id));
+							EVALUATION_STACK.push_back(value(value::vtype::INTERNAL_TABLE_FILTER, flags, 0, table_id));
 							break;
 						case Hash::dj2b("append"):
-							evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_APPEND, flags, 0, table_id));
+							EVALUATION_STACK.push_back(value(value::vtype::INTERNAL_TABLE_APPEND, flags, 0, table_id));
 							break;
 						case Hash::dj2b("appendRange"):
-							evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_APPEND_RANGE, flags, 0, table_id));
+							EVALUATION_STACK.push_back(value(value::vtype::INTERNAL_TABLE_APPEND_RANGE, flags, 0, table_id));
 							break;
 						case Hash::dj2b("remove"):
-							evaluation_stack.push_back(value(value::vtype::INTERNAL_TABLE_REMOVE, flags, 0, table_id));
+							EVALUATION_STACK.push_back(value(value::vtype::INTERNAL_TABLE_REMOVE, flags, 0, table_id));
 							break;
 						default:
-							evaluation_stack.push_back(value());
+							EVALUATION_STACK.push_back(value());
 							break;
 						}
 						break;
@@ -198,22 +227,22 @@ try_restart_begin:
 						table_id = base_table_val.data.id;
 					}
 					else {
-						evaluation_stack.push_back(value());
+						EVALUATION_STACK.push_back(value());
 						break;
 					}
 				}
 				break;
 			}
 			case opcode::STORE_TABLE: {
-				value set_value = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				value key = evaluation_stack.back();
-				evaluation_stack.pop_back();
+				value set_value = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				value key = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
 				expect_type(value::vtype::TABLE);
-				value table_value = evaluation_stack.back();
+				value table_value = EVALUATION_STACK.back();
 				size_t table_id = table_value.data.id;
 				uint16_t flags = table_value.flags;
-				evaluation_stack.pop_back();
+				EVALUATION_STACK.pop_back();
 
 				size_t hash = key.hash<true>();
 
@@ -224,7 +253,7 @@ try_restart_begin:
 						if (flags & value::vflags::TABLE_IS_FINAL) {
 							panic("Cannot add to an immutable table.", ERROR_IMMUTABLE);
 						}
-						evaluation_stack.push_back(heap[table.block.start + it->second] = set_value);
+						EVALUATION_STACK.push_back(heap[table.block.start + it->second] = set_value);
 						break;
 					}
 					else if (flags & value::vflags::TABLE_INHERITS_PARENT && ins.operand) {
@@ -246,7 +275,7 @@ try_restart_begin:
 						}
 
 						table.key_hashes.insert({ hash, table.count });
-						evaluation_stack.push_back(heap[table.block.start + table.count] = set_value);
+						EVALUATION_STACK.push_back(heap[table.block.start + table.count] = set_value);
 						table.count++;
 						break;
 					}
@@ -254,44 +283,44 @@ try_restart_begin:
 				break;
 			}
 			case opcode::ALLOCATE_TABLE: {
-				value length = evaluation_stack.back();
-				evaluation_stack.pop_back();
+				value length = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
 
 				size_t table_id = allocate_table(static_cast<size_t>(length.number(*this)), true);
-				evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, table_id));
+				EVALUATION_STACK.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, table_id));
 				break;
 			}
 			case opcode::ALLOCATE_ARRAY_LITERAL: {
 				size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
-				evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::TABLE_ARRAY_ITERATE, 0, table_id));
+				EVALUATION_STACK.push_back(value(value::vtype::TABLE, value::vflags::TABLE_ARRAY_ITERATE, 0, table_id));
 				break;
 			}
 			case opcode::ALLOCATE_TABLE_LITERAL: {
 				size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
-				evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, table_id));
+				EVALUATION_STACK.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, table_id));
 				break;
 			}
 			case opcode::ALLOCATE_CLASS: {
 				size_t table_id = allocate_table(static_cast<size_t>(ins.operand), true);
-				evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, table_id));
+				EVALUATION_STACK.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, table_id));
 				break;
 			}
 			case opcode::ALLOCATE_INHERITED_CLASS: {
 				size_t table_id = allocate_table(static_cast<size_t>(ins.operand) + 1, true);
-				evaluation_stack.push_back(value(value::vtype::TABLE, 0 | value::vflags::TABLE_INHERITS_PARENT, 0, table_id));
+				EVALUATION_STACK.push_back(value(value::vtype::TABLE, 0 | value::vflags::TABLE_INHERITS_PARENT, 0, table_id));
 				break;
 			}
 			case opcode::ALLOCATE_MODULE: {
 				size_t table_id = allocate_table(static_cast<size_t>(16), true);
-				evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::TABLE_IS_MODULE, 0, table_id));
-				temp_gc_exempt.push_back(evaluation_stack.back());
+				EVALUATION_STACK.push_back(value(value::vtype::TABLE, value::vflags::TABLE_IS_MODULE, 0, table_id));
+				temp_gc_exempt.push_back(EVALUATION_STACK.back());
 				break;
 			}
 			case opcode::FINALIZE_TABLE: {
 				expect_type(value::vtype::TABLE);
-				size_t table_id = evaluation_stack.back().data.id;
+				size_t table_id = EVALUATION_STACK.back().data.id;
 
-				if (evaluation_stack.back().flags & value::vflags::TABLE_IS_MODULE) {
+				if (EVALUATION_STACK.back().flags & value::vflags::TABLE_IS_MODULE) {
 					for (auto it = temp_gc_exempt.begin(); it != temp_gc_exempt.end(); it++) {
 						if (it->check_type(value::vtype::TABLE) && it->data.id == table_id) {
 							it = temp_gc_exempt.erase(it);
@@ -299,28 +328,28 @@ try_restart_begin:
 						}
 					}
 				}
-				evaluation_stack.back().flags |= value::vflags::TABLE_IS_FINAL;
+				EVALUATION_STACK.back().flags |= value::vflags::TABLE_IS_FINAL;
 
 				reallocate_table(table_id, tables.at(table_id).count, true);
 
 				break;
 			}
 			case opcode::LOAD_MODULE: {
-				value key = evaluation_stack.back();
+				value key = EVALUATION_STACK.back();
 				size_t hash = key.hash<true>();
-				evaluation_stack.pop_back();
+				EVALUATION_STACK.pop_back();
 
-				evaluation_stack.push_back(value(value::vtype::TABLE, value::vflags::TABLE_IS_MODULE, 0, loaded_modules.at(hash)));
+				EVALUATION_STACK.push_back(value(value::vtype::TABLE, value::vflags::TABLE_IS_MODULE, 0, loaded_modules.at(hash)));
 				break;
 			}
 			case opcode::STORE_MODULE: {
 				expect_type(value::vtype::TABLE);
-				size_t table_id = evaluation_stack.back().data.id;
-				evaluation_stack.pop_back();
+				size_t table_id = EVALUATION_STACK.back().data.id;
+				EVALUATION_STACK.pop_back();
 
-				value key = evaluation_stack.back();
+				value key = EVALUATION_STACK.back();
 				size_t hash = key.hash<true>();
-				evaluation_stack.pop_back();
+				EVALUATION_STACK.pop_back();
 
 				loaded_modules.insert({ hash, table_id });
 				break;
@@ -339,10 +368,10 @@ try_restart_begin:
 				[[fallthrough]];
 			case opcode::EXPONENTIATE:
 			{
-				value b = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				value a = evaluation_stack.back();
-				evaluation_stack.pop_back();
+				value b = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				value a = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
 
 				if (a.type == value::vtype::NIL || b.type == value::vtype::NIL) {
 					a.expect_type(value::vtype::DOUBLE, *this);
@@ -355,56 +384,56 @@ try_restart_begin:
 				break;
 			}
 			case opcode::MORE: {
-				value b = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				value a = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				evaluation_stack.push_back(value(a.number(*this) > b.number(*this)));
+				value b = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				value a = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				EVALUATION_STACK.push_back(value(a.number(*this) > b.number(*this)));
 				break;
 			}
 			case opcode::LESS: {
-				value b = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				value a = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				evaluation_stack.push_back(value(a.number(*this) < b.number(*this)));
+				value b = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				value a = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				EVALUATION_STACK.push_back(value(a.number(*this) < b.number(*this)));
 				break;
 			}
 			case opcode::LESS_EQUAL: {
-				value b = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				value a = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				evaluation_stack.push_back(value(a.number(*this) <= b.number(*this)));
+				value b = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				value a = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				EVALUATION_STACK.push_back(value(a.number(*this) <= b.number(*this)));
 				break;
 			}
 			case opcode::MORE_EQUAL: {
-				value b = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				value a = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				evaluation_stack.push_back(value(a.number(*this) >= b.number(*this)));
+				value b = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				value a = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				EVALUATION_STACK.push_back(value(a.number(*this) >= b.number(*this)));
 				break;
 			}
 			case opcode::EQUALS: {
-				value b = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				value a = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				evaluation_stack.push_back(value(a.hash<false>() == b.hash<false>()));
+				value b = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				value a = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				EVALUATION_STACK.push_back(value(a.hash<false>() == b.hash<false>()));
 				break;
 			}
 			case opcode::NOT_EQUAL: {
-				value b = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				value a = evaluation_stack.back();
-				evaluation_stack.pop_back();
-				evaluation_stack.push_back(value(a.hash<false>() != b.hash<false>()));
+				value b = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				value a = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
+				EVALUATION_STACK.push_back(value(a.hash<false>() != b.hash<false>()));
 				break;
 			}
 			case opcode::IFNT_NIL_JUMP_AHEAD: {
-				if (evaluation_stack.back().type == value::vtype::NIL) {
-					evaluation_stack.pop_back();
+				if (EVALUATION_STACK.back().type == value::vtype::NIL) {
+					EVALUATION_STACK.pop_back();
 					break;
 				}
 				else {
@@ -416,8 +445,8 @@ try_restart_begin:
 											//jump and conditional operators
 			case opcode::IF_FALSE_JUMP_AHEAD: {
 				expect_type(value::vtype::BOOLEAN);
-				bool cond = evaluation_stack.back().data.boolean;
-				evaluation_stack.pop_back();
+				bool cond = EVALUATION_STACK.back().data.boolean;
+				EVALUATION_STACK.pop_back();
 
 				if (cond) {
 					break;
@@ -429,8 +458,8 @@ try_restart_begin:
 				INS_GOTO_NEW_IP;
 			case opcode::IF_FALSE_JUMP_BACK: {
 				expect_type(value::vtype::BOOLEAN);
-				bool cond = evaluation_stack.back().data.boolean;
-				evaluation_stack.pop_back();
+				bool cond = EVALUATION_STACK.back().data.boolean;
+				EVALUATION_STACK.pop_back();
 
 				if (!cond) {
 					break;
@@ -443,18 +472,18 @@ try_restart_begin:
 
 			case opcode::VARIADIC_CALL: {
 				expect_type(value::vtype::TABLE);
-				value table_value = evaluation_stack.back();
-				evaluation_stack.pop_back();
+				value table_value = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
 
-				if (evaluation_stack.back().flags & value::vflags::FUNCTION_IS_VARIADIC) {
-					evaluation_stack.back().flags -= value::vflags::FUNCTION_IS_VARIADIC;
-					evaluation_stack.push_back(table_value);
+				if (EVALUATION_STACK.back().flags & value::vflags::FUNCTION_IS_VARIADIC) {
+					EVALUATION_STACK.back().flags -= value::vflags::FUNCTION_IS_VARIADIC;
+					EVALUATION_STACK.push_back(table_value);
 					ins.operand = 1;
 				}
 				else {
 					table& table = tables.at(table_value.data.id);
 					for (size_t i = 0; i < table.count; i++) {
-						evaluation_stack.push_back(heap[table.block.start + i]);
+						EVALUATION_STACK.push_back(heap[table.block.start + i]);
 					}
 
 					if (table.count >= UINT8_MAX) {
@@ -467,11 +496,11 @@ try_restart_begin:
 			case opcode::CALL: {
 				//push arguments into local variable stack
 				size_t local_count = LOCALS.size();
-				LOCALS.insert(LOCALS.end(), evaluation_stack.end() - ins.operand, evaluation_stack.end());
-				evaluation_stack.erase(evaluation_stack.end() - ins.operand, evaluation_stack.end());
+				LOCALS.insert(LOCALS.end(), EVALUATION_STACK.end() - ins.operand, EVALUATION_STACK.end());
+				EVALUATION_STACK.erase(EVALUATION_STACK.end() - ins.operand, EVALUATION_STACK.end());
 
-				value call_value = evaluation_stack.back();
-				evaluation_stack.pop_back();
+				value call_value = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
 				switch (call_value.type)
 				{
 				case value::vtype::CLOSURE: {
@@ -509,14 +538,14 @@ try_restart_begin:
 				case value::vtype::FOREIGN_OBJECT_METHOD: {
 					std::vector<value> arguments(LOCALS.end() - ins.operand, LOCALS.end());
 					LOCALS.erase(LOCALS.end() - ins.operand, LOCALS.end());
-					evaluation_stack.push_back(call_value.data.foreign_object->call_method(call_value.function_id, arguments, *this));
+					EVALUATION_STACK.push_back(call_value.data.foreign_object->call_method(call_value.function_id, arguments, *this));
 					break;
 				}
 				case value::vtype::FOREIGN_FUNCTION: {
 					std::vector<value> arguments(LOCALS.end() - ins.operand, LOCALS.end());
 					LOCALS.erase(LOCALS.end() - ins.operand, LOCALS.end());
 
-					evaluation_stack.push_back(foreign_functions[call_value.function_id](arguments, *this));
+					EVALUATION_STACK.push_back(foreign_functions[call_value.function_id](arguments, *this));
 
 					break;
 				}
@@ -525,7 +554,7 @@ try_restart_begin:
 						panic("Array table iterator expects exactly 0 arguments.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 					}
 
-					evaluation_stack.push_back(add_foreign_object(std::make_unique<table_iterator>(table_iterator(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), *this))));
+					EVALUATION_STACK.push_back(add_foreign_object(std::make_unique<table_iterator>(table_iterator(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), *this))));
 					break;
 				}
 				case value::vtype::INTERNAL_TABLE_FILTER: {
@@ -536,7 +565,7 @@ try_restart_begin:
 					value arguments = LOCALS.back();
 					LOCALS.pop_back();
 
-					evaluation_stack.push_back(filter_table(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments, *this));
+					EVALUATION_STACK.push_back(filter_table(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments, *this));
 					break;
 				}
 				case value::vtype::INTERNAL_TABLE_APPEND: {
@@ -559,7 +588,7 @@ try_restart_begin:
 					value arguments = LOCALS.back();
 					LOCALS.pop_back();
 
-					evaluation_stack.push_back(append_range(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments, *this));
+					EVALUATION_STACK.push_back(append_range(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments, *this));
 
 					break;
 				}
@@ -572,11 +601,11 @@ try_restart_begin:
 					LOCALS.pop_back();
 
 					HulaScript::ffi_table_helper helper(call_value.data.id, call_value.flags, *this);
-					evaluation_stack.push_back(helper.remove(argument));
+					EVALUATION_STACK.push_back(helper.remove(argument));
 					break;
 				}
 				default:
-					evaluation_stack.push_back(call_value);
+					EVALUATION_STACK.push_back(call_value);
 					expect_type(value::vtype::CLOSURE);
 					break;
 				}
@@ -601,12 +630,12 @@ try_restart_begin:
 #ifdef HULASCRIPT_USE_GREEN_THREADS
 			case opcode::START_GREENTHREAD: {
 				execution_context new_thread;
-				std::vector<value> arguments(evaluation_stack.end() - ins.operand, evaluation_stack.end());
-				evaluation_stack.erase(evaluation_stack.end() - ins.operand, evaluation_stack.end());
+				std::vector<value> arguments(EVALUATION_STACK.end() - ins.operand, EVALUATION_STACK.end());
+				EVALUATION_STACK.erase(EVALUATION_STACK.end() - ins.operand, EVALUATION_STACK.end());
 
 				expect_type(value::vtype::CLOSURE);
-				value call_value = evaluation_stack.back();
-				evaluation_stack.pop_back();
+				value call_value = EVALUATION_STACK.back();
+				EVALUATION_STACK.pop_back();
 
 				function_entry& function = functions.at(call_value.function_id);
 				if (call_value.flags & value::vflags::FUNCTION_IS_VARIADIC) {
@@ -630,10 +659,27 @@ try_restart_begin:
 				new_thread.ip = function.start_address;
 				new_thread.return_stack.push_back(instructions.size() - 1);
 				new_thread.extended_offsets.push_back(0);
-				active_threads.push_back(new_thread);
 
-				evaluation_stack.push_back(value());
+				auto pollster = std::make_unique<await_finish_pollster>();
+				new_thread.finished_pollster = pollster.get();
+				EVALUATION_STACK.push_back(add_foreign_object(std::move(pollster)));
+
+				active_threads.push_back(all_threads.size());
+				all_threads.push_back(new_thread);
 				break;
+			}
+			case opcode::AWAIT_OPERATION: {
+				await_pollster* pollster = dynamic_cast<await_pollster*>(EVALUATION_STACK.back().foreign_obj(*this));
+				if (pollster == NULL) {
+					panic("Expected await pollster, got a different foreign object.", ERROR_TYPE);
+				}
+				EVALUATION_STACK.pop_back();
+				
+				IP++;
+				suspended_threads.push_back(std::make_pair(pollster, active_threads.at(current_thread)));
+				active_threads.erase(active_threads.begin() + current_thread);
+
+				continue;
 			}
 #endif // HULASCRIPT_USE_GREEN_THREADS
 			case opcode::RETURN:
@@ -662,17 +708,17 @@ try_restart_begin:
 
 				if (op_no & 1) {
 					expect_type(value::vtype::TABLE);
-					size_t capture_table_id = evaluation_stack.back().data.id;
-					evaluation_stack.pop_back();
+					size_t capture_table_id = EVALUATION_STACK.back().data.id;
+					EVALUATION_STACK.pop_back();
 
-					evaluation_stack.push_back(value(value::vtype::CLOSURE, value::vflags::HAS_CAPTURE_TABLE, id, capture_table_id));
+					EVALUATION_STACK.push_back(value(value::vtype::CLOSURE, value::vflags::HAS_CAPTURE_TABLE, id, capture_table_id));
 				}
 				else {
-					evaluation_stack.push_back(value(value::vtype::CLOSURE, value::vflags::NONE, id, 0));
+					EVALUATION_STACK.push_back(value(value::vtype::CLOSURE, value::vflags::NONE, id, 0));
 				}
 
 				if (op_no >= 2) {
-					evaluation_stack.back().flags |= value::vflags::FUNCTION_IS_VARIADIC;
+					EVALUATION_STACK.back().flags |= value::vflags::FUNCTION_IS_VARIADIC;
 				}
 
 				IP++;
@@ -682,21 +728,21 @@ try_restart_begin:
 				try_handlers.push_back({
 					.return_ip = IP + ins.operand,
 					.return_stack_size = RETURN_STACK.size(),
-					.eval_stack_size = evaluation_stack.size(),
+					.eval_stack_size = EVALUATION_STACK.size(),
 					.local_size = LOCALS.size(),
 					.call_depth = call_depth
 				});
 				break;
 			}
 			case opcode::COMPARE_ERROR_CODE: {
-				size_t code = evaluation_stack.back().size(*this);
-				evaluation_stack.pop_back();
-				handled_error* error = dynamic_cast<handled_error*>(evaluation_stack.back().foreign_obj(*this));
+				size_t code = EVALUATION_STACK.back().size(*this);
+				EVALUATION_STACK.pop_back();
+				handled_error* error = dynamic_cast<handled_error*>(EVALUATION_STACK.back().foreign_obj(*this));
 				if (error == NULL) {
 					panic("Expected handled error, got another foreign object.", ERROR_TYPE);
 				}
 
-				evaluation_stack.push_back(value(error->error().code() == code));
+				EVALUATION_STACK.push_back(value(error->error().code() == code));
 				break;
 			}
 			}
@@ -725,14 +771,13 @@ try_restart_begin:
 					EXTENDED_OFFSETS.pop_back();
 				}
 				LOCALS.erase(LOCALS.begin() + try_handler.local_size, LOCALS.end());
-				evaluation_stack.erase(evaluation_stack.begin() + try_handler.eval_stack_size, evaluation_stack.end());
+				EVALUATION_STACK.erase(EVALUATION_STACK.begin() + try_handler.eval_stack_size, EVALUATION_STACK.end());
 
-				evaluation_stack.push_back(add_foreign_object(std::make_unique<handled_error>(error)));
+				EVALUATION_STACK.push_back(add_foreign_object(std::make_unique<handled_error>(error)));
 
 				try_handlers.pop_back();
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-				is_try_restarting = true;
-				goto try_restart_begin;
+				goto retry_execution;
 #endif
 			}
 		}
@@ -762,12 +807,12 @@ void HulaScript::instance::execute_arbitrary(const std::vector<instruction>& arb
 
 std::optional<instance::value> instance::execute_arbitrary(const std::vector<instruction>& arbitrary_ins, const std::vector<value>& operands, bool return_value)
 {
-	evaluation_stack.insert(evaluation_stack.end(), operands.begin(), operands.end());
+	EVALUATION_STACK.insert(EVALUATION_STACK.end(), operands.begin(), operands.end());
 	execute_arbitrary(arbitrary_ins);
 	
 	if (return_value) {
-		auto to_return = evaluation_stack.back();
-		evaluation_stack.pop_back();
+		auto to_return = EVALUATION_STACK.back();
+		EVALUATION_STACK.pop_back();
 		return to_return;
 	}
 	return std::nullopt;

@@ -228,6 +228,12 @@ namespace HulaScript {
 			virtual ~foreign_object() = default;
 		};
 
+		class await_pollster : public foreign_object {
+		public:
+			virtual bool poll() = 0;
+			virtual value get_result(instance& instance) = 0;
+		};
+
 		typedef value(*custom_numerical_parser)(std::string numerical_str, const instance& instance);
 
 		std::variant<value, std::vector<compilation_error>, std::monostate> run(std::string source, std::optional<std::string> file_name, bool repl_mode = true);
@@ -437,7 +443,8 @@ namespace HulaScript {
 			COMPARE_ERROR_CODE,
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-			START_GREENTHREAD
+			START_GREENTHREAD,
+			AWAIT_OPERATION
 #endif
 		};
 
@@ -550,6 +557,26 @@ namespace HulaScript {
 		std::vector<value> globals; //where global variables are stored; max capacity of 256
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
+		class await_finish_pollster : public await_pollster {
+		private:
+			bool finished = false;
+			value result;
+
+		public:
+			void mark_finished(value result) {
+				this->result = result;
+				finished = true;
+			}
+
+			bool poll() override {
+				return finished;
+			}
+
+			value get_result(instance& instance) override {
+				return result;
+			}
+		};
+
 		struct execution_context {
 			std::vector<value> evaluation_stack;
 			std::vector<value> locals; //where local variables are stores
@@ -558,17 +585,17 @@ namespace HulaScript {
 			std::vector<size_t> return_stack;
 			std::vector<try_handler_entry> try_handlers;
 			size_t ip = 0;
+
+			await_finish_pollster* finished_pollster = NULL;
 		};
 
-		std::vector<execution_context> active_threads;
+		std::vector<execution_context> all_threads;
+		std::vector<size_t> active_threads;
+		std::vector<std::pair<await_pollster*, size_t>> suspended_threads;
 		size_t current_thread = 0;
 
-		//execution_context& active_threads.at(current_thread) {
-		//	return active_threads.at(current_thread);
-		//}
-
 		execution_context& main_context() {
-			return active_threads.front();
+			return all_threads.front();
 		}
 #else
 		std::vector<value> evaluation_stack;
@@ -614,7 +641,7 @@ namespace HulaScript {
 
 		void expect_type(value::vtype expected_type) const {
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-			active_threads.at(current_thread).evaluation_stack.back().expect_type(expected_type, *this);
+			all_threads.at(active_threads.at(current_thread)).evaluation_stack.back().expect_type(expected_type, *this);
 #else
 			evaluation_stack.back().expect_type(expected_type, *this);
 #endif
