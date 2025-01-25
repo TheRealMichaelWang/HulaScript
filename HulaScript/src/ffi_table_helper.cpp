@@ -4,53 +4,39 @@
 using namespace HulaScript;
 
 instance::value ffi_table_helper::get(instance::value key) const {
-	owner_instance.evaluation_stack.push_back(instance::value(instance::value::vtype::TABLE, flags, 0, table_id));
-	owner_instance.evaluation_stack.push_back(key);
-	
 	std::vector<instance::instruction> ins;
 	ins.push_back({ .operation = instance::opcode::LOAD_TABLE });
-	owner_instance.execute_arbitrary(ins);
-
-	instance::value to_return = owner_instance.evaluation_stack.back();
-	owner_instance.evaluation_stack.pop_back();
-	return to_return;
+	return owner_instance.execute_arbitrary(ins, { instance::value(instance::value::vtype::TABLE, flags, 0, table_id) , key }, true).value();
 }
 
 instance::value HulaScript::ffi_table_helper::get(std::string key) const {
-	owner_instance.evaluation_stack.push_back(instance::value(instance::value::vtype::TABLE, flags, 0, table_id));
-	owner_instance.evaluation_stack.push_back(instance::value(instance::value::value::INTERNAL_STRHASH, 0, 0, Hash::dj2b(key.c_str())));
-
 	std::vector<instance::instruction> ins;
 	ins.push_back({ .operation = instance::opcode::LOAD_TABLE });
-	owner_instance.execute_arbitrary(ins);
-
-	instance::value to_return = owner_instance.evaluation_stack.back();
-	owner_instance.evaluation_stack.pop_back();
-	return to_return;
+	return owner_instance.execute_arbitrary(ins,
+		{
+			instance::value(instance::value::vtype::TABLE, flags, 0, table_id),
+			instance::value(instance::value::value::INTERNAL_STRHASH, 0, 0, Hash::dj2b(key.c_str()))
+		}, true).value();
 }
 
 void ffi_table_helper::emplace(instance::value key, instance::value set_val) {
-	owner_instance.evaluation_stack.push_back(instance::value(instance::value::vtype::TABLE, flags, 0, table_id));
-	owner_instance.evaluation_stack.push_back(key);
-	owner_instance.evaluation_stack.push_back(set_val);
-
 	std::vector<instance::instruction> ins;
 	ins.push_back({ .operation = instance::opcode::STORE_TABLE });
-	owner_instance.execute_arbitrary(ins);
-
-	owner_instance.evaluation_stack.pop_back();
+	owner_instance.execute_arbitrary(ins, {
+		instance::value(instance::value::vtype::TABLE, flags, 0, table_id),
+		key,
+		set_val
+		}, true);
 }
 
 void HulaScript::ffi_table_helper::emplace(std::string key, instance::value set_val) {
-	owner_instance.evaluation_stack.push_back(instance::value(instance::value::vtype::TABLE, flags, 0, table_id));
-	owner_instance.evaluation_stack.push_back(instance::value(instance::value::value::INTERNAL_STRHASH, 0, 0, Hash::dj2b(key.c_str())));
-	owner_instance.evaluation_stack.push_back(set_val);
-
 	std::vector<instance::instruction> ins;
 	ins.push_back({ .operation = instance::opcode::STORE_TABLE });
-	owner_instance.execute_arbitrary(ins);
-
-	owner_instance.evaluation_stack.pop_back();
+	owner_instance.execute_arbitrary(ins, {
+		instance::value(instance::value::vtype::TABLE, flags, 0, table_id),
+		instance::value(instance::value::value::INTERNAL_STRHASH, 0, 0, Hash::dj2b(key.c_str())),
+		set_val
+		}, true);
 }
 
 void HulaScript::ffi_table_helper::reserve(size_t capacity, bool allow_collect) {

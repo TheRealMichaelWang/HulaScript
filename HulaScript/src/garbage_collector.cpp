@@ -64,10 +64,17 @@ void instance::reallocate_table(size_t table_id, size_t new_capacity, bool allow
 void instance::garbage_collect(bool compact_instructions) noexcept {
 	std::vector<value> values_to_trace;
 	std::vector<uint32_t> functions_to_trace;
-
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+	for (auto& thread : active_threads) {
+		values_to_trace.insert(values_to_trace.end(), thread.evaluation_stack.begin(), thread.evaluation_stack.end());
+		values_to_trace.insert(values_to_trace.end(), thread.locals.begin(), thread.locals.end());
+	}
+#else
 	values_to_trace.insert(values_to_trace.end(), evaluation_stack.begin(), evaluation_stack.end());
-	values_to_trace.insert(values_to_trace.end(), globals.begin(), globals.end());
 	values_to_trace.insert(values_to_trace.end(), locals.begin(), locals.end());
+#endif // HULASCRIPT_USE_GREEN_THREADS
+
+	values_to_trace.insert(values_to_trace.end(), globals.begin(), globals.end());
 	values_to_trace.insert(values_to_trace.end(), temp_gc_exempt.begin(), temp_gc_exempt.end());
 	for (auto id : repl_used_constants) {
 		assert((constants[id].flags & value::vflags::INVALID_CONSTANT) == 0);

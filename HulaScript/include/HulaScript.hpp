@@ -4,6 +4,7 @@
 #pragma once
 
 #define HULASCRIPT_USE_SHARED_LIBRARY //turns on support for using shared libraries (.dll and .so)
+#define HULASCRIPT_USE_GREEN_THREADS //turns on support for green threads
 
 #include <vector>
 #include <cstdint>
@@ -541,18 +542,36 @@ namespace HulaScript {
 		std::vector<size_t> available_table_ids;
 		size_t next_table_id = 0;
 
-		std::vector<value> evaluation_stack;
-
 		std::vector<value> heap; //where elements of tables are stored
-		std::vector<value> locals; //where local variables are stores
 		std::vector<value> globals; //where global variables are stored; max capacity of 256
 
-		size_t local_offset = 0;
-		std::vector<operand> extended_offsets; 
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+		struct execution_context {
+			std::vector<value> evaluation_stack;
+			std::vector<value> locals; //where local variables are stores
+			size_t local_offset = 0;
+			std::vector<operand> extended_offsets;
+			std::vector<size_t> return_stack;
+			std::vector<try_handler_entry> try_handlers;
+			size_t ip = 0;
+		};
 
+		std::vector<execution_context> active_threads;
+		execution_context& current_context;
+
+		execution_context& main_context() {
+			return active_threads.front();
+		}
+#else
+		std::vector<value> evaluation_stack;
+		std::vector<value> locals; //where local variables are stores
+		size_t local_offset = 0;
+		std::vector<operand> extended_offsets;
 		std::vector<size_t> return_stack;
 		std::vector<try_handler_entry> try_handlers;
 		size_t ip = 0;
+#endif
+
 		std::vector<instruction> instructions;
 		phmap::btree_map<size_t, source_loc> ip_src_map;
 
@@ -573,9 +592,7 @@ namespace HulaScript {
 		//executes arbitrary_ins
 		void execute_arbitrary(const std::vector<instruction>& arbitrary_ins);
 
-#ifdef HULASCRIPT_USE_SHARED_LIBRARY
-		virtual std::optional<value> execute_arbitrary(const std::vector<instruction>& arbitrary_ins, const std::vector<value>& operands, bool return_value=false);
-#endif // HULASCRIPT_USE_SHARED_LIBRARY
+		HULASCRIPT_FUNCTION std::optional<value> execute_arbitrary(const std::vector<instruction>& arbitrary_ins, const std::vector<value>& operands, bool return_value=false);
 
 		//allocates a zone in heap, represented by gc_block
 		gc_block allocate_block(size_t capacity, bool allow_collect);
@@ -588,7 +605,11 @@ namespace HulaScript {
 		void finalize();
 
 		void expect_type(value::vtype expected_type) const {
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+			current_context.evaluation_stack.back().expect_type(expected_type, *this);
+#else
 			evaluation_stack.back().expect_type(expected_type, *this);
+#endif
 		}
 
 		std::optional<source_loc> src_from_ip(size_t ip) const noexcept {

@@ -401,6 +401,10 @@ const int64_t instance::value::index(int64_t min, int64_t max, instance& instanc
 	return num;
 }
 
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+#define ip current_context.ip
+#define return_stack current_context.return_stack
+#endif
 void instance::panic(std::string msg, size_t error_code) const {
 	std::vector<std::pair<std::optional<source_loc>, size_t>> call_stack;
 	call_stack.reserve(return_stack.size() + 1);
@@ -408,13 +412,13 @@ void instance::panic(std::string msg, size_t error_code) const {
 	std::vector<size_t> ip_stack(return_stack);
 	ip_stack.push_back(ip);
 	for (auto it = ip_stack.begin(); it != ip_stack.end(); ) {
-		size_t ip = *it;
+		size_t curent_ip = *it;
 		size_t count = 0;
 		do {
 			count++;
 			it++;
-		} while (it != ip_stack.end() && *it == ip);
-		call_stack.push_back(std::make_pair(src_from_ip(ip), count));
+		} while (it != ip_stack.end() && *it == curent_ip);
+		call_stack.push_back(std::make_pair(src_from_ip(curent_ip), count));
 	}
 
 	throw HulaScript::runtime_error(msg, call_stack, error_code);

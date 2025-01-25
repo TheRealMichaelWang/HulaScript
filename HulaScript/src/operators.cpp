@@ -276,6 +276,10 @@ instance::operator_handler instance::operator_handlers[] = {
 	&instance::handle_mixed_number_modulo //34
 };
 
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+#define evaluation_stack current_context.evaluation_stack
+#endif
+
 void instance::handle_double_add(value& a, value& b) {
 	evaluation_stack.push_back(value(a.data.number + b.data.number));
 }

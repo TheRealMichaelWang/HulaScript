@@ -5,22 +5,63 @@
 #include "table_iterator.hpp"
 #include "HulaScript.hpp"
 
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+#define evaluation_stack current_context.evaluation_stack
+#define local_offset current_context.local_offset
+#define return_stack current_context.return_stack
+#define extended_offsets current_context.extended_offsets
+#define try_handlers current_context.try_handlers
+#define locals current_context.locals
+#define ip current_context.ip
+#endif // HULASCRIPT_USE_GREEN_THREADS
+
 using namespace HulaScript;
 
 void instance::execute() {
 	call_depth++;
 
-restart_execution:
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+	std::vector<execution_context>::iterator it = active_threads.begin();
+try_restart_begin:
+	bool is_try_restarting = false;
+#else
+try_restart_begin:
+#endif
+
 	try {
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+#define INS_GOTO_NEW_IP it++; continue;
+		if (call_depth > 1 || is_try_restarting) {
+			goto restart_execution;
+		}
+
+		for (; it != active_threads.end();) {
+			current_context = *it;
+
+		restart_execution:
+			if (ip == instructions.size()) {
+				if (it == active_threads.begin()) {
+					if (active_threads.size() == 1) {
+						goto quit_execution;
+					}
+				} 
+				else {
+					it = active_threads.erase(it);
+				}
+				continue;
+			}		
+#else
+#define INS_GOTO_NEW_IP continue;
 		while (ip != instructions.size())
 		{
+#endif
 			instruction& ins = instructions[ip];
 
 			switch (ins.operation)
 			{
 			case opcode::STOP:
-				call_depth--;
-				return;
+				ip = instructions.size();
+				continue;
 			case opcode::REVERSE_TOP: {
 				std::reverse(evaluation_stack.end() - ins.operand, evaluation_stack.end());
 				break;
@@ -366,7 +407,7 @@ restart_execution:
 				}
 				else {
 					ip += ins.operand;
-					continue;
+					INS_GOTO_NEW_IP;
 				}
 			}
 
@@ -383,7 +424,7 @@ restart_execution:
 			[[fallthrough]];
 			case opcode::JUMP_AHEAD:
 				ip += ins.operand;
-				continue;
+				INS_GOTO_NEW_IP;
 			case opcode::IF_FALSE_JUMP_BACK: {
 				expect_type(value::vtype::BOOLEAN);
 				bool cond = evaluation_stack.back().data.boolean;
@@ -396,8 +437,7 @@ restart_execution:
 			[[fallthrough]];
 			case opcode::JUMP_BACK:
 				ip -= ins.operand;
-				continue;
-
+				INS_GOTO_NEW_IP;
 
 			case opcode::VARIADIC_CALL: {
 				expect_type(value::vtype::TABLE);
@@ -462,7 +502,7 @@ restart_execution:
 						locals.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, call_value.data.id));
 					}
 					ip = function.start_address;
-					continue;
+					INS_GOTO_NEW_IP;
 				}
 				case value::vtype::FOREIGN_OBJECT_METHOD: {
 					std::vector<value> arguments(locals.end() - ins.operand, locals.end());
@@ -554,7 +594,7 @@ restart_execution:
 				function_entry& function = functions.at(id);
 
 				ip = function.start_address;
-				continue;
+				INS_GOTO_NEW_IP;
 			}
 			case opcode::RETURN:
 				locals.erase(locals.begin() + local_offset, locals.end());
@@ -563,7 +603,7 @@ restart_execution:
 
 				ip = return_stack.back() + 1;
 				return_stack.pop_back();
-				continue;
+				INS_GOTO_NEW_IP;
 
 			case opcode::CAPTURE_VARIADIC_FUNCPTR:
 				[[fallthrough]];
@@ -605,7 +645,7 @@ restart_execution:
 					.eval_stack_size = evaluation_stack.size(),
 					.local_size = locals.size(),
 					.call_depth = call_depth
-					});
+				});
 				break;
 			}
 			case opcode::COMPARE_ERROR_CODE: {
@@ -622,7 +662,18 @@ restart_execution:
 			}
 
 			ip++;
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+			it++;
+#endif
 		}
+
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+		it = active_threads.begin();
+		goto restart_execution;
+	quit_execution:
+		call_depth--;
+		return;
+#endif
 	}
 	catch (const HulaScript::runtime_error& error) {
 		if (!try_handlers.empty()) {
@@ -639,7 +690,10 @@ restart_execution:
 				evaluation_stack.push_back(add_foreign_object(std::make_unique<handled_error>(error)));
 
 				try_handlers.pop_back();
-				goto restart_execution;
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+				is_try_restarting = true;
+				goto try_restart_begin;
+#endif
 			}
 		}
 		throw;
@@ -666,7 +720,6 @@ void HulaScript::instance::execute_arbitrary(const std::vector<instruction>& arb
 	ip = old_ip;
 }
 
-#ifdef HULASCRIPT_USE_SHARED_LIBRARY
 std::optional<instance::value> instance::execute_arbitrary(const std::vector<instruction>& arbitrary_ins, const std::vector<value>& operands, bool return_value)
 {
 	evaluation_stack.insert(evaluation_stack.end(), operands.begin(), operands.end());
@@ -679,4 +732,3 @@ std::optional<instance::value> instance::execute_arbitrary(const std::vector<ins
 	}
 	return std::nullopt;
 }
-#endif

@@ -7,15 +7,23 @@ void instance::finalize() {
 	repl_used_functions.clear();
 	repl_used_constants.clear();
 
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+	main_context().evaluation_stack.clear();
+	main_context().return_stack.clear();
+	main_context().extended_offsets.clear();
+	main_context().locals.erase(main_context().locals.begin() + declared_top_level_locals, main_context().locals.end());
+	main_context().local_offset = 0;
+#else
 	evaluation_stack.clear();
 	return_stack.clear();
 	extended_offsets.clear();
-
 	locals.erase(locals.begin() + declared_top_level_locals, locals.end());
+	local_offset = 0;
+#endif
+
 	top_level_local_vars.erase(top_level_local_vars.begin() + declared_top_level_locals, top_level_local_vars.end());
 	global_vars.erase(global_vars.begin() + globals.size(), global_vars.end());
-	local_offset = 0;
-	
+
 	garbage_collect(true);
 }
 
@@ -66,6 +74,10 @@ std::optional<instance::value> instance::run_no_warnings(std::string source, std
 	return run_loaded();
 }
 
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+#define evaluation_stack main_context().evaluation_stack
+#define ip main_context().ip
+#endif
 std::optional<instance::value> instance::run_loaded() {
 	size_t exempt_count = temp_gc_exempt.size();
 	try {
@@ -121,7 +133,7 @@ instance::value instance::load_module_from_source(std::string source, std::strin
 
 	try {
 		execute();
-		
+
 		instance::value toret = evaluation_stack.back();
 		evaluation_stack.pop_back();
 		temp_gc_exempt.push_back(toret);

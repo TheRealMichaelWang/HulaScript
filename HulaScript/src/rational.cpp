@@ -27,6 +27,9 @@ static size_t lcm(size_t a, size_t b) {
 	}
 }
 
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+#define evaluation_stack current_context.evaluation_stack
+#endif
 void instance::handle_rational_add(value& a, value& b) {
 	if (b.data.id == 0) {
 		evaluation_stack.push_back(a);

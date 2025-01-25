@@ -1229,6 +1229,10 @@ void instance::compile(compilation_context& context) {
 		global_vars.insert(global_vars.end(), context.declared_globals.begin(), context.declared_globals.end());
 	}
 
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+#define ip main_context().ip
+#endif // HULASCRIPT_USE_GREEN_THREADS
+
 	ip = instructions.size();
 	instructions.insert(instructions.end(), context.lexical_scopes.back().instructions.begin(), context.lexical_scopes.back().instructions.end());
 

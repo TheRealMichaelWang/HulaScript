@@ -335,7 +335,11 @@ static instance::value standard_number_parser(std::string str, const instance& i
 	}
 }
 
-instance::instance(custom_numerical_parser numerical_parser) : numerical_parser(numerical_parser) {
+instance::instance(custom_numerical_parser numerical_parser) : numerical_parser(numerical_parser)
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+, active_threads({ execution_context() }), current_context(active_threads.front()) 
+#endif
+{
 	declare_global("format", make_foreign_function(format_string));
 	declare_global("rational", make_foreign_function(parse_rational_str));
 	declare_global("number", make_foreign_function(parse_number_str));
