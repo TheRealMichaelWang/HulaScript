@@ -11,8 +11,11 @@
 #define return_stack current_context.return_stack
 #define extended_offsets current_context.extended_offsets
 #define try_handlers current_context.try_handlers
-#define locals current_context.locals
-#define ip current_context.ip
+#define LOCALS current_context.locals
+#define IP current_context.ip
+#else
+#define LOCALS locals
+#define IP ip
 #endif // HULASCRIPT_USE_GREEN_THREADS
 
 using namespace HulaScript;
@@ -39,7 +42,7 @@ try_restart_begin:
 			current_context = *it;
 
 		restart_execution:
-			if (ip == instructions.size()) {
+			if (IP == instructions.size()) {
 				if (it == active_threads.begin()) {
 					if (active_threads.size() == 1) {
 						goto quit_execution;
@@ -52,15 +55,15 @@ try_restart_begin:
 			}		
 #else
 #define INS_GOTO_NEW_IP continue;
-		while (ip != instructions.size())
+		while (IP != instructions.size())
 		{
 #endif
-			instruction& ins = instructions[ip];
+			instruction& ins = instructions[IP];
 
 			switch (ins.operation)
 			{
 			case opcode::STOP:
-				ip = instructions.size();
+				IP = instructions.size();
 				continue;
 			case opcode::REVERSE_TOP: {
 				std::reverse(evaluation_stack.end() - ins.operand, evaluation_stack.end());
@@ -82,14 +85,14 @@ try_restart_begin:
 				break;
 			case opcode::LOAD_CONSTANT: {
 				uint32_t index = ins.operand;
-				instruction& payload = instructions[ip + 1];
+				instruction& payload = instructions[IP + 1];
 
 				index = (index << 8) + static_cast<uint8_t>(payload.operation);
 				index = (index << 8) + payload.operand;
 
 				evaluation_stack.push_back(constants[index]);
 
-				ip++;
+				IP++;
 				break;
 			}
 			case opcode::PUSH_NIL:
@@ -106,21 +109,21 @@ try_restart_begin:
 				declared_top_level_locals++;
 				[[fallthrough]];
 			case opcode::DECL_LOCAL:
-				assert(local_offset + ins.operand == locals.size());
-				locals.push_back(evaluation_stack.back());
+				assert(local_offset + ins.operand == LOCALS.size());
+				LOCALS.push_back(evaluation_stack.back());
 				evaluation_stack.pop_back();
 				break;
 			case opcode::PROBE_LOCALS:
-				locals.reserve(local_offset + ins.operand);
+				LOCALS.reserve(local_offset + ins.operand);
 				break;
 			case opcode::UNWIND_LOCALS:
-				locals.erase(locals.end() - ins.operand, locals.end());
+				LOCALS.erase(LOCALS.end() - ins.operand, LOCALS.end());
 				break;
 			case opcode::STORE_LOCAL:
-				locals[local_offset + ins.operand] = evaluation_stack.back();
+				LOCALS[local_offset + ins.operand] = evaluation_stack.back();
 				break;
 			case opcode::LOAD_LOCAL:
-				evaluation_stack.push_back(locals[local_offset + ins.operand]);
+				evaluation_stack.push_back(LOCALS[local_offset + ins.operand]);
 				break;
 
 			case opcode::DECL_GLOBAL:
@@ -406,7 +409,7 @@ try_restart_begin:
 					break;
 				}
 				else {
-					ip += ins.operand;
+					IP += ins.operand;
 					INS_GOTO_NEW_IP;
 				}
 			}
@@ -423,7 +426,7 @@ try_restart_begin:
 			}
 			[[fallthrough]];
 			case opcode::JUMP_AHEAD:
-				ip += ins.operand;
+				IP += ins.operand;
 				INS_GOTO_NEW_IP;
 			case opcode::IF_FALSE_JUMP_BACK: {
 				expect_type(value::vtype::BOOLEAN);
@@ -436,7 +439,7 @@ try_restart_begin:
 			}
 			[[fallthrough]];
 			case opcode::JUMP_BACK:
-				ip -= ins.operand;
+				IP -= ins.operand;
 				INS_GOTO_NEW_IP;
 
 			case opcode::VARIADIC_CALL: {
@@ -464,8 +467,8 @@ try_restart_begin:
 			[[fallthrough]];
 			case opcode::CALL: {
 				//push arguments into local variable stack
-				size_t local_count = locals.size();
-				locals.insert(locals.end(), evaluation_stack.end() - ins.operand, evaluation_stack.end());
+				size_t local_count = LOCALS.size();
+				LOCALS.insert(LOCALS.end(), evaluation_stack.end() - ins.operand, evaluation_stack.end());
 				evaluation_stack.erase(evaluation_stack.end() - ins.operand, evaluation_stack.end());
 
 				value call_value = evaluation_stack.back();
@@ -475,7 +478,7 @@ try_restart_begin:
 				case value::vtype::CLOSURE: {
 					extended_offsets.push_back(static_cast<operand>(local_count - local_offset));
 					local_offset = local_count;
-					return_stack.push_back(ip); //push return address
+					return_stack.push_back(IP); //push return address
 
 					function_entry& function = functions.at(call_value.function_id);
 					if (call_value.flags & value::vflags::FUNCTION_IS_VARIADIC) {
@@ -486,12 +489,12 @@ try_restart_begin:
 						arg_table_entry.count = ins.operand;
 
 						for (int i = ins.operand - 1; i >= 0; i--) {
-							heap[arg_table_entry.block.start + i] = locals.back();
-							locals.pop_back();
+							heap[arg_table_entry.block.start + i] = LOCALS.back();
+							LOCALS.pop_back();
 							arg_table_entry.key_hashes.insert({ rational_integer(i).hash<true>(), i });
 						}
 
-						locals.push_back(value(value::vtype::TABLE, value::vflags::TABLE_IS_FINAL, 0, arg_table_id));
+						LOCALS.push_back(value(value::vtype::TABLE, value::vflags::TABLE_IS_FINAL, 0, arg_table_id));
 					}
 					else if (function.parameter_count != ins.operand) {
 						std::stringstream ss;
@@ -499,20 +502,20 @@ try_restart_begin:
 						panic(ss.str(), ERROR_UNEXPECTED_ARGUMENT_COUNT);
 					}
 					if (call_value.flags & value::vflags::HAS_CAPTURE_TABLE) {
-						locals.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, call_value.data.id));
+						LOCALS.push_back(value(value::vtype::TABLE, value::vflags::NONE, 0, call_value.data.id));
 					}
-					ip = function.start_address;
+					IP = function.start_address;
 					INS_GOTO_NEW_IP;
 				}
 				case value::vtype::FOREIGN_OBJECT_METHOD: {
-					std::vector<value> arguments(locals.end() - ins.operand, locals.end());
-					locals.erase(locals.end() - ins.operand, locals.end());
+					std::vector<value> arguments(LOCALS.end() - ins.operand, LOCALS.end());
+					LOCALS.erase(LOCALS.end() - ins.operand, LOCALS.end());
 					evaluation_stack.push_back(call_value.data.foreign_object->call_method(call_value.function_id, arguments, *this));
 					break;
 				}
 				case value::vtype::FOREIGN_FUNCTION: {
-					std::vector<value> arguments(locals.end() - ins.operand, locals.end());
-					locals.erase(locals.end() - ins.operand, locals.end());
+					std::vector<value> arguments(LOCALS.end() - ins.operand, LOCALS.end());
+					LOCALS.erase(LOCALS.end() - ins.operand, LOCALS.end());
 
 					evaluation_stack.push_back(foreign_functions[call_value.function_id](arguments, *this));
 
@@ -531,8 +534,8 @@ try_restart_begin:
 						panic("Array filter expects 1 argument, filter function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 					}
 
-					value arguments = locals.back();
-					locals.pop_back();
+					value arguments = LOCALS.back();
+					LOCALS.pop_back();
 
 					evaluation_stack.push_back(filter_table(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments, *this));
 					break;
@@ -542,8 +545,8 @@ try_restart_begin:
 						panic("Array append expects 1 argument, append function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 					}
 
-					value argument = locals.back();
-					locals.pop_back();
+					value argument = LOCALS.back();
+					LOCALS.pop_back();
 					
 					HulaScript::ffi_table_helper helper(call_value.data.id, call_value.flags, *this);
 					helper.append(argument, true);
@@ -554,8 +557,8 @@ try_restart_begin:
 						panic("Array append range expects 1 argument, append range function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 					}
 
-					value arguments = locals.back();
-					locals.pop_back();
+					value arguments = LOCALS.back();
+					LOCALS.pop_back();
 
 					evaluation_stack.push_back(append_range(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments, *this));
 
@@ -566,8 +569,8 @@ try_restart_begin:
 						panic("Array remove expects 1 argument, remove function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 					}
 
-					value argument = locals.back();
-					locals.pop_back();
+					value argument = LOCALS.back();
+					LOCALS.pop_back();
 
 					HulaScript::ffi_table_helper helper(call_value.data.id, call_value.flags, *this);
 					evaluation_stack.push_back(helper.remove(argument));
@@ -582,26 +585,54 @@ try_restart_begin:
 			}
 			case opcode::CALL_LABEL: {
 				uint32_t id = ins.operand;
-				instruction& payload = instructions[ip + 1];
+				instruction& payload = instructions[IP + 1];
 
 				id = (id << 8) + static_cast<uint8_t>(payload.operation);
 				id = (id << 8) + payload.operand;
 
-				extended_offsets.push_back(static_cast<operand>(locals.size() - local_offset));
-				local_offset = locals.size();
-				return_stack.push_back(ip + 1); //push return address
+				extended_offsets.push_back(static_cast<operand>(LOCALS.size() - local_offset));
+				local_offset = LOCALS.size();
+				return_stack.push_back(IP + 1); //push return address
 
 				function_entry& function = functions.at(id);
 
-				ip = function.start_address;
+				IP = function.start_address;
 				INS_GOTO_NEW_IP;
 			}
+			case opcode::START_GREENTHREAD: {
+				execution_context new_thread;
+				std::vector<value> arguments(evaluation_stack.end() - ins.operand, evaluation_stack.end());
+				evaluation_stack.erase(evaluation_stack.end() - ins.operand, evaluation_stack.end());
+
+				expect_type(value::vtype::CLOSURE);
+				value call_value = evaluation_stack.back();
+				evaluation_stack.pop_back();
+
+				function_entry& function = functions.at(call_value.function_id);
+				if (call_value.flags & value::vflags::FUNCTION_IS_VARIADIC) {
+					temp_gc_exempt.push_back(call_value);
+					new_thread.locals.push_back(make_array(arguments, false));
+					temp_gc_exempt.pop_back();
+				}
+				else {
+					new_thread.locals = std::move(arguments); 
+					if (function.parameter_count != ins.operand) {
+						std::stringstream ss;
+						ss << "Argument Error: Function " << function.name << " expected " << static_cast<size_t>(function.parameter_count) << " argument(s), but got " << static_cast<size_t>(ins.operand) << " instead.";
+						panic(ss.str(), ERROR_UNEXPECTED_ARGUMENT_COUNT);
+					}
+				}
+
+				new_thread.ip = function.start_address;
+				active_threads.push_back(new_thread);
+				break;
+			}
 			case opcode::RETURN:
-				locals.erase(locals.begin() + local_offset, locals.end());
+				LOCALS.erase(LOCALS.begin() + local_offset, LOCALS.end());
 				local_offset -= extended_offsets.back();
 				extended_offsets.pop_back();
 
-				ip = return_stack.back() + 1;
+				IP = return_stack.back() + 1;
 				return_stack.pop_back();
 				INS_GOTO_NEW_IP;
 
@@ -613,7 +644,7 @@ try_restart_begin:
 				[[fallthrough]];
 			case opcode::CAPTURE_CLOSURE: {
 				uint32_t id = ins.operand;
-				instruction& payload = instructions[ip + 1];
+				instruction& payload = instructions[IP + 1];
 
 				id = (id << 8) + static_cast<uint8_t>(payload.operation);
 				id = (id << 8) + payload.operand;
@@ -635,15 +666,15 @@ try_restart_begin:
 					evaluation_stack.back().flags |= value::vflags::FUNCTION_IS_VARIADIC;
 				}
 
-				ip++;
+				IP++;
 				break;
 			}
 			case opcode::TRY_HANDLE_ERROR: {
 				try_handlers.push_back({
-					.return_ip = ip + ins.operand,
+					.return_ip = IP + ins.operand,
 					.return_stack_size = return_stack.size(),
 					.eval_stack_size = evaluation_stack.size(),
-					.local_size = locals.size(),
+					.local_size = LOCALS.size(),
 					.call_depth = call_depth
 				});
 				break;
@@ -661,7 +692,7 @@ try_restart_begin:
 			}
 			}
 
-			ip++;
+			IP++;
 #ifdef HULASCRIPT_USE_GREEN_THREADS
 			it++;
 #endif
@@ -679,12 +710,12 @@ try_restart_begin:
 		if (!try_handlers.empty()) {
 			const auto& try_handler = try_handlers.back();
 			if (try_handler.call_depth == call_depth) {
-				ip = try_handler.return_ip;
+				IP = try_handler.return_ip;
 				for (; return_stack.size() != try_handler.return_stack_size; return_stack.pop_back()) {
 					local_offset -= extended_offsets.back();
 					extended_offsets.pop_back();
 				}
-				locals.erase(locals.begin() + try_handler.local_size, locals.end());
+				LOCALS.erase(LOCALS.begin() + try_handler.local_size, LOCALS.end());
 				evaluation_stack.erase(evaluation_stack.begin() + try_handler.eval_stack_size, evaluation_stack.end());
 
 				evaluation_stack.push_back(add_foreign_object(std::make_unique<handled_error>(error)));
@@ -704,7 +735,7 @@ try_restart_begin:
 
 void HulaScript::instance::execute_arbitrary(const std::vector<instruction>& arbitrary_ins) {
 	size_t start_ip = instructions.size();
-	size_t old_ip = ip;
+	size_t old_ip = IP;
 	instructions.insert(instructions.end(), arbitrary_ins.begin(), arbitrary_ins.end());
 
 	auto src_loc = src_from_ip(old_ip);
@@ -712,12 +743,12 @@ void HulaScript::instance::execute_arbitrary(const std::vector<instruction>& arb
 		ip_src_map.insert({ start_ip, src_loc.value() });
 	}
 
-	ip = start_ip;
+	IP = start_ip;
 	execute();
 
 	for (auto it = ip_src_map.lower_bound(start_ip); it != ip_src_map.end(); it = ip_src_map.erase(it)) { }
 	instructions.erase(instructions.begin() + start_ip, instructions.end());
-	ip = old_ip;
+	IP = old_ip;
 }
 
 std::optional<instance::value> instance::execute_arbitrary(const std::vector<instruction>& arbitrary_ins, const std::vector<value>& operands, bool return_value)

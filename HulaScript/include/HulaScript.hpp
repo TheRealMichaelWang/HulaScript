@@ -302,8 +302,8 @@ namespace HulaScript {
 			return value(value::vtype::TABLE, is_final ? value::vflags::NONE : value::vflags::TABLE_IS_FINAL, 0, table_id);
 		}
 
-		HULASCRIPT_FUNCTION value make_array(const std::vector<value>& elems, bool is_final = false) {
-			size_t table_id = allocate_table(elems.size(), false);
+		HULASCRIPT_FUNCTION value make_array(const std::vector<value>& elems, bool is_final = false, bool allow_collect=false) {
+			size_t table_id = allocate_table(elems.size(), allow_collect);
 			table& table = tables.at(table_id);
 			for (size_t i = 0; i < elems.size(); i++) {
 				table.key_hashes.insert({ rational_integer(i).hash<true>(), i });
@@ -435,6 +435,8 @@ namespace HulaScript {
 
 			TRY_HANDLE_ERROR,
 			COMPARE_ERROR_CODE,
+
+			START_GREENTHREAD,
 		};
 
 		struct instruction
