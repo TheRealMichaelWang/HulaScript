@@ -13,6 +13,9 @@ void instance::finalize() {
 	main_context().extended_offsets.clear();
 	main_context().locals.erase(main_context().locals.begin() + declared_top_level_locals, main_context().locals.end());
 	main_context().local_offset = 0;
+	active_threads.clear();
+	suspended_threads.clear();
+	all_threads.erase(all_threads.begin() + 1, all_threads.end());
 #else
 	evaluation_stack.clear();
 	return_stack.clear();
@@ -35,13 +38,13 @@ std::variant<instance::value, std::vector<compilation_error>, std::monostate> in
 		.tokenizer = tokenizer
 	};
 	
-	//try {
+	try {
 		compile(context);
-	//}
-	/*catch (...) {
+	}
+	catch (...) {
 		garbage_collect(true);
 		throw;
-	}*/
+	}
 
 	if (!context.warnings.empty()) {
 		return context.warnings;
@@ -67,7 +70,7 @@ std::optional<instance::value> instance::run_no_warnings(std::string source, std
 	}
 	catch (...) {
 		garbage_collect(true);
-		//finalize();
+		finalize();
 		throw;
 	}
 
@@ -80,7 +83,7 @@ std::optional<instance::value> instance::run_no_warnings(std::string source, std
 #endif
 std::optional<instance::value> instance::run_loaded() {
 	size_t exempt_count = temp_gc_exempt.size();
-	//try {
+	try {
 		active_threads.push_back(0);
 		execute();
 
@@ -93,7 +96,7 @@ std::optional<instance::value> instance::run_loaded() {
 		}
 		finalize();
 		return std::nullopt;
-	/* }
+	 }
 	catch (...) {
 		//global_vars.erase(global_vars.begin() + globals.size(), global_vars.end());
 		//top_level_local_vars.erase(top_level_local_vars.begin() + declared_top_level_locals, top_level_local_vars.end());
@@ -101,7 +104,7 @@ std::optional<instance::value> instance::run_loaded() {
 
 		finalize();
 		throw;
-	}*/
+	}
 }
 
 instance::value instance::load_module_from_source(std::string source, std::string file_name)

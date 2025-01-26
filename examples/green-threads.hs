@@ -6,7 +6,7 @@ function test(a) no_capture do
 end
 
 for i in irange(10) do
-	test start(11-i)
+	test async(11-i)
 end
 
 
@@ -14,7 +14,7 @@ end
 function test(a) no_capture do
 	return a
 end
-print(await test start(8))
+print(await test async(8))
 
 
 #sleep sort
@@ -26,7 +26,7 @@ function sleepSort(toSort) no_capture do
 		result.append(i)
 	end
 
-	await awaitAll variadic(for element in toSort do helper start(element) end)
+	await awaitAll variadic(for element in toSort do helper async(element) end)
 	return result
 end
 sleepSort([3,2,1])
@@ -46,19 +46,3 @@ end
 for i in irange(10) do
 	test start(11-i)
 end
-
-#crashes for some reason
-myLock = lock()
-
-function test(a) no_capture do
-	release = lock.lock()
-	for i in irange(a) do
-		print(a, ":", i)
-	end
-	release.unlock()
-end
-
-for i in irange(10) do
-	test start(11-i)
-end
-lock.lock()

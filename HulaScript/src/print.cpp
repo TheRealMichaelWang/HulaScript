@@ -107,7 +107,8 @@ static const char* tok_names[] = {
 	"CLASS",
 	"NO_CAPTURE",
 	"VARIADIC",
-	"START",
+	"ASYNC",
+	"AWAIT",
 
 	"IF",
 	"ELIF",
