@@ -126,10 +126,10 @@ void instance::emit_load_variable(std::string name, compilation_context& context
 	else {
 		if (it->second.func_id != context.function_decls.size()) {
 			if (context.function_decls.back().is_class_method) {
-				panic("Usage Error: Cannot capture variable within a class method.");
+				context.panic("Usage Error: Cannot capture variable within a class method.");
 			}
 			else if (context.function_decls.back().no_capture) {
-				panic("Usage Error: Cannot capture variable within a function annotated with no_capture.");
+				context.panic("Usage Error: Cannot capture variable within a function annotated with no_capture.");
 			}
 			
 			context.function_decls.back().captured_variables.insert(name);

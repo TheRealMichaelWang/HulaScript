@@ -115,6 +115,66 @@ public:
 	}
 };
 
+class lock_obj : public foreign_method_object<lock_obj> {
+private:
+	class release_lock_obj : public foreign_method_object<release_lock_obj> {
+	private:
+		lock_obj* to_lock;
+		bool invoked = false;
+
+		instance::value release_lock(std::vector<instance::value>& arguments, instance& instance) {
+			if (this->invoked) {
+				return instance::value(false);
+			}
+			this->invoked = true;
+			this->to_lock->is_locked = false;
+			return instance::value(true);
+		}
+	public:
+		release_lock_obj(lock_obj* to_lock) : to_lock(to_lock) { 
+			declare_method("unlock", &release_lock_obj::release_lock);
+		}
+
+		void trace(std::vector<instance::value>& to_trace) {
+			to_trace.push_back(instance::value(static_cast<instance::foreign_object*>(to_lock)));
+		}
+	};
+
+	class aquire_lock_pollster : public instance::await_pollster {
+	private:
+		lock_obj* to_lock;
+	public:
+		aquire_lock_pollster(lock_obj* to_lock) : to_lock(to_lock) { }
+
+		bool poll() override {
+			if (to_lock->is_locked) {
+				return false;
+			}
+			to_lock->is_locked = true;
+			return true;
+		}
+
+		instance::value get_result(instance& instance) override {
+			return instance.add_foreign_object(std::make_unique<release_lock_obj>(to_lock));
+		}
+
+		void trace(std::vector<instance::value>& to_trace) {
+			to_trace.push_back(instance::value(static_cast<instance::foreign_object*>(to_lock)));
+		}
+	};
+
+	bool is_locked = false;
+
+	instance::value aquire_lock(std::vector<instance::value>& arguments, instance& instance) {
+		EXPECT_ARGS(0);
+		return instance.add_foreign_object(std::make_unique<aquire_lock_pollster>(this));
+	}
+public:
+	lock_obj() {
+		declare_method("lock", &lock_obj::aquire_lock);
+	}
+};
+
 static instance::value new_int_range(std::vector<instance::value> arguments, instance& instance) {
 	int64_t start = 0;
 	int64_t step = 1;
@@ -167,6 +227,10 @@ static instance::value sleep_async(std::vector<instance::value> arguments, insta
 	EXPECT_ARGS(1);
 
 	return instance.add_foreign_object(std::make_unique<sleep_pollster>(arguments.at(0).size(instance)));
+}
+
+static instance::value new_lock_obj(std::vector<instance::value> arguments, instance& instance) {
+	return instance.add_foreign_object(std::make_unique<lock_obj>());
 }
 
 static instance::value parse_rational_str(std::vector<instance::value> arguments, instance& instance) {
@@ -414,6 +478,7 @@ instance::instance(custom_numerical_parser numerical_parser) : numerical_parser(
 
 	declare_global("irange", make_foreign_function(new_int_range));
 	declare_global("randomer", make_foreign_function(new_random_generator));
+	declare_global("lock", make_foreign_function(new_lock_obj));
 
 	declare_global("sleep", make_foreign_function(sleep_async));
 	declare_global("sort", make_foreign_function(sort_table));

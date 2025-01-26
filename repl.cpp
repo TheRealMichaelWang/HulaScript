@@ -12,6 +12,10 @@ using namespace std;
 static bool should_quit = false;
 static bool no_warn = false;
 
+class async_input_pollster : public HulaScript::instance::await_pollster {
+
+};
+
 static HulaScript::instance::value quit(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
 	should_quit = true;
 	return HulaScript::instance::value();
