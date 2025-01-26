@@ -10,6 +10,12 @@ HulaScript is a small, embedable, scripting language *inspired* by Lua written w
   - User-defined code can interact with C++ classes and invoke C++ functions
   - C++ can invoke user-defined HulaScript functions
  
+Despite being lightweight and efficient, HulaScript supports
+- Green threads
+	- Asychronous operations and await
+- Importing modules as values
+	- Also supports importing shared libraries (ie .dll, .so)
+
 Good use cases would include
 - A command system for a Minecraft Server. HulaScript is small enough to be a simple command parser, and more versatile than slash commands.
 - A graphing calculator. HulaScript functions evaluate *fast*, and are plenty, if not more, versatile than standard math.
