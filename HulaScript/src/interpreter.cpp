@@ -578,6 +578,7 @@ retry_execution:
 					
 					HulaScript::ffi_table_helper helper(call_value.data.id, call_value.flags, *this);
 					helper.append(argument, true);
+					EVALUATION_STACK.push_back(value());
 					break;
 				}
 				case value::vtype::INTERNAL_TABLE_APPEND_RANGE: {

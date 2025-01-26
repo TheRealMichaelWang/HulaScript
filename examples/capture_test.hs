@@ -11,3 +11,5 @@ function test2() do
 		person.age = 18
 	end
 end
+a = test2()
+a()

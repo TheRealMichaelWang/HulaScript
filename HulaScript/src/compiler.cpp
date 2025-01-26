@@ -731,7 +731,7 @@ instance::compilation_context::lexical_scope instance::compile_block(compilation
 }
 
 void instance::make_lexical_scope(compilation_context& context, bool is_loop) {
-	auto& prev_scope = context.lexical_scopes.back();
+	auto prev_scope = context.lexical_scopes.back();
 
 	context.lexical_scopes.push_back({ .next_local_id = prev_scope.next_local_id, .all_code_paths_return = false, .is_loop_block = is_loop });
 }
@@ -848,7 +848,7 @@ uint32_t instance::compile_function(compilation_context& context, std::string na
 		context.emit({ .operation = opcode::RETURN });
 	}
 
-	auto& captured_vars = context.function_decls.back().captured_variables;
+	phmap::btree_set<std::string> captured_vars = context.function_decls.back().captured_variables;
 	if (captured_vars.empty() && !qualifiers.contains(token_type::NO_CAPTURE) && !is_class_method) {
 		std::stringstream ss;
 		ss << "Function Warning: Function " << name << " doesn't capture any variables. Consider adding the no_capture annotation for enhanced performance.";

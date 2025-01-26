@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <time.h>
 
 using namespace HulaScript;
 
@@ -30,9 +31,9 @@ private:
 	}
 
 	instance::value next(instance& instance) override {
-		instance::value toret = instance.rational_integer(i);
+		instance::value to_return = instance.rational_integer(i);
 		i += step;
-		return toret;
+		return to_return;
 	}
 };
 
@@ -63,6 +64,54 @@ private:
 public:
 	random_generator(double lower_bound, double upper_bound) : unif_real(lower_bound, upper_bound) {
 		declare_method("next", &random_generator::next_real);
+	}
+};
+
+class sleep_pollster : public instance::await_pollster {
+private:
+	time_t start;
+	time_t duration;
+
+public:
+	sleep_pollster(time_t duration) : duration(duration) {
+		std::time(&start);
+	}
+
+	bool poll() override {
+		time_t current;
+		std::time(&current);
+		return (current - start >= duration);
+	}
+
+	instance::value get_result(instance& instance) override {
+		time_t current;
+		std::time(&current);
+		return instance.rational_integer(current - start);
+	}
+};
+
+class await_all_pollster : public instance::await_pollster {
+private:
+	std::vector<instance::await_pollster*> pollsters;
+
+public:
+	await_all_pollster(std::vector<instance::await_pollster*> pollsters) : pollsters(pollsters) {
+
+	}
+
+	bool poll() override {
+		for (auto pollster : pollsters) {
+			if (!pollster->poll()) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	void trace(std::vector<instance::value>& to_trace) override {
+		for (auto pollster : pollsters) {
+			to_trace.push_back(instance::value(static_cast<instance::foreign_object*>(pollster)));
+		}
 	}
 };
 
@@ -112,6 +161,12 @@ static instance::value new_random_generator(std::vector<instance::value> argumen
 	}
 
 	return instance.add_foreign_object(std::make_unique<random_generator>(random_generator(lower_bound, upper_bound)));
+}
+
+static instance::value sleep_async(std::vector<instance::value> arguments, instance& instance) {
+	EXPECT_ARGS(1);
+
+	return instance.add_foreign_object(std::make_unique<sleep_pollster>(arguments.at(0).size(instance)));
 }
 
 static instance::value parse_rational_str(std::vector<instance::value> arguments, instance& instance) {
@@ -306,6 +361,19 @@ static instance::value user_panic(std::vector<instance::value>& arguments, insta
 	return instance::value();
 }
 
+static instance::value await_all(std::vector<instance::value> arguments, instance& instance) {
+	std::vector<instance::await_pollster*> pollsters;
+	for (auto& argument : arguments) {
+		instance::await_pollster* pollster = dynamic_cast<instance::await_pollster*>(argument.foreign_obj(instance));
+		if (pollster == NULL) {
+			instance.panic("Expected await pollster, got a different foreign object.", ERROR_TYPE);
+		}
+		pollsters.push_back(pollster);
+	}
+
+	return instance.add_foreign_object(std::make_unique<await_all_pollster>(pollsters));
+}
+
 #ifdef HULASCRIPT_USE_SHARED_LIBRARY
 static instance::value import_foreign_module(std::vector<instance::value>& arguments, instance& instance)
 {
@@ -347,10 +415,12 @@ instance::instance(custom_numerical_parser numerical_parser) : numerical_parser(
 	declare_global("irange", make_foreign_function(new_int_range));
 	declare_global("randomer", make_foreign_function(new_random_generator));
 
+	declare_global("sleep", make_foreign_function(sleep_async));
 	declare_global("sort", make_foreign_function(sort_table));
 	declare_global("binarySearch", make_foreign_function(binary_search_table));
 	declare_global("iteratorToArray", make_foreign_function(iterator_to_array));
 
+	declare_global("awaitAll", make_foreign_function(await_all));
 	declare_global("import", make_foreign_function(import_module));
 
 #ifdef HULASCRIPT_USE_SHARED_LIBRARY

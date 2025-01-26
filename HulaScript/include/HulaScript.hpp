@@ -231,7 +231,7 @@ namespace HulaScript {
 		class await_pollster : public foreign_object {
 		public:
 			virtual bool poll() = 0;
-			virtual value get_result(instance& instance) = 0;
+			virtual value get_result(instance& instance) { return value(); }
 		};
 
 		typedef value(*custom_numerical_parser)(std::string numerical_str, const instance& instance);

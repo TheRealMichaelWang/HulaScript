@@ -1,4 +1,5 @@
-function test(a) do
+#first green thread test
+function test(a) no_capture do
 	for i in irange(a) do
 		print(a, ":", i)
 	end
@@ -8,7 +9,24 @@ for i in irange(10) do
 	test start(11-i)
 end
 
+
+#first async test
 function test(a) no_capture do
 	return a
 end
 print(await test start(8))
+
+
+#sleep sort
+function sleepSort(toSort) no_capture do
+	result = []
+
+	helper = function(i) do
+		await sleep(i)
+		result.append(i)
+	end
+
+	await awaitAll variadic(for element in toSort do helper start(element) end)
+	return result
+end
+sleepSort([3,2,1])
