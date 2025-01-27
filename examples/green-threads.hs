@@ -46,3 +46,15 @@ end
 for i in irange(10) do
 	test start(11-i)
 end
+
+
+#async print/input tests
+
+function test(i) no_capture do
+	msg = await inputAsync(i, ": ")
+	await printAsync(msg)
+end
+
+for i in irange(10) do
+	test async(i)
+end

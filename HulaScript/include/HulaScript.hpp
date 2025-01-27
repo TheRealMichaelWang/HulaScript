@@ -230,7 +230,7 @@ namespace HulaScript {
 
 		class await_pollster : public foreign_object {
 		public:
-			virtual bool poll() = 0;
+			virtual bool poll(instance& instance) = 0;
 			virtual value get_result(instance& instance) { return value(); }
 		};
 
@@ -568,7 +568,7 @@ namespace HulaScript {
 				finished = true;
 			}
 
-			bool poll() override {
+			bool poll(instance& instance) override {
 				return finished;
 			}
 

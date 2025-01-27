@@ -31,7 +31,7 @@ retry_execution:
 #define INS_GOTO_NEW_IP current_thread++; continue;
 
 		for (auto it = suspended_threads.begin(); it != suspended_threads.end(); ) {
-			if (it->first->poll()) { //thread may finally resume
+			if (it->first->poll(*this)) { //thread may finally resume
 				active_threads.push_back(it->second);
 				all_threads.at(it->second).evaluation_stack.push_back(it->first->get_result(*this));
 				it = suspended_threads.erase(it);

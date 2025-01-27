@@ -77,7 +77,7 @@ public:
 		std::time(&start);
 	}
 
-	bool poll() override {
+	bool poll(instance& instance) override {
 		time_t current;
 		std::time(&current);
 		return (current - start >= duration);
@@ -99,9 +99,9 @@ public:
 
 	}
 
-	bool poll() override {
+	bool poll(instance& instance) override {
 		for (auto pollster : pollsters) {
-			if (!pollster->poll()) {
+			if (!pollster->poll(instance)) {
 				return false;
 			}
 		}
@@ -146,7 +146,7 @@ private:
 	public:
 		aquire_lock_pollster(lock_obj* to_lock) : to_lock(to_lock) { }
 
-		bool poll() override {
+		bool poll(instance& instance) override {
 			if (to_lock->is_locked) {
 				return false;
 			}

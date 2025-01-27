@@ -7,14 +7,138 @@
 #include "HulaScript.hpp"
 #include "repl_completer.hpp"
 
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+#if defined(__GNUG__) || defined(__GNUC__)
+#define OS_LINUX
+#define ENABLE_ASYNC_INPUT
+#elif defined(_MAC)
+#define OS_MAC
+#define ENABLE_ASYNC_INPUT
+#elif defined(_WIN32)
+#define OS_WIN
+#define ENABLE_ASYNC_INPUT
+#endif
+#ifdef OS_WIN
+#include <conio.h>
+#elif defined(OS_LINUX) || defined(OS_MAC)
+#include <unistd.h>
+#include <sys/socket.h>
+#endif
+bool stdinHasData()
+{
+#   if defined(OS_WIN)
+	// this works by harnessing Windows' black magic:
+	return _kbhit();
+#   elif defined(OS_LINUX) || defined(OS_MAC) 
+	// using a timeout of 0 so we aren't waiting:
+	struct timespec timeout { 0l, 0l };
+
+	// create a file descriptor set
+	fd_set fds{};
+
+	// initialize the fd_set to 0
+	FD_ZERO(&fds);
+	// set the fd_set to target file descriptor 0 (STDIN)
+	FD_SET(0, &fds);
+
+	// pselect the number of file descriptors that are ready, since
+	//  we're only passing in 1 file descriptor, it will return either
+	//  a 0 if STDIN isn't ready, or a 1 if it is.
+	return pselect(0 + 1, &fds, nullptr, nullptr, &timeout, nullptr) == 1;
+#   else
+	// throw a compiler error
+	static_assert(false, "Failed to detect a supported operating system!");
+#   endif
+}
+#endif // HULASCRIPT_USE_GREEN_THREADS
+
 using namespace std;
 
 static bool should_quit = false;
 static bool no_warn = false;
 
-class async_input_pollster : public HulaScript::instance::await_pollster {
+#ifdef ENABLE_ASYNC_INPUT
+static bool async_input_lock = false;
 
+class async_input_pollster : public HulaScript::instance::await_pollster {
+private:
+	std::vector<HulaScript::instance::value> to_print;
+	std::string input_buffer;
+	bool aquired_lock = false;
+
+	bool poll(HulaScript::instance& instance) override {
+		if (!aquired_lock) {
+			if (async_input_lock) {
+				return false;
+			}
+			async_input_lock = true;
+			aquired_lock = true;
+		}
+
+		if (!to_print.empty()) {
+			std::cout << instance.get_value_print_string(to_print.back());
+			to_print.pop_back();
+			return false;
+		}
+
+		if (!stdinHasData()) {
+			return false;
+		}
+
+		getline(cin, input_buffer);
+		return true;
+	}
+
+	HulaScript::instance::value get_result(HulaScript::instance& instance) override {
+		async_input_lock = false;
+		return instance.make_string(input_buffer);
+	}
+
+public:
+	async_input_pollster(std::vector<HulaScript::instance::value> to_print) : to_print(to_print.rbegin(), to_print.rend()) {
+
+	}
 };
+
+class async_print_pollster : public HulaScript::instance::await_pollster {
+private:
+	std::vector<HulaScript::instance::value> to_print;
+	bool aquired_lock = false;
+
+	bool poll(HulaScript::instance& instance) override {
+		if (!aquired_lock) {
+			if (async_input_lock) {
+				return false;
+			}
+			async_input_lock = true;
+			aquired_lock = true;
+		}
+
+		if (to_print.empty()) {
+			async_input_lock = false;
+			std::cout << std::endl;
+			return true;
+		}
+
+		std::cout << instance.get_value_print_string(to_print.back());
+		to_print.pop_back();
+		return false;
+	}
+
+public:
+	async_print_pollster(std::vector<HulaScript::instance::value> to_print) : to_print(to_print.rbegin(), to_print.rend()) {
+
+	}
+};
+
+static HulaScript::instance::value new_input_async(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
+	return instance.add_foreign_object(std::make_unique<async_input_pollster>(arguments));
+}
+
+static HulaScript::instance::value new_print_async(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
+	return instance.add_foreign_object(std::make_unique<async_print_pollster>(arguments));
+}
+#endif //  ENABLE_ASYNC_INPUT
 
 static HulaScript::instance::value quit(std::vector<HulaScript::instance::value> arguments, HulaScript::instance& instance) {
 	should_quit = true;
@@ -73,6 +197,11 @@ int main()
 	instance.declare_global("print", instance.make_foreign_function(print));
 	instance.declare_global("input", instance.make_foreign_function(input));
 	instance.declare_global("warnings", instance.make_foreign_function(set_warnings));
+
+#ifdef ENABLE_ASYNC_INPUT
+	instance.declare_global("inputAsync", instance.make_foreign_function(new_input_async));
+	instance.declare_global("printAsync", instance.make_foreign_function(new_print_async));
+#endif
 
 	while (!should_quit) {
 		cout << ">>> ";
