@@ -84,7 +84,10 @@ std::optional<instance::value> instance::run_no_warnings(std::string source, std
 std::optional<instance::value> instance::run_loaded() {
 	size_t exempt_count = temp_gc_exempt.size();
 	try {
+#ifdef HULASCRIPT_USE_GREEN_THREADS
 		active_threads.push_back(0);
+#endif // HULASCRIPT_USE_GREEN_THREADS
+
 		execute();
 
 		if (!evaluation_stack.empty()) {

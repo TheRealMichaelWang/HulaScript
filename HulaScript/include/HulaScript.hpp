@@ -4,7 +4,7 @@
 #pragma once
 
 #define HULASCRIPT_USE_SHARED_LIBRARY //turns on support for using shared libraries (.dll and .so)
-#define HULASCRIPT_USE_GREEN_THREADS //turns on support for green threads
+//#define HULASCRIPT_USE_GREEN_THREADS //turns on support for green threads
 
 #include <vector>
 #include <cstdint>
@@ -867,7 +867,11 @@ namespace HulaScript {
 
 		uint32_t emit_finalize_function(compilation_context& context);
 
-		void compile_args_and_call(compilation_context& context, bool startGreenThread=false);
+		void compile_args_and_call(compilation_context& context
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+			, bool startGreenThread=false
+#endif
+		);
 
 		void compile_value(compilation_context& context, bool expect_statement, bool expects_value);
 		void compile_expression(compilation_context& context, int min_prec=0, bool skip_lhs_compile=false);

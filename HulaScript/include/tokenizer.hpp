@@ -24,8 +24,10 @@ namespace HulaScript {
 		CLASS,
 		NO_CAPTURE,
 		VARIADIC,
+#ifdef HULASCRIPT_USE_GREEN_THREADS
 		START,
 		AWAIT,
+#endif
 
 		IF,
 		ELIF,

@@ -146,7 +146,11 @@ void instance::emit_load_variable(std::string name, compilation_context& context
 	}
 }
 
-void instance::compile_args_and_call(compilation_context& context, bool startGreenThread) {
+void instance::compile_args_and_call(compilation_context& context
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+	, bool startGreenThread
+#endif // HULASCRIPT_USE_GREEN_THREADS
+) {
 	context.tokenizer.expect_token(token_type::OPEN_PAREN);
 	context.tokenizer.scan_token();
 
@@ -166,7 +170,14 @@ void instance::compile_args_and_call(compilation_context& context, bool startGre
 		context.panic("Function Error: Argument count cannot exceed 255 arguments.");
 	}
 
-	context.emit({ .operation = (startGreenThread ? opcode::START_GREENTHREAD : opcode::CALL), .operand = static_cast<opcode>(arguments) });
+	context.emit({
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+		.operation = (startGreenThread ? opcode::START_GREENTHREAD : opcode::CALL),
+#else
+		.operation = opcode::CALL,
+#endif
+		.operand = static_cast<opcode>(arguments) 
+	});
 }
 
 void instance::compile_value(compilation_context& context, bool expects_statement, bool expects_value) {
@@ -272,6 +283,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		context.tokenizer.expect_token(token_type::CLOSE_BRACKET);
 		context.tokenizer.scan_token();
 		break;
+#ifdef HULASCRIPT_USE_GREEN_THREADS
 	case token_type::AWAIT: {
 		context.tokenizer.scan_token();
 		compile_value(context, false, true);
@@ -279,6 +291,7 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 		is_statement = true;
 		break;
 	}
+#endif // HULASCRIPT_USE_GREEN_THREADS
 	case token_type::OPEN_BRACKET: {
 		context.tokenizer.scan_token();
 
@@ -497,12 +510,14 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 			is_statement = true;
 			break;
 		}
+#ifdef HULASCRIPT_USE_GREEN_THREADS
 		case token_type::START: {
 			context.tokenizer.scan_token();
 			compile_args_and_call(context, true);
 			is_statement = true;
 			break;
 		}
+#endif // HULASCRIPT_USE_GREEN_THREADS
 		default: {
 			if (expects_statement && !is_statement) {
 				context.panic("Syntax Error: Expected statement, got value instead.");

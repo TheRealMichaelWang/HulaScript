@@ -17,6 +17,8 @@
 #define LOCALS locals
 #define IP ip
 #define EVALUATION_STACK evaluation_stack
+#define EXTENDED_OFFSETS extended_offsets
+#define RETURN_STACK return_stack
 #endif // HULASCRIPT_USE_GREEN_THREADS
 
 using namespace HulaScript;
