@@ -153,13 +153,11 @@ token tokenizer::scan_token() {
 			return last_token = token(token_type::NO_CAPTURE);
 		case Hash::dj2b("variadic"):
 			return last_token = token(token_type::VARIADIC);
-#ifdef HULASCRIPT_USE_GREEN_THREADS
 		case Hash::dj2b("async"):
 		case Hash::dj2b("start"):
 			return last_token = token(token_type::START);
 		case Hash::dj2b("await"):
 			return last_token = token(token_type::AWAIT);
-#endif // HULASCRIPT_USE_GREEN_THREADS
 		default:
 			return last_token = token(ss.str());
 		}

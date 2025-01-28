@@ -4,7 +4,7 @@
 #pragma once
 
 #define HULASCRIPT_USE_SHARED_LIBRARY //turns on support for using shared libraries (.dll and .so)
-//#define HULASCRIPT_USE_GREEN_THREADS //turns on support for green threads
+#define HULASCRIPT_USE_GREEN_THREADS //turns on support for green threads
 
 #include <vector>
 #include <cstdint>

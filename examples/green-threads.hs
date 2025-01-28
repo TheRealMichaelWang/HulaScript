@@ -58,3 +58,21 @@ end
 for i in irange(10) do
 	test async(i)
 end
+
+
+# ffi invoke test
+function test() no_capture do
+	i = 0
+	while true do
+		i = i + 1
+	end
+end
+
+function test2() no_capture do
+	test async()
+
+	a = [1,2,3,4,5,6,7,8,9,10]
+	print(a.filter(function(x) no_capture do return x % 2 == 0 end))
+end
+
+test2()

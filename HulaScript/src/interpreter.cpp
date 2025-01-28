@@ -25,6 +25,7 @@ using namespace HulaScript;
 
 void instance::execute() {
 	call_depth++;
+	int if_thread_ends_kill = call_depth > 1 ? active_threads.at(current_thread) : 0;
 
 retry_execution:
 	try {
@@ -63,6 +64,10 @@ retry_execution:
 					pollster->mark_finished(EVALUATION_STACK.back());
 				}
 				size_t thread_no = active_threads.at(current_thread);
+				if (thread_no == if_thread_ends_kill) {
+					goto quit_execution;
+				}
+
 				active_threads.erase(active_threads.begin() + current_thread);
 				if (thread_no != 0) {
 					all_threads.erase(all_threads.begin() + thread_no);
