@@ -333,6 +333,10 @@ namespace HulaScript {
 		HULASCRIPT_FUNCTION value invoke_value(value to_call, std::vector<value> arguments);
 		HULASCRIPT_FUNCTION value invoke_method(value object, std::string method_name, std::vector<value> arguments);
 
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+		HULASCRIPT_FUNCTION void invoke_value_async(const value to_invoke, const std::vector<value>& arguments, bool allow_collect = false);
+#endif
+
 		HULASCRIPT_FUNCTION bool declare_global(std::string name, value val) {
 			size_t hash = Hash::dj2b(name.c_str());
 			if (global_vars.size() > UINT8_MAX) {
@@ -444,6 +448,7 @@ namespace HulaScript {
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
 			START_GREENTHREAD,
+			START_GREENTHREAD_NO_AWAIT,
 			AWAIT_OPERATION
 #endif
 		};
@@ -867,11 +872,7 @@ namespace HulaScript {
 
 		uint32_t emit_finalize_function(compilation_context& context);
 
-		void compile_args_and_call(compilation_context& context
-#ifdef HULASCRIPT_USE_GREEN_THREADS
-			, bool startGreenThread=false
-#endif
-		);
+		void compile_args_and_call(compilation_context& context, opcode call_opcode = opcode::CALL);
 
 		void compile_value(compilation_context& context, bool expect_statement, bool expects_value);
 		void compile_expression(compilation_context& context, int min_prec=0, bool skip_lhs_compile=false);

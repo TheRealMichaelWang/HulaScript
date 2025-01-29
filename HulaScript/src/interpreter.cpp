@@ -1,4 +1,5 @@
 #include "HulaScript.hpp"
+#include "HulaScript.hpp"
 #include <cmath>
 #include <cassert>
 #include <sstream>
@@ -25,7 +26,7 @@ using namespace HulaScript;
 
 void instance::execute() {
 	call_depth++;
-	int if_thread_ends_kill = call_depth > 1 ? active_threads.at(current_thread) : 0;
+	int if_thread_ends_kill = call_depth > 1 ? active_threads.at(current_thread) : -1;
 
 retry_execution:
 	try {
@@ -46,19 +47,6 @@ retry_execution:
 
 		for (; current_thread < active_threads.size();) {
 			if (IP == instructions.size()) {
-				/*if (active_threads.at(current_thread).is_main_thread) {
-					if (active_threads.size() == 1 && suspended_threads.size() == 0) {
-						goto quit_execution;
-					}
-					current_thread++;
-				} 
-				else {
-					auto& pollster = active_threads.at(current_thread).finished_pollster;
-					if (pollster != NULL) {
-						pollster->mark_finished(EVALUATION_STACK.back());
-					}
-					active_threads.erase(active_threads.begin() + current_thread);
-				}*/
 				auto& pollster = all_threads.at(active_threads.at(current_thread)).finished_pollster;
 				if (pollster != NULL) {
 					pollster->mark_finished(EVALUATION_STACK.back());
@@ -552,7 +540,8 @@ retry_execution:
 					std::vector<value> arguments(LOCALS.end() - ins.operand, LOCALS.end());
 					LOCALS.erase(LOCALS.end() - ins.operand, LOCALS.end());
 
-					EVALUATION_STACK.push_back(foreign_functions[call_value.function_id](arguments, *this));
+					auto val = foreign_functions[call_value.function_id](arguments, *this);
+					EVALUATION_STACK.push_back(val);
 
 					break;
 				}
@@ -636,7 +625,9 @@ retry_execution:
 				INS_GOTO_NEW_IP;
 			}
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-			case opcode::START_GREENTHREAD: {
+			case opcode::START_GREENTHREAD:
+				[[fallthrough]];
+			case opcode::START_GREENTHREAD_NO_AWAIT: {
 				execution_context new_thread;
 				std::vector<value> arguments(EVALUATION_STACK.end() - ins.operand, EVALUATION_STACK.end());
 				EVALUATION_STACK.erase(EVALUATION_STACK.end() - ins.operand, EVALUATION_STACK.end());
@@ -647,9 +638,11 @@ retry_execution:
 
 				function_entry& function = functions.at(call_value.function_id);
 				if (call_value.flags & value::vflags::FUNCTION_IS_VARIADIC) {
+					auto exempt_remove_begin = temp_gc_exempt.size();
 					temp_gc_exempt.push_back(call_value);
-					new_thread.locals.push_back(make_array(arguments, false));
-					temp_gc_exempt.pop_back();
+					temp_gc_exempt.insert(temp_gc_exempt.end(), arguments.begin(), arguments.end());
+					new_thread.locals.push_back(make_array(arguments, false, true));
+					temp_gc_exempt.erase(temp_gc_exempt.begin() + exempt_remove_begin);
 				}
 				else {
 					new_thread.locals = std::move(arguments);
@@ -668,9 +661,11 @@ retry_execution:
 				new_thread.return_stack.push_back(instructions.size() - 1);
 				new_thread.extended_offsets.push_back(0);
 
-				auto pollster = std::make_unique<await_finish_pollster>();
-				new_thread.finished_pollster = pollster.get();
-				EVALUATION_STACK.push_back(add_foreign_object(std::move(pollster)));
+				if (ins.operation == opcode::START_GREENTHREAD) {
+					auto pollster = std::make_unique<await_finish_pollster>();
+					new_thread.finished_pollster = pollster.get();
+					EVALUATION_STACK.push_back(add_foreign_object(std::move(pollster)));
+				}
 
 				active_threads.push_back(all_threads.size());
 				all_threads.push_back(new_thread);
@@ -795,23 +790,59 @@ retry_execution:
 	call_depth--;
 }
 
-void HulaScript::instance::execute_arbitrary(const std::vector<instruction>& arbitrary_ins) {
+void instance::execute_arbitrary(const std::vector<instruction>& arbitrary_ins) {
 	size_t start_ip = instructions.size();
 	size_t old_ip = IP;
+	instructions.push_back({ .operation = opcode::STOP });
 	instructions.insert(instructions.end(), arbitrary_ins.begin(), arbitrary_ins.end());
 
 	auto src_loc = src_from_ip(old_ip);
 	if (src_loc.has_value()) {
-		ip_src_map.insert({ start_ip, src_loc.value() });
+		ip_src_map.insert({ start_ip + 1, src_loc.value() });
 	}
 
-	IP = start_ip;
+	IP = start_ip + 1;
 	execute();
 
-	for (auto it = ip_src_map.lower_bound(start_ip); it != ip_src_map.end(); it = ip_src_map.erase(it)) { }
+	for (auto it = ip_src_map.lower_bound(start_ip + 1); it != ip_src_map.end(); it = ip_src_map.erase(it)) { }
 	instructions.erase(instructions.begin() + start_ip, instructions.end());
 	IP = old_ip;
 }
+
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+void instance::invoke_value_async(const value to_invoke, const std::vector<value>& arguments, bool allow_collect) {
+	to_invoke.expect_type(value::vtype::CLOSURE, *this);
+
+	execution_context new_thread;
+	function_entry& function = functions.at(to_invoke.function_id);
+	if (to_invoke.flags & value::vflags::FUNCTION_IS_VARIADIC) {
+		size_t protect_begin = temp_gc_exempt.size();
+		if (allow_collect) {
+			temp_gc_exempt.push_back(to_invoke);
+			temp_gc_exempt.insert(temp_gc_exempt.end(), arguments.begin(), arguments.end());
+		}
+		new_thread.evaluation_stack.push_back(make_array(arguments, false, allow_collect));
+		if (allow_collect) {
+			temp_gc_exempt.erase(temp_gc_exempt.begin() + protect_begin);
+		}
+	}
+	else {
+		if (function.parameter_count != arguments.size()) {
+			std::stringstream ss;
+			ss << "Argument Error: Function " << function.name << " expected " << static_cast<size_t>(function.parameter_count) << " argument(s), but got " << static_cast<size_t>(arguments.size()) << " instead.";
+			panic(ss.str(), ERROR_UNEXPECTED_ARGUMENT_COUNT);
+		}
+		new_thread.evaluation_stack.insert(new_thread.evaluation_stack.end(), arguments.begin(), arguments.end());
+	}
+	new_thread.ip = function.start_address;
+	new_thread.return_stack.push_back(instructions.size() - 1);
+	new_thread.extended_offsets.push_back(0);
+	new_thread.finished_pollster = NULL;
+
+	active_threads.push_back(all_threads.size());
+	all_threads.push_back(new_thread);
+}
+#endif
 
 std::optional<instance::value> instance::execute_arbitrary(const std::vector<instruction>& arbitrary_ins, const std::vector<value>& operands, bool return_value)
 {

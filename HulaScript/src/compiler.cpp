@@ -146,11 +146,7 @@ void instance::emit_load_variable(std::string name, compilation_context& context
 	}
 }
 
-void instance::compile_args_and_call(compilation_context& context
-#ifdef HULASCRIPT_USE_GREEN_THREADS
-	, bool startGreenThread
-#endif // HULASCRIPT_USE_GREEN_THREADS
-) {
+void instance::compile_args_and_call(compilation_context& context, opcode call_opcode) {
 	context.tokenizer.expect_token(token_type::OPEN_PAREN);
 	context.tokenizer.scan_token();
 
@@ -171,11 +167,12 @@ void instance::compile_args_and_call(compilation_context& context
 	}
 
 	context.emit({
-#ifdef HULASCRIPT_USE_GREEN_THREADS
-		.operation = (startGreenThread ? opcode::START_GREENTHREAD : opcode::CALL),
-#else
-		.operation = opcode::CALL,
-#endif
+//#ifdef HULASCRIPT_USE_GREEN_THREADS
+//		.operation = (startGreenThread ? opcode::START_GREENTHREAD : opcode::CALL),
+//#else
+//		.operation = opcode::CALL,
+//#endif
+		.operation = call_opcode,
 		.operand = static_cast<opcode>(arguments) 
 	});
 }
@@ -513,7 +510,12 @@ void instance::compile_value(compilation_context& context, bool expects_statemen
 #ifdef HULASCRIPT_USE_GREEN_THREADS
 		case token_type::START: {
 			context.tokenizer.scan_token();
-			compile_args_and_call(context, true);
+			if (expects_statement) {
+				compile_args_and_call(context, opcode::START_GREENTHREAD_NO_AWAIT);
+				context.unset_src_loc();
+				return;
+			}
+			compile_args_and_call(context, opcode::START_GREENTHREAD);
 			is_statement = true;
 			break;
 		}
@@ -1256,7 +1258,7 @@ void instance::compile(compilation_context& context) {
 		//context.emit({ .operation = opcode::UNWIND_GLOBALS, .operand = 1 });
 	}
 	else {
-		context.emit({ .operation = opcode::STOP });
+		//context.emit({ .operation = opcode::STOP });
 		top_level_local_vars = context.lexical_scopes.back().declared_locals;
 		global_vars.insert(global_vars.end(), context.declared_globals.begin(), context.declared_globals.end());
 	}

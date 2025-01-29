@@ -175,7 +175,7 @@ public:
 	}
 };
 
-static instance::value new_int_range(std::vector<instance::value> arguments, instance& instance) {
+static instance::value new_int_range(std::vector<instance::value>& arguments, instance& instance) {
 	int64_t start = 0;
 	int64_t step = 1;
 	int64_t stop;
@@ -210,7 +210,7 @@ static instance::value new_int_range(std::vector<instance::value> arguments, ins
 	return instance.add_foreign_object(std::make_unique<int_range>(int_range(start, stop, step)));
 }
 
-static instance::value new_random_generator(std::vector<instance::value> arguments, instance& instance) {
+static instance::value new_random_generator(std::vector<instance::value>& arguments, instance& instance) {
 	EXPECT_ARGS(2);
 
 	double lower_bound = arguments[0].number(instance);
@@ -223,27 +223,35 @@ static instance::value new_random_generator(std::vector<instance::value> argumen
 	return instance.add_foreign_object(std::make_unique<random_generator>(random_generator(lower_bound, upper_bound)));
 }
 
-static instance::value sleep_async(std::vector<instance::value> arguments, instance& instance) {
+static instance::value sleep_async(std::vector<instance::value>& arguments, instance& instance) {
 	EXPECT_ARGS(1);
 
 	return instance.add_foreign_object(std::make_unique<sleep_pollster>(arguments.at(0).size(instance)));
 }
 
-static instance::value new_lock_obj(std::vector<instance::value> arguments, instance& instance) {
+static instance::value new_lock_obj(std::vector<instance::value>& arguments, instance& instance) {
 	return instance.add_foreign_object(std::make_unique<lock_obj>());
 }
 
-static instance::value parse_rational_str(std::vector<instance::value> arguments, instance& instance) {
+static instance::value invoke_all_async(std::vector<instance::value>& arguments, instance& instance) {
+	std::vector<instance::value> empty_args;
+	for (instance::value& argument : arguments) {
+		instance.invoke_value_async(argument, empty_args, true);
+	}
+	return instance::value();
+}
+
+static instance::value parse_rational_str(std::vector<instance::value>& arguments, instance& instance) {
 	EXPECT_ARGS(1);
 	return instance.parse_rational(arguments.at(0).str(instance));
 }
 
-static instance::value parse_number_str(std::vector<instance::value> arguments, instance& instance) {
+static instance::value parse_number_str(std::vector<instance::value>& arguments, instance& instance) {
 	EXPECT_ARGS(1);
 	return instance.parse_number(arguments.at(0).str(instance));
 }
 
-static instance::value sort_table(std::vector<instance::value> arguments, instance& instance) {
+static instance::value sort_table(std::vector<instance::value>& arguments, instance& instance) {
 	EXPECT_ARGS(2);
 
 	HulaScript::ffi_table_helper helper(arguments[0], instance);
@@ -268,7 +276,7 @@ static instance::value sort_table(std::vector<instance::value> arguments, instan
 	return instance::value();
 }
 
-static instance::value binary_search_table(std::vector<instance::value> arguments, instance& instance) {
+static instance::value binary_search_table(std::vector<instance::value>& arguments, instance& instance) {
 	EXPECT_ARGS(3);
 
 	HulaScript::ffi_table_helper helper(arguments[0], instance);
@@ -298,7 +306,7 @@ static instance::value binary_search_table(std::vector<instance::value> argument
 }
 
 
-static instance::value format_string(std::vector<instance::value> arguments, instance& instance) {
+static instance::value format_string(std::vector<instance::value>& arguments, instance& instance) {
 	if (arguments.size() < 1) {
 		instance.panic("FFI Error: Format string expects two arguments.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
 	}
@@ -349,7 +357,7 @@ static instance::value format_string(std::vector<instance::value> arguments, ins
 	return instance.make_string(result);
 }
 
-static instance::value iterator_to_array(std::vector<instance::value> arguments, instance& instance) {
+static instance::value iterator_to_array(std::vector<instance::value>& arguments, instance& instance) {
 	EXPECT_ARGS(1);
 	
 	std::vector<instance::value> elems;
@@ -481,6 +489,7 @@ instance::instance(custom_numerical_parser numerical_parser) : numerical_parser(
 	declare_global("lock", make_foreign_function(new_lock_obj));
 
 	declare_global("sleep", make_foreign_function(sleep_async));
+	declare_global("invokeAllAsync", make_foreign_function(invoke_all_async));
 	declare_global("sort", make_foreign_function(sort_table));
 	declare_global("binarySearch", make_foreign_function(binary_search_table));
 	declare_global("iteratorToArray", make_foreign_function(iterator_to_array));
