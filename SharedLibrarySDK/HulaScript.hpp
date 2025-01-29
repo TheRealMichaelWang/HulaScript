@@ -12,6 +12,8 @@
 #include <optional>
 #include <unordered_map>
 
+#define HULASCRIPT_USE_GREEN_THREADS
+
 #define HULASCRIPT_EXPECT_ARGS(ARG_COUNT) if(args.size() != (ARG_COUNT)) { instance.panic("FFI Error: Function received wrong number of arguments.");}
 
 namespace HulaScript {
@@ -235,6 +237,14 @@ namespace HulaScript {
 			virtual ~foreign_object() = default;
 		};
 
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+		class await_pollster : public foreign_object {
+		public:
+			virtual bool poll(instance& instance) = 0;
+			virtual value get_result(instance& instance) { return value(); }
+		};
+#endif
+
 		virtual std::string get_value_print_string(value to_print) = 0;
 		virtual std::string rational_to_string(value& rational, bool print_as_frac) = 0;
 
@@ -253,6 +263,10 @@ namespace HulaScript {
 
 		virtual value invoke_value(value to_call, std::vector<value> arguments) = 0;
 		virtual value invoke_method(value object, std::string method_name, std::vector<value> arguments) = 0;
+
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+		void invoke_value_async(const value to_invoke, const std::vector<value>& arguments, bool allow_collect = false);
+#endif
 
 		virtual bool declare_global(std::string name, value val) = 0;
 		virtual void panic(std::string msg, size_t error_code=ERROR_GENERAL) const = 0;

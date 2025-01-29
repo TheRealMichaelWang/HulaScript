@@ -228,11 +228,13 @@ namespace HulaScript {
 			virtual ~foreign_object() = default;
 		};
 
+#ifdef HULASCRIPT_USE_GREEN_THREADS
 		class await_pollster : public foreign_object {
 		public:
 			virtual bool poll(instance& instance) = 0;
 			virtual value get_result(instance& instance) { return value(); }
 		};
+#endif
 
 		typedef value(*custom_numerical_parser)(std::string numerical_str, const instance& instance);
 
