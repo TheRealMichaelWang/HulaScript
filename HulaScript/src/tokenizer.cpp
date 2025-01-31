@@ -158,6 +158,8 @@ token tokenizer::scan_token() {
 			return last_token = token(token_type::START);
 		case Hash::dj2b("await"):
 			return last_token = token(token_type::AWAIT);
+		case Hash::dj2b("@garbage_collect"):
+			return last_token = token(token_type::GARBAGE_COLLECT);
 		default:
 			return last_token = token(ss.str());
 		}

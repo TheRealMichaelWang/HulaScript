@@ -720,6 +720,11 @@ void instance::compile_statement(compilation_context& context, bool expects_stat
 		context.lexical_scopes.back().continue_requests.push_back(context.emit({ }));
 		break;
 	}
+	case token_type::GARBAGE_COLLECT: {
+		context.tokenizer.scan_token();
+		context.emit({ .operation = opcode::GARBAGE_COLLECT });
+		break;
+	}
 	default: {
 		if (expects_statement) {
 			compile_value(context, true, false);
@@ -929,21 +934,14 @@ uint32_t instance::emit_finalize_function(compilation_context& context) {
 		this->ip_src_map.insert(std::make_pair(src_loc.first + offset, src_loc.second));
 	}
 
-	compilation_context::function_declaration& function_decl = context.function_decls.back();
-	function_entry function(function_decl.name, start_addr, instructions.size() - start_addr, function_decl.param_count);
-	compilation_context::function_declaration func_decl = context.function_decls.back();
+	compilation_context::function_declaration& func_decl = context.function_decls.back();
+	function_entry function(func_decl.name, start_addr, instructions.size() - start_addr, func_decl.param_count);
+	//compilation_context::function_declaration func_decl = context.function_decls.back();
 	function.referenced_constants = std::vector<uint32_t>(func_decl.refed_constants.begin(), func_decl.refed_constants.end());
 	function.referenced_functions = std::vector<uint32_t>(func_decl.refed_functions.begin(), func_decl.refed_functions.end());
 	context.function_decls.pop_back();
 
-	uint32_t id;
-	if (available_function_ids.empty()) {
-		id = next_function_id++;
-	}
-	else {
-		id = available_function_ids.back();
-		available_function_ids.pop_back();
-	}
+	uint32_t id = add_func_id();
 	functions.insert({ id, function });
 
 	if (!context.function_decls.empty()) {
@@ -1265,8 +1263,12 @@ void instance::compile(compilation_context& context) {
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
 #define ip main_context().ip
+	uint32_t repl_code_id = add_func_id();
+	auto entry = function_entry("top_level_main", instructions.size(), context.lexical_scopes.back().instructions.size(), 0);
+	entry.referenced_constants = repl_used_constants;
+	entry.referenced_functions = repl_used_functions;
+	functions.insert({ repl_code_id, entry });
 #endif // HULASCRIPT_USE_GREEN_THREADS
-
 	ip = instructions.size();
 	instructions.insert(instructions.end(), context.lexical_scopes.back().instructions.begin(), context.lexical_scopes.back().instructions.end());
 

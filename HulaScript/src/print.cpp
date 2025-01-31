@@ -109,6 +109,7 @@ static const char* tok_names[] = {
 	"VARIADIC",
 	"ASYNC",
 	"AWAIT",
+	"GARBAGE_COLLECT",
 
 	"IF",
 	"ELIF",

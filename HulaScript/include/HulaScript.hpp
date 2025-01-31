@@ -279,15 +279,7 @@ namespace HulaScript {
 		}
 
 		HULASCRIPT_FUNCTION value make_foreign_function(std::function<value(std::vector<value>& arguments, instance& instance)> function) {
-			uint32_t id;
-			if (available_function_ids.empty()) {
-				id = next_function_id;
-				next_function_id++;
-			}
-			else {
-				id = available_function_ids.back();
-				available_function_ids.pop_back();
-			}
+			uint32_t id = add_func_id();
 			foreign_functions.insert({ id, function });
 			return value(value::vtype::FOREIGN_FUNCTION, value::vflags::NONE, id, 0);
 		}
@@ -447,6 +439,7 @@ namespace HulaScript {
 
 			TRY_HANDLE_ERROR,
 			COMPARE_ERROR_CODE,
+			GARBAGE_COLLECT,
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
 			START_GREENTHREAD,
@@ -687,6 +680,19 @@ namespace HulaScript {
 				return index;
 			}
 		}
+
+		uint32_t add_func_id() {
+			uint32_t id;
+			if (available_function_ids.empty()) {
+				id = next_function_id++;
+			}
+			else {
+				id = available_function_ids.back();
+				available_function_ids.pop_back();
+			}
+			return id;
+		}
+
 		friend class table_iterator;
 		friend class ffi_table_helper;
 

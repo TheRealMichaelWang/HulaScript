@@ -748,6 +748,10 @@ retry_execution:
 				EVALUATION_STACK.push_back(value(error->error().code() == code));
 				break;
 			}
+			case opcode::GARBAGE_COLLECT: {
+				garbage_collect(true);
+				break;
+			}
 			}
 
 			IP++;

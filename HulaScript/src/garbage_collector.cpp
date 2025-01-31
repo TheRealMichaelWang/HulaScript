@@ -61,19 +61,40 @@ void instance::reallocate_table(size_t table_id, size_t new_capacity, bool allow
 	}
 }
 
-void instance::garbage_collect(bool compact_instructions) noexcept {
+void instance::garbage_collect(bool is_finalizing) noexcept {
 	std::vector<value> values_to_trace;
 	std::vector<uint32_t> functions_to_trace;
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-	for (auto& thread : all_threads) {
-		values_to_trace.insert(values_to_trace.end(), thread.evaluation_stack.begin(), thread.evaluation_stack.end());
-		values_to_trace.insert(values_to_trace.end(), thread.locals.begin(), thread.locals.end());
-		if (thread.finished_pollster != NULL) {
-			values_to_trace.push_back(value(thread.finished_pollster));
+	{
+		phmap::btree_map<size_t, uint32_t> sorted_functions_by_ip;
+		for (auto& function : functions) {
+			sorted_functions_by_ip.insert({ function.second.start_address + function.second.length, function.first });
 		}
-	}
-	for (auto& thread : suspended_threads) {
-		values_to_trace.push_back(value(thread.first));
+
+		for (auto& thread : all_threads) {
+			values_to_trace.insert(values_to_trace.end(), thread.evaluation_stack.begin(), thread.evaluation_stack.end());
+			values_to_trace.insert(values_to_trace.end(), thread.locals.begin(), thread.locals.end());
+			if (thread.finished_pollster != NULL) {
+				values_to_trace.push_back(value(thread.finished_pollster));
+			}
+
+			std::vector<size_t> ips_to_trace;
+			ips_to_trace.push_back(thread.ip);
+			ips_to_trace.insert(ips_to_trace.end(), thread.return_stack.begin(), thread.return_stack.end());
+			for (auto ip : ips_to_trace) {
+				auto it = sorted_functions_by_ip.lower_bound(ip);
+				if (it != sorted_functions_by_ip.end()) {
+					function_entry& function = functions.at(it->second);
+					if (ip >= function.start_address + function.length) {
+						continue;
+					}
+					functions_to_trace.push_back(it->second);
+				}
+			}
+		}
+		for (auto& thread : suspended_threads) {
+			values_to_trace.push_back(value(thread.first));
+		}
 	}
 #else
 	values_to_trace.insert(values_to_trace.end(), evaluation_stack.begin(), evaluation_stack.end());
@@ -285,40 +306,61 @@ void instance::garbage_collect(bool compact_instructions) noexcept {
 	}
 
 	//compact instructions after removing unused functions
-	if (compact_instructions) {
-		size_t ip = 0; //sort functions by start address
-		std::vector<uint32_t> sorted_functions(marked_functions.begin(), marked_functions.end());
-		std::sort(sorted_functions.begin(), sorted_functions.end(), [this](uint32_t a, uint32_t b) -> bool {
-			return functions.at(a).start_address < functions.at(b).start_address;
-		});
+	
+	size_t ip = 0; 
+		
+	//sort functions by start address
+	std::vector<uint32_t> sorted_functions(marked_functions.begin(), marked_functions.end());
+	std::sort(sorted_functions.begin(), sorted_functions.end(), [this](uint32_t a, uint32_t b) -> bool {
+		return functions.at(a).start_address < functions.at(b).start_address;
+	});
 
-		for (auto function_id : sorted_functions) {
-			function_entry& function = functions.at(function_id);
+	for (auto function_id : sorted_functions) {
+		function_entry& function = functions.at(function_id);
 
-			if (function.start_address == ip) {
-				ip += function.length;
-				continue;
-			}
-
-			auto start_it = instructions.begin() + function.start_address;
-			std::move(start_it, start_it + function.length, instructions.begin() + ip);
-			
-			std::vector<std::pair<size_t, source_loc>> to_reinsert;
-			size_t offset = function.start_address - ip;
-			for (auto it = ip_src_map.lower_bound(function.start_address); it != ip_src_map.lower_bound(function.start_address + function.length);) {
-				to_reinsert.push_back(std::make_pair(it->first - offset, it->second));
-				it = ip_src_map.erase(it);
-			}
-			for (auto src_loc : to_reinsert) {
-				ip_src_map.insert(src_loc);
-			}
-
-			function.start_address = ip;
+		if (function.start_address == ip) {
 			ip += function.length;
+			continue;
 		}
-		instructions.erase(instructions.begin() + ip, instructions.end());
-		ip = instructions.size();
+
+		auto start_it = instructions.begin() + function.start_address;
+		std::move(start_it, start_it + function.length, instructions.begin() + ip);
+			
+		//update other ip related properties
+		size_t offset = function.start_address - ip;
+		std::vector<std::pair<size_t, source_loc>> to_reinsert;
+		for (auto it = ip_src_map.lower_bound(function.start_address); it != ip_src_map.lower_bound(function.start_address + function.length);) {
+			to_reinsert.push_back(std::make_pair(it->first - offset, it->second));
+			it = ip_src_map.erase(it);
+		}
+		for (auto src_loc : to_reinsert) {
+			ip_src_map.insert(src_loc);
+		}
+
+		//update thread ip values
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+		for (auto& thread : all_threads) {
+			if (thread.ip >= function.start_address) {
+				thread.ip -= offset;
+			}
+			for (auto& thread_ip : thread.return_stack) {
+				if (thread_ip >= function.start_address) {
+					thread_ip -= offset;
+				}
+			}
+		}
+#endif
+			
+		function.start_address = ip;
+		ip += function.length;
 	}
+
+	instructions.erase(instructions.begin() + ip, instructions.end());
+#ifndef HULASCRIPT_USE_GREEN_THREADS
+	if (is_finalizing) {
+		this->ip = ip;
+	}
+#endif // !HULASCRIPT_USE_GREEN_THREADS
 }
 
 #ifdef HULASCRIPT_USE_SHARED_LIBRARY

@@ -26,6 +26,7 @@ namespace HulaScript {
 		VARIADIC,
 		START,
 		AWAIT,
+		GARBAGE_COLLECT,
 
 		IF,
 		ELIF,
@@ -75,6 +76,7 @@ namespace HulaScript {
 
 		NOT,
 		SET,
+
 		END_OF_SOURCE
 	};
 

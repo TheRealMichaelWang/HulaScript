@@ -265,7 +265,7 @@ namespace HulaScript {
 		virtual value invoke_method(value object, std::string method_name, std::vector<value> arguments) = 0;
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-		void invoke_value_async(const value to_invoke, const std::vector<value>& arguments, bool allow_collect = false);
+		virtual void invoke_value_async(const value to_invoke, const std::vector<value>& arguments, bool allow_collect = false) = 0;
 #endif
 
 		virtual bool declare_global(std::string name, value val) = 0;
@@ -351,6 +351,7 @@ namespace HulaScript {
 
 			TRY_HANDLE_ERROR,
 			COMPARE_ERROR_CODE,
+			GARBAGE_COLLECT
 		};
 
 		struct instruction
