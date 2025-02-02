@@ -13,3 +13,10 @@ function test2() do
 end
 a = test2()
 a()
+
+function test3() no_capture do
+	mod = import("import-test.hs")
+	mod = nil
+	@garbage_collect
+end
+test3()

@@ -749,7 +749,7 @@ retry_execution:
 				break;
 			}
 			case opcode::GARBAGE_COLLECT: {
-				garbage_collect(true);
+				garbage_collect(false);
 				break;
 			}
 			}

@@ -5,7 +5,6 @@
 #include "table_iterator.hpp"
 #endif // HULASCRIPT_USE_SHARED_LIBRARY
 
-
 using namespace HulaScript;
 
 instance::gc_block instance::allocate_block(size_t capacity, bool allow_collect) {
@@ -65,7 +64,7 @@ void instance::garbage_collect(bool is_finalizing) noexcept {
 	std::vector<value> values_to_trace;
 	std::vector<uint32_t> functions_to_trace;
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-	{
+	if(!is_finalizing) {
 		phmap::btree_map<size_t, uint32_t> sorted_functions_by_ip;
 		for (auto& function : functions) {
 			sorted_functions_by_ip.insert({ function.second.start_address + function.second.length, function.first });
@@ -103,10 +102,6 @@ void instance::garbage_collect(bool is_finalizing) noexcept {
 
 	values_to_trace.insert(values_to_trace.end(), globals.begin(), globals.end());
 	values_to_trace.insert(values_to_trace.end(), temp_gc_exempt.begin(), temp_gc_exempt.end());
-	for (auto id : repl_used_constants) {
-		assert((constants[id].flags & value::vflags::INVALID_CONSTANT) == 0);
-		values_to_trace.push_back(constants[id]);
-	}
 
 	phmap::flat_hash_set<size_t> marked_tables;
 	phmap::flat_hash_set<uint32_t> marked_functions;
@@ -115,8 +110,14 @@ void instance::garbage_collect(bool is_finalizing) noexcept {
 	phmap::flat_hash_set<foreign_object*> marked_foreign_objects;
 	phmap::flat_hash_set<uint32_t> marked_foreign_functions;
 
+#ifndef HULASCRIPT_USE_GREEN_THREADS
 	functions_to_trace.insert(functions_to_trace.end(), repl_used_functions.begin(), repl_used_functions.end());
-	marked_constants.insert(repl_used_constants.begin(), repl_used_constants.end());
+	marked_constants.insert(repl_used_constants.begin(), repl_used_constants.end()); 
+	for (auto id : repl_used_constants) {
+		assert((constants[id].flags & value::vflags::INVALID_CONSTANT) == 0);
+		values_to_trace.push_back(constants[id]);
+	}
+#endif // !HULASCRIPT_USE_GREEN_THREADS
 	/*for (foreign_object* permanent_foreign_object : permanent_foreign_objs) {
 		marked_foreign_objects.insert(permanent_foreign_object);
 		permanent_foreign_object->trace(values_to_trace);

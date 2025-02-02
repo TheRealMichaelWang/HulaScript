@@ -1264,7 +1264,7 @@ void instance::compile(compilation_context& context) {
 #ifdef HULASCRIPT_USE_GREEN_THREADS
 #define ip main_context().ip
 	uint32_t repl_code_id = add_func_id();
-	auto entry = function_entry("top_level_main", instructions.size(), context.lexical_scopes.back().instructions.size(), 0);
+	auto entry = function_entry(mode_strs[context.mode], instructions.size(), context.lexical_scopes.back().instructions.size(), 0);
 	entry.referenced_constants = repl_used_constants;
 	entry.referenced_functions = repl_used_functions;
 	functions.insert({ repl_code_id, entry });
