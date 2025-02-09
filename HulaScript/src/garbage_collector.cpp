@@ -64,6 +64,16 @@ void instance::garbage_collect(bool is_finalizing) noexcept {
 	std::vector<value> values_to_trace;
 	std::vector<uint32_t> functions_to_trace;
 #ifdef HULASCRIPT_USE_GREEN_THREADS
+	for (auto& thread : all_threads) {
+		values_to_trace.insert(values_to_trace.end(), thread.evaluation_stack.begin(), thread.evaluation_stack.end());
+		values_to_trace.insert(values_to_trace.end(), thread.locals.begin(), thread.locals.end());
+		if (thread.finished_pollster != NULL) {
+			values_to_trace.push_back(value(thread.finished_pollster));
+		}
+	}
+	for (auto& thread : suspended_threads) {
+		values_to_trace.push_back(value(thread.first));
+	}
 	if(!is_finalizing) {
 		phmap::btree_map<size_t, uint32_t> sorted_functions_by_ip;
 		for (auto& function : functions) {
@@ -71,12 +81,6 @@ void instance::garbage_collect(bool is_finalizing) noexcept {
 		}
 
 		for (auto& thread : all_threads) {
-			values_to_trace.insert(values_to_trace.end(), thread.evaluation_stack.begin(), thread.evaluation_stack.end());
-			values_to_trace.insert(values_to_trace.end(), thread.locals.begin(), thread.locals.end());
-			if (thread.finished_pollster != NULL) {
-				values_to_trace.push_back(value(thread.finished_pollster));
-			}
-
 			std::vector<size_t> ips_to_trace;
 			ips_to_trace.push_back(thread.ip);
 			ips_to_trace.insert(ips_to_trace.end(), thread.return_stack.begin(), thread.return_stack.end());
@@ -90,9 +94,6 @@ void instance::garbage_collect(bool is_finalizing) noexcept {
 					functions_to_trace.push_back(it->second);
 				}
 			}
-		}
-		for (auto& thread : suspended_threads) {
-			values_to_trace.push_back(value(thread.first));
 		}
 	}
 #else
