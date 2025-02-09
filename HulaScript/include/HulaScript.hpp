@@ -6,6 +6,10 @@
 #define HULASCRIPT_USE_SHARED_LIBRARY //turns on support for using shared libraries (.dll and .so)
 #define HULASCRIPT_USE_GREEN_THREADS //turns on support for green threads
 
+#ifdef HULASCRIPT_USE_GREEN_THREADS
+#define HULASCRIPT_THREAD_SAFE //turns on support for the global interpreter lock (makes calling HulaScript functions from other threads thread safe)
+#endif
+
 #include <vector>
 #include <cstdint>
 #include <variant>
@@ -19,6 +23,10 @@
 #include "tokenizer.hpp"
 #include "error.hpp"
 #include "hash.hpp"
+#ifdef HULASCRIPT_THREAD_SAFE
+#include <shared_mutex>
+#include <mutex>
+#endif
 
 #ifdef HULASCRIPT_USE_SHARED_LIBRARY
 #define HULASCRIPT_FUNCTION virtual
@@ -67,6 +75,7 @@ namespace HulaScript {
 				IS_NUMERICAL = 64,
 				RATIONAL_IS_NEGATIVE = 128,
 				FUNCTION_IS_VARIADIC = 256,
+				MODULE_IN_CONSTRUCTION = 512
 			};
 
 			uint16_t flags;
@@ -248,12 +257,18 @@ namespace HulaScript {
 		HULASCRIPT_FUNCTION std::string rational_to_string(value& rational, bool print_as_frac);
 
 		HULASCRIPT_FUNCTION value add_foreign_object(std::unique_ptr<foreign_object>&& foreign_obj) {
+#ifdef HULASCRIPT_THREAD_SAFE
+			std::unique_lock table_write_lock(table_mem_lock);
+#endif // HULASCRIPT_THREAD_SAFE
 			value to_ret = value(foreign_obj.get());
 			foreign_objs.insert(std::move(foreign_obj));
 			return to_ret;
 		}
 
 		HULASCRIPT_FUNCTION value add_permanent_foreign_object(std::unique_ptr<foreign_object>&& foreign_obj) {
+#ifdef HULASCRIPT_THREAD_SAFE
+			std::unique_lock table_write_lock(table_mem_lock);
+#endif
 			value to_ret = value(foreign_obj.get());
 			//permanent_foreign_objs.insert(foreign_obj.get());
 			temp_gc_exempt.push_back(to_ret);
@@ -262,6 +277,9 @@ namespace HulaScript {
 		}
 
 		HULASCRIPT_FUNCTION value add_permanent_foreign_object(foreign_object* foreign_obj) {
+#ifdef HULASCRIPT_THREAD_SAFE
+			std::unique_lock table_write_lock(table_mem_lock);
+#endif
 			value to_ret = value(foreign_obj);
 			//permanent_foreign_objs.insert(foreign_obj);
 			temp_gc_exempt.push_back(to_ret);
@@ -269,6 +287,10 @@ namespace HulaScript {
 		}
 
 		HULASCRIPT_FUNCTION bool remove_permanent_foreign_object(foreign_object* foreign_obj) {
+#ifdef HULASCRIPT_THREAD_SAFE
+			std::unique_lock table_write_lock(table_mem_lock);
+#endif // HULASCRIPT_THREAD_SAFE
+
 			for (auto it = temp_gc_exempt.begin(); it != temp_gc_exempt.end(); it++) {
 				if (it->check_type(value::vtype::FOREIGN_OBJECT) && it->data.foreign_object == foreign_obj) {
 					it = temp_gc_exempt.erase(it);
@@ -279,12 +301,20 @@ namespace HulaScript {
 		}
 
 		HULASCRIPT_FUNCTION value make_foreign_function(std::function<value(std::vector<value>& arguments, instance& instance)> function) {
+#ifdef HULASCRIPT_THREAD_SAFE
+			std::unique_lock table_write_lock(table_mem_lock);
+#endif // HULASCRIPT_THREAD_SAFE
+
 			uint32_t id = add_func_id();
 			foreign_functions.insert({ id, function });
 			return value(value::vtype::FOREIGN_FUNCTION, value::vflags::NONE, id, 0);
 		}
 
 		HULASCRIPT_FUNCTION value make_string(std::string str) {
+#ifdef HULASCRIPT_THREAD_SAFE
+			std::unique_lock table_write_lock(table_mem_lock);
+#endif // HULASCRIPT_THREAD_SAFE
+
 			auto res = active_strs.insert(std::unique_ptr<char[]>(new char[str.size() + 1]));
 			std::strcpy(res.first->get(), str.c_str());
 			return value(res.first->get());
@@ -292,6 +322,11 @@ namespace HulaScript {
 
 		HULASCRIPT_FUNCTION value make_table_obj(const std::vector<std::pair<std::string, value>>& elems, bool is_final=false) {
 			size_t table_id = allocate_table(elems.size(), false);
+
+#ifdef HULASCRIPT_THREAD_SAFE
+			std::unique_lock table_write_lock(table_mem_lock);
+#endif // HULASCRIPT_THREAD_SAFE
+
 			table& table = tables.at(table_id);
 			for (size_t i = 0; i < elems.size(); i++) {
 				table.key_hashes.insert({ Hash::dj2b(elems[i].first.c_str()), i });
@@ -303,6 +338,10 @@ namespace HulaScript {
 		}
 
 		HULASCRIPT_FUNCTION value make_array(const std::vector<value>& elems, bool is_final = false, bool allow_collect=false) {
+#ifdef HULASCRIPT_THREAD_SAFE
+			std::unique_lock table_write_lock(table_mem_lock);
+			return make_array_no_lock(elems, is_final, allow_collect);
+#else
 			size_t table_id = allocate_table(elems.size(), allow_collect);
 			table& table = tables.at(table_id);
 			for (size_t i = 0; i < elems.size(); i++) {
@@ -312,7 +351,23 @@ namespace HulaScript {
 			table.count = elems.size();
 
 			return value(value::vtype::TABLE, is_final ? value::vflags::TABLE_ARRAY_ITERATE : value::vflags::TABLE_IS_FINAL | value::vflags::TABLE_ARRAY_ITERATE, 0, table_id);
+#endif // HULASCRIPT_THREAD_SAFE
 		}
+
+#ifdef HULASCRIPT_THREAD_SAFE
+		HULASCRIPT_FUNCTION value make_array_no_lock(const std::vector<value>& elems, bool is_final = false, bool allow_collect=false) {
+		size_t table_id = allocate_table_no_lock(elems.size(), allow_collect);
+
+		table& table = tables.at(table_id);
+		for (size_t i = 0; i < elems.size(); i++) {
+			table.key_hashes.insert({ rational_integer(i).hash<true>(), i });
+			heap[table.block.start + i] = elems[i];
+		}
+		table.count = elems.size();
+
+		return value(value::vtype::TABLE, is_final ? value::vflags::TABLE_ARRAY_ITERATE : value::vflags::TABLE_IS_FINAL | value::vflags::TABLE_ARRAY_ITERATE, 0, table_id);
+		}
+#endif
 
 		HULASCRIPT_FUNCTION value parse_rational(std::string src) const;
 
@@ -332,6 +387,10 @@ namespace HulaScript {
 #endif
 
 		HULASCRIPT_FUNCTION bool declare_global(std::string name, value val) {
+#ifdef HULASCRIPT_THREAD_SAFE
+			std::unique_lock lock_guard(global_var_lock);
+#endif // HULASCRIPT_THREAD_SAFE
+
 			size_t hash = Hash::dj2b(name.c_str());
 			if (global_vars.size() > UINT8_MAX) {
 				return false;
@@ -341,14 +400,37 @@ namespace HulaScript {
 			return true;
 		}
 
+		HULASCRIPT_FUNCTION value get_global(std::string name) const {
+#ifdef HULASCRIPT_THREAD_SAFE
+			std::shared_lock lock_guard(global_var_lock);
+#endif // HULASCRIPT_THREAD_SAFE
+
+			size_t hash = Hash::dj2b(name.c_str());
+			auto it = std::find(global_vars.begin(), global_vars.end(), hash);
+			if (it == global_vars.end()) {
+				return value();
+			}
+			return globals.at(it-global_vars.begin());
+		}
+
 		HULASCRIPT_FUNCTION void panic(std::string msg, size_t error_code = ERROR_GENERAL) const;
 
 		HULASCRIPT_FUNCTION void temp_gc_protect(value val) {
 			temp_gc_exempt.push_back(val);
 		}
-		HULASCRIPT_FUNCTION void temp_gc_unprotect() {
+		HULASCRIPT_FUNCTION void temp_gc_unprotect() noexcept {
 			temp_gc_exempt.pop_back();
 		}
+
+#ifdef HULASCRIPT_THREAD_SAFE
+		HULASCRIPT_FUNCTION void suspend_gc() {
+			gc_lock.lock();
+		}
+
+		HULASCRIPT_FUNCTION void resume_gc() {
+			gc_lock.lock();
+		}
+#endif
 
 		instance(custom_numerical_parser numerical_parser);
 		instance();
@@ -597,6 +679,14 @@ namespace HulaScript {
 		execution_context& main_context() {
 			return all_threads.front();
 		}
+		
+#ifdef HULASCRIPT_THREAD_SAFE
+		mutable std::shared_mutex thread_lock;
+		mutable	std::shared_mutex table_mem_lock;
+		mutable std::mutex gc_lock;
+		mutable	std::shared_mutex global_var_lock;
+#endif // HULASCRIPT_THREAD_SAFE
+
 #else
 		std::vector<value> evaluation_stack;
 		std::vector<value> locals; //where local variables are stores
@@ -635,6 +725,12 @@ namespace HulaScript {
 
 		//expands/retracts the size of a table
 		void reallocate_table(size_t table_id, size_t new_capacity, bool allow_collect);
+
+#ifdef HULASCRIPT_THREAD_SAFE
+		void reallocate_table_no_lock(size_t table_id, size_t new_capacity, bool allow_collect);
+		size_t allocate_table_no_lock(size_t capacity, bool allow_collect);
+#endif // HULASCRIPT_THREAD_SAFE
+
 
 		void garbage_collect(bool compact_instructions) noexcept;
 		void finalize();

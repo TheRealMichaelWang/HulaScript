@@ -34,19 +34,40 @@ retry_execution:
 #ifdef HULASCRIPT_USE_GREEN_THREADS
 #define INS_GOTO_NEW_IP current_thread++; continue;
 
-		for (auto it = suspended_threads.begin(); it != suspended_threads.end(); ) {
-			if (it->first->poll(*this)) { //thread may finally resume
-				active_threads.push_back(it->second);
-				all_threads.at(it->second).evaluation_stack.push_back(it->first->get_result(*this));
-				it = suspended_threads.erase(it);
-			}
-			else {
-				it++;
-			}
-		}
+#ifdef HULASCRIPT_THREAD_SAFE
+		size_t active_thread_count;
+		{
+			std::unique_lock lock_guard(thread_lock);
+#endif // HULASCRIPT_THREAD_SAFE
 
+			for (auto it = suspended_threads.begin(); it != suspended_threads.end(); ) {
+				if (it->first->poll(*this)) { //thread may finally resume
+					active_threads.push_back(it->second);
+					all_threads.at(it->second).evaluation_stack.push_back(it->first->get_result(*this));
+					it = suspended_threads.erase(it);
+				}
+				else {
+					it++;
+				}
+			}
+
+#ifdef HULASCRIPT_THREAD_SAFE
+			active_thread_count = active_threads.size();
+		}
+#endif
+
+#ifdef HULASCRIPT_THREAD_SAFE
+		for (; current_thread < active_thread_count;) {
+			std::shared_lock read_thread_guard(thread_lock);
+#else
 		for (; current_thread < active_threads.size();) {
+#endif
 			if (IP == instructions.size()) {
+#ifdef HULASCRIPT_THREAD_SAFE
+				read_thread_guard.unlock();
+				std::unique_lock write_lock(thread_lock);
+#endif
+
 				auto& pollster = all_threads.at(active_threads.at(current_thread)).finished_pollster;
 				if (pollster != NULL) {
 					pollster->mark_finished(EVALUATION_STACK.back());
@@ -57,6 +78,9 @@ retry_execution:
 				}
 
 				active_threads.erase(active_threads.begin() + current_thread);
+#ifdef HULASCRIPT_THREAD_SAFE
+				active_thread_count--;
+#endif
 				if (thread_no != 0) {
 					all_threads.erase(all_threads.begin() + thread_no);
 					for (auto& thread_id : active_threads) {
@@ -149,20 +173,34 @@ retry_execution:
 				EVALUATION_STACK.push_back(LOCALS[local_offset + ins.operand]);
 				break;
 
-			case opcode::DECL_GLOBAL:
+			case opcode::DECL_GLOBAL: {
+#ifdef HULASCRIPT_THREAD_SAFE
+				std::unique_lock global_write_lock(global_var_lock);
+#endif // HULASCRIPT_THREAD_SAFE
 				assert(globals.size() == ins.operand);
 				globals.push_back(EVALUATION_STACK.back());
 				EVALUATION_STACK.pop_back();
 				break;
-			case opcode::STORE_GLOBAL:
+			}
+			case opcode::STORE_GLOBAL: {
+#ifdef HULASCRIPT_THREAD_SAFE
+				std::unique_lock global_write_lock(global_var_lock);
+#endif // HULASCRIPT_THREAD_SAFE
 				globals[ins.operand] = EVALUATION_STACK.back();
 				break;
-			case opcode::LOAD_GLOBAL:
+			}
+			case opcode::LOAD_GLOBAL: {
+#ifdef HULASCRIPT_THREAD_SAFE
+				std::shared_lock global_read_lock(global_var_lock);
+#endif // HULASCRIPT_THREAD_SAFE
 				EVALUATION_STACK.push_back(globals[ins.operand]);
 				break;
-
+			}
 			//table operations
 			case opcode::LOAD_TABLE: {
+#ifdef HULASCRIPT_THREAD_SAFE
+				std::shared_lock table_read_lock(table_mem_lock);
+#endif
 				value key = EVALUATION_STACK.back();
 				size_t hash = key.hash<true>();
 				EVALUATION_STACK.pop_back();
@@ -229,6 +267,9 @@ retry_execution:
 				break;
 			}
 			case opcode::STORE_TABLE: {
+#ifdef HULASCRIPT_THREAD_SAFE
+				std::unique_lock table_write_lock(table_mem_lock);
+#endif
 				value set_value = EVALUATION_STACK.back();
 				EVALUATION_STACK.pop_back();
 				value key = EVALUATION_STACK.back();
@@ -264,7 +305,11 @@ retry_execution:
 						if (table.count == table.block.capacity) {
 							temp_gc_exempt.push_back(table_value);
 							temp_gc_exempt.push_back(set_value);
+#ifdef HULASCRIPT_THREAD_SAFE
+							reallocate_table_no_lock(table_id, table.block.capacity, true);
+#else
 							reallocate_table(table_id, table.block.capacity == 0 ? 4 : table.block.capacity * 2, true);
+#endif
 							temp_gc_exempt.pop_back();
 							temp_gc_exempt.pop_back();
 						}
@@ -306,9 +351,12 @@ retry_execution:
 				break;
 			}
 			case opcode::ALLOCATE_MODULE: {
+#ifdef HULASCRIPT_THREAD_SAFE
+
+#endif // HULASCRIPT_THREAD_SAFE
+
 				size_t table_id = allocate_table(static_cast<size_t>(16), true);
-				EVALUATION_STACK.push_back(value(value::vtype::TABLE, value::vflags::TABLE_IS_MODULE, 0, table_id));
-				temp_gc_exempt.push_back(EVALUATION_STACK.back());
+				EVALUATION_STACK.push_back(value(value::vtype::TABLE, value::vflags::TABLE_IS_MODULE | value::vflags::MODULE_IN_CONSTRUCTION, 0, table_id));
 				break;
 			}
 			case opcode::FINALIZE_TABLE: {
@@ -323,6 +371,7 @@ retry_execution:
 						}
 					}
 				}
+				EVALUATION_STACK.back().flags &= ~value::vflags::MODULE_IN_CONSTRUCTION;
 				EVALUATION_STACK.back().flags |= value::vflags::TABLE_IS_FINAL;
 
 				reallocate_table(table_id, tables.at(table_id).count, true);
@@ -496,17 +545,20 @@ retry_execution:
 
 				value call_value = EVALUATION_STACK.back();
 				EVALUATION_STACK.pop_back();
-				switch (call_value.type)
-				{
-				case value::vtype::CLOSURE: {
+
+				if (call_value.type == value::vtype::CLOSURE) {
 					EXTENDED_OFFSETS.push_back(static_cast<operand>(local_count - local_offset));
 					local_offset = local_count;
 					RETURN_STACK.push_back(IP); //push return address
 
 					function_entry& function = functions.at(call_value.function_id);
 					if (call_value.flags & value::vflags::FUNCTION_IS_VARIADIC) {
+#ifdef HULASCRIPT_THREAD_SAFE
+						std::unique_lock table_write_lock(table_mem_lock);
+#endif // HULASCRIPT_THREAD_SAFE
+
 						temp_gc_exempt.push_back(call_value);
-						size_t arg_table_id = allocate_table(ins.operand, true);
+						size_t arg_table_id = allocate_table_no_lock(ins.operand, true);
 						temp_gc_exempt.pop_back();
 						table& arg_table_entry = tables.at(arg_table_id);
 						arg_table_entry.count = ins.operand;
@@ -530,81 +582,71 @@ retry_execution:
 					IP = function.start_address;
 					INS_GOTO_NEW_IP;
 				}
-				case value::vtype::FOREIGN_OBJECT_METHOD: {
-					std::vector<value> arguments(LOCALS.end() - ins.operand, LOCALS.end());
-					LOCALS.erase(LOCALS.end() - ins.operand, LOCALS.end());
-					EVALUATION_STACK.push_back(call_value.data.foreign_object->call_method(call_value.function_id, arguments, *this));
-					break;
-				}
-				case value::vtype::FOREIGN_FUNCTION: {
+				else {
 					std::vector<value> arguments(LOCALS.end() - ins.operand, LOCALS.end());
 					LOCALS.erase(LOCALS.end() - ins.operand, LOCALS.end());
 
-					auto val = foreign_functions[call_value.function_id](arguments, *this);
-					EVALUATION_STACK.push_back(val);
 
-					break;
-				}
-				case value::vtype::INTERNAL_TABLE_GET_ITERATOR: {
-					if (ins.operand != 0) {
-						panic("Array table iterator expects exactly 0 arguments.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
+#ifdef HULASCRIPT_THREAD_SAFE
+					int old_current_thread = current_thread;
+					read_thread_guard.unlock();
+#endif
+					value result;
+					switch (call_value.type) {
+					case value::vtype::FOREIGN_OBJECT_METHOD:
+						result = call_value.data.foreign_object->call_method(call_value.function_id, arguments, *this);
+						break;
+					case value::vtype::FOREIGN_FUNCTION:
+						result = foreign_functions[call_value.function_id](arguments, *this);
+						break; 
+					case value::vtype::INTERNAL_TABLE_GET_ITERATOR:
+						if (ins.operand != 0) {
+							panic("Array table iterator expects exactly 0 arguments.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
+						}
+
+						result = add_foreign_object(std::make_unique<table_iterator>(table_iterator(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), *this)));
+						break;
+					case value::vtype::INTERNAL_TABLE_FILTER:
+						if (ins.operand != 1) {
+							panic("Array filter expects 1 argument, filter function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
+						}
+						result = filter_table(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments.at(0), *this);
+						break;
+					case value::vtype::INTERNAL_TABLE_APPEND: {
+						if (ins.operand != 1) {
+							panic("Array append expects 1 argument, append function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
+						}HulaScript::ffi_table_helper helper(call_value.data.id, call_value.flags, *this);
+						helper.append(arguments.at(0), true);
+						break;
+					}
+					case value::vtype::INTERNAL_TABLE_APPEND_RANGE: {
+						if (ins.operand != 1) {
+							panic("Array append range expects 1 argument, append range function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
+						}
+
+						result = append_range(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments.at(0), *this);
+						break;
+					}
+					case value::vtype::INTERNAL_TABLE_REMOVE: {
+						if (ins.operand != 1) {
+							panic("Array remove expects 1 argument, remove function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
+						}
+
+						HulaScript::ffi_table_helper helper(call_value.data.id, call_value.flags, *this);
+						result = helper.remove(arguments.at(0));
+						break;
+					}
+					default: {
+						call_value.expect_type(value::vtype::CLOSURE, *this);
+						break;
+					}
 					}
 
-					EVALUATION_STACK.push_back(add_foreign_object(std::make_unique<table_iterator>(table_iterator(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), *this))));
-					break;
-				}
-				case value::vtype::INTERNAL_TABLE_FILTER: {
-					if (ins.operand != 1) {
-						panic("Array filter expects 1 argument, filter function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
-					}
-
-					value arguments = LOCALS.back();
-					LOCALS.pop_back();
-
-					EVALUATION_STACK.push_back(filter_table(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments, *this));
-					break;
-				}
-				case value::vtype::INTERNAL_TABLE_APPEND: {
-					if (ins.operand != 1) {
-						panic("Array append expects 1 argument, append function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
-					}
-
-					value argument = LOCALS.back();
-					LOCALS.pop_back();
-					
-					HulaScript::ffi_table_helper helper(call_value.data.id, call_value.flags, *this);
-					helper.append(argument, true);
-					EVALUATION_STACK.push_back(value());
-					break;
-				}
-				case value::vtype::INTERNAL_TABLE_APPEND_RANGE: {
-					if (ins.operand != 1) {
-						panic("Array append range expects 1 argument, append range function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
-					}
-
-					value arguments = LOCALS.back();
-					LOCALS.pop_back();
-
-					EVALUATION_STACK.push_back(append_range(value(value::vtype::TABLE, call_value.flags, 0, call_value.data.id), arguments, *this));
-
-					break;
-				}
-				case value::vtype::INTERNAL_TABLE_REMOVE: {
-					if (ins.operand != 1) {
-						panic("Array remove expects 1 argument, remove function.", ERROR_UNEXPECTED_ARGUMENT_COUNT);
-					}
-
-					value argument = LOCALS.back();
-					LOCALS.pop_back();
-
-					HulaScript::ffi_table_helper helper(call_value.data.id, call_value.flags, *this);
-					EVALUATION_STACK.push_back(helper.remove(argument));
-					break;
-				}
-				default:
-					EVALUATION_STACK.push_back(call_value);
-					expect_type(value::vtype::CLOSURE);
-					break;
+#ifdef HULASCRIPT_THREAD_SAFE
+					read_thread_guard.lock();
+					current_thread = old_current_thread;
+#endif
+					EVALUATION_STACK.push_back(result);
 				}
 				break;
 			}
@@ -628,6 +670,10 @@ retry_execution:
 			case opcode::START_GREENTHREAD:
 				[[fallthrough]];
 			case opcode::START_GREENTHREAD_NO_AWAIT: {
+#ifdef HULASCRIPT_THREAD_SAFE
+				read_thread_guard.unlock();
+				std::unique_lock thread_write_lock(thread_lock);
+#endif
 				execution_context new_thread;
 				std::vector<value> arguments(EVALUATION_STACK.end() - ins.operand, EVALUATION_STACK.end());
 				EVALUATION_STACK.erase(EVALUATION_STACK.end() - ins.operand, EVALUATION_STACK.end());
@@ -638,10 +684,14 @@ retry_execution:
 
 				function_entry& function = functions.at(call_value.function_id);
 				if (call_value.flags & value::vflags::FUNCTION_IS_VARIADIC) {
+#ifdef HULASCRIPT_THREAD_SAFE
+					std::unique_lock table_write_lock(table_mem_lock);
+#endif // HULASCRIPT_THREAD_SAFE
+
 					auto exempt_remove_begin = temp_gc_exempt.size();
 					temp_gc_exempt.push_back(call_value);
 					temp_gc_exempt.insert(temp_gc_exempt.end(), arguments.begin(), arguments.end());
-					new_thread.locals.push_back(make_array(arguments, false, true));
+					new_thread.locals.push_back(make_array_no_lock(arguments, false, true));
 					temp_gc_exempt.erase(temp_gc_exempt.begin() + exempt_remove_begin);
 				}
 				else {
@@ -679,8 +729,16 @@ retry_execution:
 				EVALUATION_STACK.pop_back();
 				
 				IP++;
-				suspended_threads.push_back(std::make_pair(pollster, active_threads.at(current_thread)));
-				active_threads.erase(active_threads.begin() + current_thread);
+
+				{
+#ifdef HULASCRIPT_THREAD_SAFE
+					read_thread_guard.unlock();
+					std::unique_lock table_write_lock(table_mem_lock);
+#endif
+					suspended_threads.push_back(std::make_pair(pollster, active_threads.at(current_thread)));
+					active_threads.erase(active_threads.begin() + current_thread);
+					active_thread_count--;
+				}
 
 				continue;
 			}
@@ -769,6 +827,7 @@ retry_execution:
 #endif
 	}
 	catch (const HulaScript::runtime_error& error) {
+		std::shared_lock read_thread_guard(thread_lock);
 		if (!try_handlers.empty()) {
 			const auto& try_handler = try_handlers.back();
 			if (try_handler.call_depth == call_depth) {
@@ -788,6 +847,7 @@ retry_execution:
 #endif
 			}
 		}
+		call_depth--;
 		throw;
 	}
 	
@@ -806,6 +866,7 @@ void instance::execute_arbitrary(const std::vector<instruction>& arbitrary_ins) 
 	}
 
 	IP = start_ip + 1;
+	int thread_id = this->current_thread;
 	execute();
 
 	for (auto it = ip_src_map.lower_bound(start_ip + 1); it != ip_src_map.end(); it = ip_src_map.erase(it)) { }
@@ -815,6 +876,10 @@ void instance::execute_arbitrary(const std::vector<instruction>& arbitrary_ins) 
 
 #ifdef HULASCRIPT_USE_GREEN_THREADS
 void instance::invoke_value_async(const value to_invoke, const std::vector<value>& arguments, bool allow_collect) {
+#ifdef HULASCRIPT_THREAD_SAFE
+	std::unique_lock thread_write_lock(thread_lock);
+#endif // HULASCRIPT_THREAD_SAFE
+
 	to_invoke.expect_type(value::vtype::CLOSURE, *this);
 
 	execution_context new_thread;

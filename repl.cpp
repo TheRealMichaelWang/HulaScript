@@ -219,7 +219,7 @@ int main()
 					cout << "... ";
 				}
 			}
-			catch (HulaScript::compilation_error& error) {
+			catch (const HulaScript::compilation_error& error) {
 				repl_completer.clear();
 				std::cout << error.to_print_string() << std::endl;
 				std::cout << ">>> ";

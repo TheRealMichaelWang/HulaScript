@@ -48,6 +48,10 @@ void HulaScript::ffi_table_helper::reserve(size_t capacity, bool allow_collect) 
 }
 
 void HulaScript::ffi_table_helper::append(instance::value value, bool allow_collect) {
+#ifdef HULASCRIPT_THREAD_SAFE
+	std::unique_lock table_write_lock(owner_instance.table_mem_lock);
+#endif
+
 	if (flags & instance::value::vflags::TABLE_IS_FINAL) {
 		owner_instance.panic("Cannot add to an immutable table.", ERROR_IMMUTABLE);
 	}
@@ -58,7 +62,12 @@ void HulaScript::ffi_table_helper::append(instance::value value, bool allow_coll
 		if (allow_collect) {
 			owner_instance.temp_gc_exempt.push_back(value);
 		}
+
+#ifdef HULASCRIPT_THREAD_SAFE
+		owner_instance.reallocate_table_no_lock(table_id, table_entry.block.capacity == 0 ? 4 : table_entry.block.capacity * 2, allow_collect);
+#else
 		owner_instance.reallocate_table(table_id, table_entry.block.capacity == 0 ? 4 : table_entry.block.capacity * 2, allow_collect);
+#endif
 		if (allow_collect) {
 			owner_instance.temp_gc_exempt.pop_back();
 		}

@@ -1,5 +1,5 @@
 #include "HulaScript.hpp"
-#include "HulaScript.hpp"
+#include "ffi.hpp"
 
 using namespace HulaScript;
 
@@ -83,7 +83,7 @@ std::optional<instance::value> instance::run_no_warnings(std::string source, std
 #endif
 std::optional<instance::value> instance::run_loaded() {
 	size_t exempt_count = temp_gc_exempt.size();
-	// {
+	try {
 #ifdef HULASCRIPT_USE_GREEN_THREADS
 		active_threads.push_back(0);
 #endif // HULASCRIPT_USE_GREEN_THREADS
@@ -99,15 +99,15 @@ std::optional<instance::value> instance::run_loaded() {
 		}
 		finalize();
 		return std::nullopt;
-	// }
-	//catch (...) {
-	//	//global_vars.erase(global_vars.begin() + globals.size(), global_vars.end());
-	//	//top_level_local_vars.erase(top_level_local_vars.begin() + declared_top_level_locals, top_level_local_vars.end());
-	//	temp_gc_exempt.erase(temp_gc_exempt.begin() + exempt_count, temp_gc_exempt.end());
+	}
+	catch (...) {
+		//global_vars.erase(global_vars.begin() + globals.size(), global_vars.end());
+		//top_level_local_vars.erase(top_level_local_vars.begin() + declared_top_level_locals, top_level_local_vars.end());
+		temp_gc_exempt.erase(temp_gc_exempt.begin() + exempt_count, temp_gc_exempt.end());
 
-	//	finalize();
-	//	throw;
-	//}
+		finalize();
+		throw;
+	}
 }
 
 instance::value instance::load_module_from_source(std::string source, std::string file_name)
@@ -152,6 +152,8 @@ instance::value instance::load_module_from_source(std::string source, std::strin
 		temp_gc_exempt.pop_back();
 
 		ip = old_ip;
+
+
 		return toret;
 	}
 	catch (...) {
@@ -163,31 +165,13 @@ instance::value instance::load_module_from_source(std::string source, std::strin
 }
 
 instance::value instance::invoke_value(value to_call, std::vector<value> arguments) {
-	evaluation_stack.push_back(to_call);
-	evaluation_stack.insert(evaluation_stack.end(), arguments.begin(), arguments.end());
-	
-	std::vector<instruction> ins;
-	ins.push_back({ .operation = opcode::CALL, .operand = static_cast<operand>(arguments.size()) });
-	execute_arbitrary(ins);
-
-	value to_return = evaluation_stack.back();
-	evaluation_stack.pop_back();
-	return to_return;
+	std::vector<value> args;
+	args.push_back(to_call);
+	args.insert(args.end(), arguments.begin(), arguments.end());
+	return execute_arbitrary({ {.operation = opcode::CALL, .operand = static_cast<operand>(arguments.size()) } }, args, true).value();
 }
 
 instance::value instance::invoke_method(value object, std::string method_name, std::vector<value> arguments) {
-	evaluation_stack.push_back(object);
-	evaluation_stack.push_back(value(value::vtype::INTERNAL_STRHASH, 0, 0, Hash::dj2b(method_name.c_str())));
-	std::vector<instruction> ins;
-	ins.push_back({ .operation = opcode::LOAD_TABLE });
-	execute_arbitrary(ins);
-
-	evaluation_stack.insert(evaluation_stack.end(), arguments.begin(), arguments.end());
-	ins.clear();
-	ins.push_back({ .operation = opcode::CALL, .operand = static_cast<operand>(arguments.size()) });
-	execute_arbitrary(ins);
-
-	value to_return = evaluation_stack.back();
-	evaluation_stack.pop_back();
-	return to_return;
+	ffi_table_helper helper(object, *this);
+	return invoke_value(helper.get(method_name), arguments);
 }

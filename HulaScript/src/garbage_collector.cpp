@@ -1,3 +1,5 @@
+#include "HulaScript.hpp"
+#include "HulaScript.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include "HulaScript.hpp"
@@ -25,8 +27,29 @@ instance::gc_block instance::allocate_block(size_t capacity, bool allow_collect)
 }
 
 size_t instance::allocate_table(size_t capacity, bool allow_collect) {
+#ifdef HULASCRIPT_THREAD_SAFE
+	std::unique_lock table_write_lock(table_mem_lock);
+	return allocate_table_no_lock(capacity, allow_collect);
+#else
 	table t(allocate_block(capacity, allow_collect));
+	if (available_table_ids.empty()) {
+		tables.insert({ next_table_id, t });
+		next_table_id++;
+		return next_table_id - 1;
+	}
+	else {
+		size_t id = available_table_ids.back();
+		available_table_ids.pop_back();
+		tables.insert({ id, t });
+		return id;
+	}
+#endif
+}
 
+#ifdef HULASCRIPT_THREAD_SAFE
+size_t HulaScript::instance::allocate_table_no_lock(size_t capacity, bool allow_collect)
+{
+	table t(allocate_block(capacity, allow_collect));
 	if (available_table_ids.empty()) {
 		tables.insert({ next_table_id, t });
 		next_table_id++;
@@ -39,8 +62,36 @@ size_t instance::allocate_table(size_t capacity, bool allow_collect) {
 		return id;
 	}
 }
+#endif
 
 void instance::reallocate_table(size_t table_id, size_t new_capacity, bool allow_collect) {
+#ifdef HULASCRIPT_THREAD_SAFE
+	std::unique_lock table_write_lock(table_mem_lock);
+	reallocate_table_no_lock(table_id, new_capacity, allow_collect);
+#else
+	table& t = tables.at(table_id);
+
+	if (new_capacity > t.block.capacity) {
+		gc_block block = allocate_block(new_capacity, allow_collect);
+		auto start_it = heap.begin() + t.block.start;
+		std::move(start_it, start_it + t.count, heap.begin() + block.start);
+
+		if (block.capacity > 0) {
+			free_blocks.insert({ t.block.capacity, t.block });
+		}
+		t.block = block;
+	}
+	else if (new_capacity < t.block.capacity) {
+		gc_block block = gc_block(t.block.start + new_capacity, t.block.capacity - new_capacity);
+		t.block.capacity = new_capacity;
+		free_blocks.insert({ block.capacity, block });
+	}
+#endif
+}
+
+#ifdef HULASCRIPT_THREAD_SAFE
+void HulaScript::instance::reallocate_table_no_lock(size_t table_id, size_t new_capacity, bool allow_collect)
+{
 	table& t = tables.at(table_id);
 
 	if (new_capacity > t.block.capacity) {
@@ -59,24 +110,41 @@ void instance::reallocate_table(size_t table_id, size_t new_capacity, bool allow
 		free_blocks.insert({ block.capacity, block });
 	}
 }
+#endif
 
 void instance::garbage_collect(bool is_finalizing) noexcept {
 	std::vector<value> values_to_trace;
 	std::vector<uint32_t> functions_to_trace;
+#ifdef HULASCRIPT_THREAD_SAFE
+	std::lock_guard gc_guard(gc_lock);
+#endif
 #ifdef HULASCRIPT_USE_GREEN_THREADS
-	if(!is_finalizing) {
-		phmap::btree_map<size_t, uint32_t> sorted_functions_by_ip;
-		for (auto& function : functions) {
-			sorted_functions_by_ip.insert({ function.second.start_address + function.second.length, function.first });
-		}
-
+	{
+#ifdef HULASCRIPT_THREAD_SAFE
+		std::shared_lock read_thread_guard(thread_lock);
+#endif
 		for (auto& thread : all_threads) {
 			values_to_trace.insert(values_to_trace.end(), thread.evaluation_stack.begin(), thread.evaluation_stack.end());
 			values_to_trace.insert(values_to_trace.end(), thread.locals.begin(), thread.locals.end());
 			if (thread.finished_pollster != NULL) {
 				values_to_trace.push_back(value(thread.finished_pollster));
 			}
+		}
+		for (auto& thread : suspended_threads) {
+			values_to_trace.push_back(value(thread.first));
+		}
+	}
 
+	if(!is_finalizing) {
+#ifdef HULASCRIPT_THREAD_SAFE
+		std::shared_lock read_thread_guard(thread_lock);
+#endif
+		phmap::btree_map<size_t, uint32_t> sorted_functions_by_ip;
+		for (auto& function : functions) {
+			sorted_functions_by_ip.insert({ function.second.start_address + function.second.length, function.first });
+		}
+
+		for (auto& thread : all_threads) {
 			std::vector<size_t> ips_to_trace;
 			ips_to_trace.push_back(thread.ip);
 			ips_to_trace.insert(ips_to_trace.end(), thread.return_stack.begin(), thread.return_stack.end());
@@ -90,9 +158,6 @@ void instance::garbage_collect(bool is_finalizing) noexcept {
 					functions_to_trace.push_back(it->second);
 				}
 			}
-		}
-		for (auto& thread : suspended_threads) {
-			values_to_trace.push_back(value(thread.first));
 		}
 	}
 #else

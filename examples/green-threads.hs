@@ -76,3 +76,14 @@ function test2() no_capture do
 end
 
 test2()
+
+
+# handling exceptions in other greenthreads test
+function test(i) no_capture do
+	x = 9-i
+	return 10/x
+end
+
+for i in irange(10) do
+	test async(i)
+end

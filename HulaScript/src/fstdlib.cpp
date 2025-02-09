@@ -470,7 +470,7 @@ static instance::value standard_number_parser(std::string str, const instance& i
 	try {
 		return instance.parse_rational(str);
 	}
-	catch(const runtime_error& err) {
+	catch(const runtime_error&) {
 		return instance::value(std::stod(str));
 	}
 }
