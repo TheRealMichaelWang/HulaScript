@@ -1,5 +1,4 @@
 #include <sstream>
-#include "error.hpp"
 #include "HulaScript.hpp"
 
 using namespace HulaScript;

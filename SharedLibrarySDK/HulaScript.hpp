@@ -445,7 +445,7 @@ namespace HulaScript {
 		instance::value load_property(size_t name_hash, instance& instance) override {
 			auto it = getters.find(name_hash);
 			if (it == getters.end()) {
-				return dynamic_cast<foreign_method_object<child_type>*>(this)->load_property(name_hash, instance);
+				return foreign_method_object<child_type>::load_property(name_hash, instance);
 			}
 			return (dynamic_cast<child_type*>(this)->*(it->second))(instance);
 		}
