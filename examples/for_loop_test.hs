@@ -67,3 +67,7 @@ end
 for i in irange(10) do
 	print(i)
 end
+
+rand = randomer(0, 10000)
+a = for i in irange(1000) do rand.next() end
+sort(a, function(b, c) no_capture do return b < c end)

@@ -251,27 +251,57 @@ static instance::value parse_number_str(std::vector<instance::value>& arguments,
 	return instance.parse_number(arguments.at(0).str(instance));
 }
 
+static void merge_sort(ffi_table_helper& helper, instance::value& comparator, instance& instance, const size_t start, const size_t length) {
+	if (length <= 1) { //segment already sorted
+		return;
+	}
+
+	const size_t length1 = length / 2;
+	const size_t length2 = length - length1;
+	const size_t start2 = start + length1;
+	merge_sort(helper, comparator, instance, start, length1);
+	merge_sort(helper, comparator, instance, start2, length2);
+
+	size_t i = 0;
+	size_t j = 0;
+
+	std::vector<instance::value> sorted_elems;
+	sorted_elems.reserve(length);
+	while (i < length1 && j < length2) {
+		bool cmp = instance.invoke_value(comparator, {
+			helper.at_index(start + i), helper.at_index(start2 + j)
+		}).boolean(instance);
+
+		if (cmp) { //helper(i) < helper(j)
+			sorted_elems.push_back(helper.at_index(start + i));
+			i++;
+		}
+		else {
+			sorted_elems.push_back(helper.at_index(start2 + j));
+			j++;
+		}
+	}
+	if (i != length) {
+		while (i < length1) {
+			sorted_elems.push_back(helper.at_index(start + i));
+			i++;
+		}
+	}
+
+	if (j == length2) {
+		assert(sorted_elems.size() == length);
+	}
+	for (size_t i = 0; i < sorted_elems.size(); i++)
+	{
+		helper.at_index(start + i) = sorted_elems.at(i);
+	}
+}
+
 static instance::value sort_table(std::vector<instance::value>& arguments, instance& instance) {
 	EXPECT_ARGS(2);
 
-	HulaScript::ffi_table_helper helper(arguments[0], instance);
-	for (size_t i = 0; i < helper.size() - 1; i++) {
-		bool swapped = false;
-		for (size_t j = 0; j < helper.size() - i - 1; j++) {
-			bool cmp = instance.invoke_value(arguments[1], {
-				helper.at_index(j), helper.at_index(j + 1)
-			}).boolean(instance);
-
-			if (!cmp) {
-				helper.swap_index(j, j + 1);
-				swapped = true;
-			}
-		}
-
-		if (!swapped) {
-			break;
-		}
-	}
+	ffi_table_helper helper(arguments[0], instance);
+	merge_sort(helper, arguments.at(1), instance, 0, helper.size());
 
 	return instance::value();
 }
